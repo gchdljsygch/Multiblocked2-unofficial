@@ -8,8 +8,10 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A trait that have recipe handling capability.
@@ -60,7 +62,7 @@ public abstract class RecipeCapabilityTrait implements ITrait,  IEnhancedManaged
     }
 
     public Set<String> getSlotNames() {
-        return Set.of(getDefinition().getSlotNames());
+        return Arrays.stream(getDefinition().getSlotNames()).collect(Collectors.toSet());
     }
 
 }
