@@ -36,6 +36,6 @@ New editor: more powerful, more modern and easier to use. mbd2 helps you work wi
 ### Logic Node Graph
 ![node graph](https://i.ibb.co/7bqL3j6/nodegraph.png "node graph")
 
-Node Graph: The node graph is a brand-new way to configure event logic. You no longer need KubeJS to define complex functionality. If you're a user of Blender or Shader Graph, you're going to love this new feature.
+Node Graph: The node graph is a brand-new way to configure event logic. You no longer need KubeJS to define complex functionality. If you're a user of Blender's Node system, Unreal's Blueprints, or Unity's Shader Graph, you're going to love this new feature.
 
 MBD2 allows you to listen to various machine events through the node graph and set up a wide range of execution logic, giving you immense creative power.
