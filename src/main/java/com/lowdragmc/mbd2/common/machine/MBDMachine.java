@@ -231,7 +231,10 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
         // update sound and renderer
         if (isRemote()) {
-            var sound = definition.stateMachine().getState(newValue).createMachineSound(getPos(), () -> this.machineState.equals(newValue));
+            var sound = definition.stateMachine().getState(newValue).createMachineSound(getPos(), () -> IMachine
+                    .ofMachine(getLevel(), getPos())
+                    .map(m -> m == this && ((MBDMachine) m).machineState.equals(newValue))
+                    .orElse(false));
             if (sound != null) {
                 sound.play();
             }

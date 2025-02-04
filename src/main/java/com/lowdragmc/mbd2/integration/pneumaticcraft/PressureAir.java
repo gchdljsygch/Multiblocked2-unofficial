@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.api.recipe.content.IContentSerializer;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.GsonHelper;
 
@@ -26,6 +28,20 @@ public record PressureAir(boolean isAir, float value) {
             json.addProperty("isAir", content.isAir);
             json.addProperty("value", content.value);
             return json;
+        }
+
+        @Override
+        public Tag toNBT(PressureAir content) {
+            var tag = new CompoundTag();
+            tag.putBoolean("isAir", content.isAir);
+            tag.putFloat("value", content.value);
+            return tag;
+        }
+
+        @Override
+        public PressureAir fromNBT(Tag nbt) {
+            var tag = (CompoundTag) nbt;
+            return new PressureAir(tag.getBoolean("isAir"), tag.getFloat("value"));
         }
 
         @Override
