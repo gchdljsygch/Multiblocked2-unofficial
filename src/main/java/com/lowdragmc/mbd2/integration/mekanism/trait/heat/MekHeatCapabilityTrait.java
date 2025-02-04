@@ -6,10 +6,12 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import lombok.Getter;
 import mekanism.api.heat.IHeatHandler;
@@ -72,6 +74,15 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
             if (!compatibleWith(io)) return left;
             double required = left.stream().reduce(0d, Double::sum);
             var capability = simulate ? container.copy() : container;
+            // check heat condition first
+            for (RecipeCondition condition : recipe.conditions) {
+                if (condition instanceof MekanismHeatCondition heatCondition) {
+                    var temp = capability.getTemperature(0);
+                    if (heatCondition.getMinHeat() > temp || heatCondition.getMaxHeat() < temp) {
+                        return left;
+                    }
+                }
+            }
             if (io == IO.IN) {
                 capability.handleHeat(-required);
             } else if (io == IO.OUT) {

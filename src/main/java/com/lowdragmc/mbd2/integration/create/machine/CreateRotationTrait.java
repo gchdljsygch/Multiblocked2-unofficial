@@ -11,6 +11,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
 import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
+import com.lowdragmc.mbd2.integration.create.CreateRotationCondition;
 import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
 import lombok.Getter;
 import net.minecraft.util.Mth;
@@ -175,7 +176,17 @@ public class CreateRotationTrait implements ITrait {
             if (machine.getHolder() instanceof MBDKineticMachineBlockEntity holder) {
                 float sum = left.stream().reduce(0f, Float::max);
                 if (io == IO.IN && !isGenerator) {
-                    float rpm = Mth.abs(holder.getSpeed());
+                    // check rotation condition first
+                    var rpm = Mth.abs(holder.getSpeed());
+                    var stress = rpm * getImpact();
+                    for (var condition : recipe.conditions) {
+                        if (condition instanceof CreateRotationCondition rotationCondition) {
+                            if (rpm < rotationCondition.getMinRPM() || rpm > rotationCondition.getMaxRPM() ||
+                                    stress < rotationCondition.getMinStress() || stress > rotationCondition.getMaxStress()) {
+                                return left;
+                            }
+                        }
+                    }
                     if (rpm >= sum) {
                         return null;
                     }

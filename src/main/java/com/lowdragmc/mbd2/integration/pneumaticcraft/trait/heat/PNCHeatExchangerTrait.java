@@ -84,6 +84,14 @@ public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
             double required = left.stream().reduce(0d, Double::sum);
             var temp = handler.getTemperature();
             var cap = handler.getThermalCapacity();
+            // check temp condition first
+            for (var condition : recipe.conditions) {
+                if (condition instanceof PNCTemperatureCondition tempCondition) {
+                    if (tempCondition.getMinTemperature() > temp || tempCondition.getMinTemperature() < temp) {
+                        return left;
+                    }
+                }
+            }
             var requiredTemp = required / cap;
             if (io == IO.IN) {
                 if (requiredTemp < temp) {
