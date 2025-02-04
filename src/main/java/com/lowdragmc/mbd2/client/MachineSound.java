@@ -13,12 +13,16 @@ import java.util.function.BooleanSupplier;
 @OnlyIn(Dist.CLIENT)
 public class MachineSound extends AbstractTickableSoundInstance {
 
+    public final boolean loop;
+    public final boolean loopWithShuffle;
     public final BooleanSupplier predicate;
 
-    public MachineSound(SoundEvent soundEvent, SoundSource soundSource, BooleanSupplier predicate, BlockPos pos, boolean loop, int delay, float volume, float pitch) {
+    public MachineSound(SoundEvent soundEvent, SoundSource soundSource, BooleanSupplier predicate, BlockPos pos, boolean loop, boolean loopWithShuffle, int delay, float volume, float pitch) {
         super(soundEvent, soundSource, Minecraft.getInstance().level.random);
         this.predicate = predicate;
-        this.looping = loop;
+        this.loop = loop;
+        this.loopWithShuffle = loopWithShuffle;
+        this.looping = loop && !loopWithShuffle;
         this.delay = delay;
         this.volume = volume;
         this.pitch = pitch;

@@ -1,6 +1,5 @@
 package com.lowdragmc.mbd2.common.machine.definition.config.toggle;
 
-import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.*;
@@ -36,6 +35,8 @@ public class ToggleMachineSound implements IToggleConfigurable {
     private SoundSource soundSource = SoundSource.BLOCKS;
     @Configurable(name = "config.machine_sound.loop", tips = "config.machine_sound.loop.tooltip")
     private boolean loop = true;
+    @Configurable(name = "config.machine_sound.loop_with_shuffle", tips = "config.machine_sound.loop_with_shuffle.tooltip")
+    private boolean loopWithShuffle;
     @Configurable(name = "config.machine_sound.delay", tips = "config.machine_sound.delay.tooltip")
     @NumberRange(range = {0, Integer.MAX_VALUE})
     private int delay = 0;
@@ -58,7 +59,7 @@ public class ToggleMachineSound implements IToggleConfigurable {
 
     @OnlyIn(Dist.CLIENT)
     public MachineSound createMachineSound(BlockPos pos, BooleanSupplier predicate) {
-        return new MachineSound(getSoundEvent(), soundSource, predicate, pos, loop, delay, volume, pitch);
+        return new MachineSound(getSoundEvent(), soundSource, predicate, pos, loop, loopWithShuffle, delay, volume, pitch);
     }
 
     @Override

@@ -223,6 +223,8 @@
     "config.machine_sound.pitch.tooltip": "The pitch of the sound.",
     "config.machine_sound.loop": "Loop",
     "config.machine_sound.loop.tooltip": "Whether the sound loops.",
+    "config.machine_sound.loop_with_shuffle": "Loop With Shuffle",
+    "config.machine_sound.loop_with_shuffle.tooltip": "If ture, the sound will be shuffled based on the weight.",
 
     "config.machine_settings.machine_level": "Machine Level",
     "config.machine_settings.machine_level.tooltip": "The machine level. It can be used for recipe conditions.",

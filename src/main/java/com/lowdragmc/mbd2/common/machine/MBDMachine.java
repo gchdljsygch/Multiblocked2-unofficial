@@ -21,6 +21,7 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
+import com.lowdragmc.mbd2.client.MachineSound;
 import com.lowdragmc.mbd2.common.gui.factory.MachineUIFactory;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigMachineSettings;
@@ -34,6 +35,7 @@ import com.lowdragmc.mbd2.integration.photon.MachineFX;
 import com.lowdragmc.photon.client.fx.FXHelper;
 import lombok.Getter;
 import lombok.Setter;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -121,7 +123,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Persisted
     @DescSynced
     private byte analogOutputSignal = 0;
-
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    private MachineSound currentSound;
 
     public MBDMachine(IMachineBlockEntity machineHolder, MBDMachineDefinition definition, Object... args) {
         this.machineHolder = machineHolder;
@@ -231,13 +235,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
         // update sound and renderer
         if (isRemote()) {
-            var sound = definition.stateMachine().getState(newValue).createMachineSound(getPos(), () -> IMachine
-                    .ofMachine(getLevel(), getPos())
-                    .map(m -> m == this && ((MBDMachine) m).machineState.equals(newValue))
-                    .orElse(false));
-            if (sound != null) {
-                sound.play();
-            }
+            playStateSound(newValue);
             scheduleRenderUpdate();
         }
     }
@@ -585,6 +583,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         for (ITrait trait : additionalTraits) {
             trait.clientTick();
         }
+        if (currentSound != null && currentSound.loop && currentSound.loopWithShuffle &&
+                !Minecraft.getInstance().getSoundManager().isActive(currentSound)) {
+            if (currentSound.predicate.getAsBoolean()) {
+                currentSound.play();
+            } else {
+                currentSound = null;
+            }
+        }
     }
 
     /**
@@ -798,6 +804,27 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    public MachineSound getCurrentSound() {
+        return currentSound;
+    }
+
+    /**
+     * Play the sound by the given state.
+     */
+    @OnlyIn(Dist.CLIENT)
+    public void playStateSound(String state) {
+        if (getDefinition().stateMachine().hasState(state)) {
+            currentSound = definition.stateMachine().getState(state).createMachineSound(getPos(), () -> IMachine
+                    .ofMachine(getLevel(), getPos())
+                    .map(m -> m == this && ((MBDMachine) m).machineState.equals(state))
+                    .orElse(false));
+            if (currentSound != null) {
+                currentSound.play();
+            }
+        }
+    }
 
     public void triggerGeckolibAnim(String animName){
         triggerGeckolibAnim("", animName);
