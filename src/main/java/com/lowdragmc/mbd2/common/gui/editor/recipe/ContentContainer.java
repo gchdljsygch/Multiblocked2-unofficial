@@ -188,7 +188,7 @@ public class ContentContainer extends WidgetGroup {
             if (selected != null) {
                 menu.crossLine();
                 menu.leaf(Icons.COPY, "ldlib.gui.editor.menu.copy", () -> {
-                    var copied = selected.getB().copy(selected.getA(), null);
+                    var copied = selected.getB().deepCopy(selected.getA());
                     contents.computeIfAbsent(selected.getA(), cap -> new ArrayList<>()).add(copied);
                     reloadContents();
                     onContentUpdate.run();

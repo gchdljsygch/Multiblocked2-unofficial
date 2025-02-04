@@ -58,6 +58,10 @@ public class Content {
         }
     }
 
+    public Content deepCopy(RecipeCapability<?> capability) {
+        return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost, slotName, uiName);
+    }
+
     public IGuiTexture createOverlay() {
         return new IGuiTexture() {
             @Override

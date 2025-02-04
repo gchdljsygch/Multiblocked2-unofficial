@@ -6,6 +6,8 @@ import com.lowdragmc.lowdraglib.jei.IngredientIO;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.api.recipe.content.IContentSerializer;
+import io.netty.buffer.Unpooled;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -23,6 +25,16 @@ public abstract class RecipeCapability<T> {
     protected RecipeCapability(String name, IContentSerializer<T> serializer) {
         this.name = name;
         this.serializer = serializer;
+    }
+
+    /**
+     * deep copy of this content from serializer.
+     * it's not recommended to use this method directly, use {@link #copyContent(Object)} instead.
+     */
+    public final T deepCopyContent(Object content) {
+        var buf = new FriendlyByteBuf(Unpooled.buffer());
+        serializer.toNetwork(buf, (T) content);
+        return serializer.fromNetwork(buf);
     }
 
     /**
