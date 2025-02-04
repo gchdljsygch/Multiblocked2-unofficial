@@ -10,19 +10,19 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
-import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
 import lombok.Getter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 
 @Getter
-public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait {
+public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(GTMEnergyCapabilityTrait.class);
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
@@ -64,6 +64,35 @@ public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait {
     @Override
     public List<ICapabilityProviderTrait<?>> getCapabilityProviderTraits() {
         return List.of(energyContainerCap);
+    }
+
+    @Override
+    public @Nullable AutoIO getAutoIO() {
+        return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io == IO.IN) {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(GTCapability.CAPABILITY_ENERGY_CONTAINER, side.getOpposite()).resolve())
+                    .ifPresent(source -> container.changeEnergy(source.removeEnergy(container.getEnergyCanBeInserted())));
+        } else {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(GTCapability.CAPABILITY_ENERGY_CONTAINER, side.getOpposite()).resolve())
+                    .ifPresent(target -> {
+                        var outputVoltage = container.getOutputVoltage();
+                        var outputAmperes = Math.min(container.getEnergyStored() / outputVoltage, container.getOutputAmperage());
+                        if (outputAmperes == 0) return;
+                        long amperesUsed = 0;
+                        if (target.inputsEnergy(side.getOpposite())) {
+                            amperesUsed += target.acceptEnergyFromNetwork(side.getOpposite(), outputVoltage, outputAmperes - amperesUsed);
+                        }
+                        if (amperesUsed > 0) {
+                            container.setEnergyStored(container.getEnergyStored() - amperesUsed * outputVoltage);
+                        }
+                    });
+        }
     }
 
     public class EnergyRecipeHandler extends RecipeHandlerTrait<Long> {

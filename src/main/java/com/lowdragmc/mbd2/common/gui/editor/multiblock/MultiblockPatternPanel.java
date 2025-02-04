@@ -177,7 +177,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
         @Override
         public void buildConfigurator(ConfiguratorGroup father) {
             var placeholders =  selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
-            var intersection = new ArrayList<>(placeholders.get(0).getPredicates());
+            var intersection = new LinkedList<>(placeholders.get(0).getPredicates());
             Runnable notifyUpdate = () -> placeholders.forEach(holder -> {
                 var predicates = holder.getPredicates();
                 predicates.clear();
@@ -232,6 +232,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
                 intersection.addAll(values);
                 notifyUpdate.run();
             });
+            predicatesConfigurator.setOnReorder((index, value) -> {});
             father.addConfigurators(predicatesConfigurator);
         }
     }

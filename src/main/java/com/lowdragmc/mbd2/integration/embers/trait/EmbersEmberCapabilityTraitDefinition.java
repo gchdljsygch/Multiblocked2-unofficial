@@ -15,6 +15,7 @@ import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import com.rekindled.embers.RegistryManager;
@@ -29,7 +30,9 @@ public class EmbersEmberCapabilityTraitDefinition extends SimpleCapabilityTraitD
     @Configurable(name = "config.definition.trait.embers_ember_capability.capacity")
     @NumberRange(range = {1, Double.MAX_VALUE})
     private double capacity = 5000;
-
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.embers_ember_capability.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.embers_ember_capability.fancy_renderer", subConfigurable = true,
             tips = "config.definition.trait.embers_ember_capability.fancy_renderer.tooltip")
     private final EmbersEmberFancyRendererSettings fancyRendererSettings = new EmbersEmberFancyRendererSettings(this);

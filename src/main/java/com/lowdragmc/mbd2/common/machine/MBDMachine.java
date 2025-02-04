@@ -446,12 +446,16 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         var event = new MachineTickEvent(this).postCustomEvent();
         MinecraftForge.EVENT_BUS.post(event);
         if (!event.isCanceled()) {
-            if (runRecipeLogic()) {
-                recipeLogic.serverTick();
-            }
-            for (ITrait trait : additionalTraits) {
-                trait.serverTick();
-            }
+            internalServerTick();
+        }
+    }
+
+    protected void internalServerTick() {
+        if (runRecipeLogic()) {
+            recipeLogic.serverTick();
+        }
+        for (ITrait trait : additionalTraits) {
+            trait.serverTick();
         }
     }
 

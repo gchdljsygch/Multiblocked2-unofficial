@@ -8,10 +8,9 @@ import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
-import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.*;
 import lombok.Getter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -19,9 +18,10 @@ import net.minecraftforge.energy.IEnergyStorage;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 
 @Getter
-public class ForgeEnergyCapabilityTrait extends SimpleCapabilityTrait {
+public class ForgeEnergyCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ForgeEnergyCapabilityTrait.class);
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
@@ -60,6 +60,30 @@ public class ForgeEnergyCapabilityTrait extends SimpleCapabilityTrait {
     @Override
     public List<ICapabilityProviderTrait<?>> getCapabilityProviderTraits() {
         return List.of(energyStorageCap);
+    }
+
+    @Override
+    public @Nullable AutoIO getAutoIO() {
+        return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io == IO.IN) {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(ForgeCapabilities.ENERGY, side.getOpposite()).resolve())
+                    .ifPresent(source -> source.extractEnergy(
+                            storage.receiveEnergy(source.extractEnergy(getDefinition().getMaxReceive(), true),
+                                    false),
+                            false));
+        } else {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(ForgeCapabilities.ENERGY, side.getOpposite()).resolve())
+                    .ifPresent(target -> target.receiveEnergy(
+                            storage.extractEnergy(target.receiveEnergy(getDefinition().getMaxExtract(), true),
+                                    false),
+                            false));
+        }
     }
 
     public class ForgeEnergyRecipeHandler extends RecipeHandlerTrait<Integer> {

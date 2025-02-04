@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.integration.mekanism.trait.chemical;
 
+import com.google.common.base.Predicates;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
@@ -8,6 +9,8 @@ import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.trait.AutoIO;
+import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import lombok.Setter;
@@ -25,14 +28,20 @@ import mekanism.api.chemical.pigment.PigmentStack;
 import mekanism.api.chemical.slurry.ISlurryHandler;
 import mekanism.api.chemical.slurry.SlurryStack;
 import mekanism.common.capabilities.Capabilities;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 
-public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>, HANDLER extends IChemicalHandler<CHEMICAL, STACK>> extends SimpleCapabilityTrait implements IRecipeHandlerTrait<STACK>, ICapabilityProviderTrait<HANDLER> {
+public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>, HANDLER extends IChemicalHandler<CHEMICAL, STACK>> extends SimpleCapabilityTrait implements IRecipeHandlerTrait<STACK>, ICapabilityProviderTrait<HANDLER>, IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ChemicalTankCapabilityTrait.class);
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
@@ -60,6 +69,88 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
             var stack = getDefinition().recipeCapability.createDefaultContent();
             stack.setAmount(getDefinition().getCapacity() / 2);
             storages[0].setStackUnchecked(stack);
+        }
+    }
+
+    @Override
+    public @Nullable AutoIO getAutoIO() {
+        return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io == IO.IN) {
+            importToTarget(mergeContents(storages), Long.MAX_VALUE,
+                    getDefinition().getChemicalFilterSettings().isEnable() ? stack -> getDefinition().getChemicalFilterSettings().test(stack.getType()) : Predicates.alwaysTrue(),
+                    getMachine().getLevel(), port.relative(side), side.getOpposite());
+        } else if (io == IO.OUT) {
+            exportToTarget(mergeContents(storages), Long.MAX_VALUE, Predicates.alwaysTrue(),
+                    getMachine().getLevel(), port.relative(side), side.getOpposite());
+        }
+    }
+
+    public abstract HANDLER mergeContents(ChemicalStorage<CHEMICAL,STACK>[] storages);
+
+    public void exportToTarget(HANDLER source, long maxAmount, Predicate<STACK> filter, Level level, BlockPos pos, @Nullable Direction direction) {
+        BlockState state = level.getBlockState(pos);
+        if (state.hasBlockEntity()) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity != null) {
+                var cap = blockEntity.getCapability(getCapability(), direction).resolve();
+                if (cap.isPresent()) {
+                    var target = (HANDLER) cap.get();
+                    for (int srcIndex = 0; srcIndex < source.getTanks(); srcIndex++) {
+                        var currentChemical = source.getChemicalInTank(srcIndex);
+                        if (currentChemical.isEmpty() || !filter.test(currentChemical)) {
+                            continue;
+                        }
+
+                        var toDrain = (STACK) currentChemical.copy();
+                        toDrain.setAmount(maxAmount);
+                        var extracted = source.extractChemical(toDrain, Action.SIMULATE);
+                        var filled = extracted.getAmount() - target.insertChemical(extracted, Action.SIMULATE).getAmount();
+                        if (filled > 0) {
+                            maxAmount -= filled;
+                            toDrain = (STACK) currentChemical.copy();
+                            toDrain.setAmount(filled);
+                            target.insertChemical(source.extractChemical(toDrain, Action.EXECUTE), Action.EXECUTE);
+                        }
+                        if (maxAmount <= 0) return;
+                    }
+                }
+            }
+        }
+    }
+
+    public void importToTarget(HANDLER target, long maxAmount, Predicate<STACK> filter, Level level, BlockPos pos, @Nullable Direction direction) {
+        BlockState state = level.getBlockState(pos);
+        if (state.hasBlockEntity()) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity != null) {
+                var cap = blockEntity.getCapability(getCapability(), direction).resolve();
+                if (cap.isPresent()) {
+                    var source = (HANDLER) cap.get();
+                    for (int srcIndex = 0; srcIndex < source.getTanks(); srcIndex++) {
+                        var currentChemical = source.getChemicalInTank(srcIndex);
+                        if (currentChemical.isEmpty() || !filter.test(currentChemical)) {
+                            continue;
+                        }
+
+                        var toDrain = (STACK) currentChemical.copy();
+                        toDrain.setAmount(maxAmount);
+
+                        var extracted = source.extractChemical(toDrain, Action.SIMULATE);
+                        var filled = extracted.getAmount() - target.insertChemical(extracted, Action.SIMULATE).getAmount();
+                        if (filled > 0) {
+                            maxAmount -= filled;
+                            toDrain = (STACK) currentChemical.copy();
+                            toDrain.setAmount(filled);
+                            target.insertChemical(source.extractChemical(toDrain, Action.EXECUTE), Action.EXECUTE);
+                        }
+                        if (maxAmount <= 0) return;
+                    }
+                }
+            }
         }
     }
 
@@ -167,6 +258,11 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
         }
 
         @Override
+        public IGasHandler mergeContents(ChemicalStorage<mekanism.api.chemical.gas.Gas, GasStack>[] storages) {
+            return new ChemicalHandlerList.Gas(storages);
+        }
+
+        @Override
         public ChemicalStorage<mekanism.api.chemical.gas.Gas, GasStack> createStorage() {
             return new ChemicalStorage.Gas(getDefinition().getCapacity(), chemical -> getDefinition().getChemicalFilterSettings().test(chemical), null);
         }
@@ -190,6 +286,11 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
     public static class Infuse extends ChemicalTankCapabilityTrait<InfuseType, InfusionStack, IInfusionHandler> {
         public Infuse(MBDMachine machine, ChemicalTankCapabilityTraitDefinition<InfuseType, InfusionStack> definition) {
             super(machine, definition);
+        }
+
+        @Override
+        public IInfusionHandler mergeContents(ChemicalStorage<InfuseType, InfusionStack>[] storages) {
+            return new ChemicalHandlerList.Infuse(storages);
         }
 
         @Override
@@ -219,6 +320,11 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
         }
 
         @Override
+        public IPigmentHandler mergeContents(ChemicalStorage<mekanism.api.chemical.pigment.Pigment, PigmentStack>[] storages) {
+            return new ChemicalHandlerList.Pigment(storages);
+        }
+
+        @Override
         public ChemicalStorage<mekanism.api.chemical.pigment.Pigment, PigmentStack> createStorage() {
             return new ChemicalStorage.Pigment(getDefinition().getCapacity(), chemical -> getDefinition().getChemicalFilterSettings().test(chemical), null);
         }
@@ -242,6 +348,11 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
     public static class Slurry extends ChemicalTankCapabilityTrait<mekanism.api.chemical.slurry.Slurry, SlurryStack, ISlurryHandler> {
         public Slurry(MBDMachine machine, ChemicalTankCapabilityTraitDefinition<mekanism.api.chemical.slurry.Slurry, SlurryStack> definition) {
             super(machine, definition);
+        }
+
+        @Override
+        public ISlurryHandler mergeContents(ChemicalStorage<mekanism.api.chemical.slurry.Slurry, SlurryStack>[] storages) {
+            return new ChemicalHandlerList.Slurry(storages);
         }
 
         @Override

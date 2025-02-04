@@ -357,6 +357,12 @@
     "config.definition.trait.capability_io.right": "right",
     "config.definition.trait.capability_io.top": "top",
     "config.definition.trait.capability_io.bottom": "bottom",
+    "config.definition.trait.auto_io": "Auto IO",
+    "config.definition.trait.auto_io.tooltip": "Apply auto io if the trait support it. (e.g. item, fluid, forge energy, etc.)",
+    "config.definition.trait.auto_io.interval": "interval",
+    "config.definition.trait.auto_io.interval.tooltip": "The interval between each auto IO action in tick.",
+    "config.definition.trait.auto_io.amount": "amount",
+    "config.definition.trait.auto_io.amount.tooltip": "The amount of the auto IO action. (e.g. how many stacks / how much fluid amount can be processed per action.)",
     "config.definition.trait.recipe_handler": "Recipe Handler IO",
     "config.definition.trait.recipe_handler.tooltip": "Whether this trait is considered an input or an output in recipe handling",
     "config.definition.trait.gui_io": "GUI IO",
@@ -390,6 +396,7 @@
     "config.definition.trait.item_slot.fancy_renderer.tooltip": "Allow you render stored item in the world. (e.g. drawer, pedestal.)",
     "config.definition.trait.item_slot.filter": "Filter",
     "config.definition.trait.item_slot.filter.tooltip": "The item filter of the slot.",
+    "config.definition.trait.item_slot.auto_io.tooltip": "Auto extract from the nearby inventory or drop to the nearby inventory.",
     "config.definition.trait.item_slot.auto_io.input": "Auto Suck",
     "config.definition.trait.item_slot.auto_io.input.tooltip": "auto suck items from the world.",
     "config.definition.trait.item_slot.auto_io.output": "Auto Drop",
@@ -413,6 +420,7 @@
     "config.definition.trait.fluid_tank.fancy_renderer.tooltip.1": "(it can only show the fluid in the first tank)",
     "config.definition.trait.fluid_tank.filter": "Filter",
     "config.definition.trait.fluid_tank.filter.tooltip": "The fluid filter of the tank.",
+    "config.definition.trait.fluid_tank.auto_io.tooltip": "Auto drain from the nearby tank or fill to the nearby tank.",
 
     "config.definition.trait.forge_energy_storage.name": "Forge Energy Storage",
     "config.definition.trait.forge_energy_storage.capacity": "Capacity",
@@ -421,6 +429,7 @@
     "config.definition.trait.forge_energy_storage.max_extract": "Max Extract",
     "config.definition.trait.forge_energy_storage.max_extract.tooltip": "Max extracted energy per action.",
     "config.definition.trait.forge_energy_storage.ui_container_hover": "Stored: %d / %d FE",
+    "config.definition.trait.forge_energy_storage.auto_io.tooltip": "Auto extract from the nearby energy storage or fill to the nearby energy storage.",
     "config.definition.trait.forge_energy_storage.fancy_renderer": "Fancy Forge Storage Renderer",
     "config.definition.trait.forge_energy_storage.fancy_renderer.tooltip": "Allow you render stored energy in the world. (e.g. Energy Container).",
 
@@ -434,6 +443,7 @@
     "config.definition.trait.botania_mana_storage.can_attach_spark": "Can Attach Spark",
     "config.definition.trait.botania_mana_storage.can_attach_spark.tooltip": "Only the first trait will be able to attach a spark.",
     "config.definition.trait.botania_mana_storage.ui_container_hover": "Stored: %d / %d Mana",
+    "config.definition.trait.botania_mana_storage.auto_io.tooltip": "Auto extract from the nearby mana storage or fill to the nearby mana storage.",
     "config.definition.trait.botania_mana_storage.fancy_renderer": "Fancy Botania Mana Renderer",
     "config.definition.trait.botania_mana_storage.fancy_renderer.tooltip": "Allow you render stored mana in the world. (e.g. Mana Storage).",
 
@@ -464,6 +474,7 @@
     "config.definition.trait.embers_ember_capability.name": "Embers ember capability",
     "config.definition.trait.embers_ember_capability.capacity": "Capacity",
     "config.definition.trait.embers_ember_capability.ui_container_hover": "Stored: %d / %d ember",
+    "config.definition.trait.embers_ember_capability.auto_io.tooltip": "Auto extract from the nearby ember storage or fill to the nearby ember storage.",
     "config.definition.trait.embers_ember_capability.fancy_renderer": "Embers Ember Storage Renderer",
     "config.definition.trait.embers_ember_capability.fancy_renderer.tooltip": "Allow you render stored energy in the world. (e.g. Energy Container).",
 
@@ -480,6 +491,7 @@
     "config.definition.trait.gtm_energy_container.output_amperage": "Output amperage",
     "config.definition.trait.gtm_energy_container.output_amperage.tooltip": "If its capability io is IN or BOTH, Max output eu (voltage * amp) per tick.",
     "config.definition.trait.gtm_energy_container.ui_container_hover": "Stored: %d / %d eu",
+    "config.definition.trait.gtm_energy_container.auto_io.tooltip": "Auto extract from the nearby energy storage or fill to the nearby energy storage.",
     "config.definition.trait.gtm_energy_container.fancy_renderer": "Fancy GTM Energy Container Renderer",
     "config.definition.trait.gtm_energy_container.fancy_renderer.tooltip": "Allow you render stored energy in the world. (e.g. Energy Container).",
 

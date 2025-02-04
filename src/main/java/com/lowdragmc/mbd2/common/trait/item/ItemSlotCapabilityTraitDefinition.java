@@ -20,8 +20,10 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.gui.editor.machine.MachineTraitPanel;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.trait.AutoIO;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -54,7 +56,7 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
     @Configurable(name = "config.definition.trait.item_slot.filter", subConfigurable = true, tips = "config.definition.trait.item_slot.filter.tooltip")
     private final ItemFilterSettings itemFilterSettings = new ItemFilterSettings();
     @Setter @Getter
-    public static class AutoIO implements IToggleConfigurable {
+    public static class AutoWorldIO implements IToggleConfigurable {
         @Persisted
         public boolean enable;
         @Configurable(name = "config.definition.trait.item_slot.auto_io.range", tips = "config.definition.trait.item_slot.auto_io.range.tooltip")
@@ -74,10 +76,12 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
             return (direction == Direction.NORTH || direction == null) ? range : this.rangeCache.computeIfAbsent(direction, dir -> ShapeUtils.rotate(range, dir));
         }
     }
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.item_slot.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.item_slot.auto_io.input", subConfigurable = true, tips = "config.definition.trait.item_slot.auto_io.input.tooltip")
-    private final AutoIO autoInput = new AutoIO();
+    private final AutoWorldIO autoInput = new AutoWorldIO();
     @Configurable(name = "config.definition.trait.item_slot.auto_io.output", subConfigurable = true, tips = "config.definition.trait.item_slot.auto_io.output.tooltip")
-    private final AutoIO autoOutput = new AutoIO();
+    private final AutoWorldIO autoOutput = new AutoWorldIO();
     @Configurable(name = "config.definition.trait.item_slot.fancy_renderer", subConfigurable = true, tips = "config.definition.trait.item_slot.fancy_renderer.tooltip")
     private final ItemFancyRendererSettings itemRendererSettings = new ItemFancyRendererSettings(this);
 

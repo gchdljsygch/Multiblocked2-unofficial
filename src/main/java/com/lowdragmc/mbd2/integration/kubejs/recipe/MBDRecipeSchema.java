@@ -138,7 +138,7 @@ public interface MBDRecipeSchema {
             var lastChance = this.chance;
             this.chance = chance;
             builder.accept(this);
-            this.chance = chance;
+            this.chance = lastChance;
             return this;
         }
 

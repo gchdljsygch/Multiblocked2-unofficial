@@ -7,24 +7,21 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
-import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
 import vazkii.botania.api.BotaniaForgeCapabilities;
 import vazkii.botania.api.mana.ManaPool;
 import vazkii.botania.api.mana.ManaReceiver;
-import vazkii.botania.api.mana.spark.ManaSpark;
 import vazkii.botania.api.mana.spark.SparkAttachable;
-import vazkii.botania.common.block.BotaniaBlocks;
 
 import java.util.List;
+import java.util.Optional;
 
-public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait {
+public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BotaniaManaCapabilityTrait.class);
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
@@ -64,6 +61,34 @@ public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait {
     @Override
     public List<ICapabilityProviderTrait<?>> getCapabilityProviderTraits() {
         return List.of(manaReceiverCap, sparkAttachableCap);
+    }
+
+    @Override
+    public @Nullable AutoIO getAutoIO() {
+        return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io == IO.IN) {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(BotaniaForgeCapabilities.MANA_RECEIVER, side.getOpposite()).resolve())
+                    .ifPresent(source -> {
+                        var available = source.getCurrentMana();
+                        var cost = Math.min(available, storage.getMaxMana() - storage.getCurrentMana());
+                        storage.receiveMana(cost);
+                        source.receiveMana(-cost);
+                    });
+        } else {
+            Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
+                    .flatMap(be -> be.getCapability(BotaniaForgeCapabilities.MANA_RECEIVER, side.getOpposite()).resolve())
+                    .ifPresent(target -> {
+                        var available = storage.getCurrentMana();
+                        var cost = target instanceof ManaPool pool ? Math.min(available,  pool.getMaxMana() - pool.getCurrentMana()) : available;
+                        storage.receiveMana(-cost);
+                        target.receiveMana(cost);
+                    });
+        }
     }
 
     public class ManaRecipeHandler extends RecipeHandlerTrait<Integer> {

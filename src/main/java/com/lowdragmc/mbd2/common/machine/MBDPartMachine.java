@@ -12,6 +12,7 @@ import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigPartSettings;
+import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import lombok.Getter;
@@ -207,6 +208,31 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
             return !getDefinition().partSettings().recipeModifiers().recipeModifiers.isEmpty();
         }
         return false;
+    }
+
+    @Override
+    public void internalServerTick() {
+        super.internalServerTick();
+        for (var proxy : Objects.requireNonNull(getDefinition().partSettings()).proxyControllerCapabilities()) {
+            if (proxy.autoIO().isEnable()) {
+                var front = getFrontFacing().orElse(Direction.NORTH);
+                var pos = getPos();
+                for (var controller : getControllers()) {
+                    if (controller instanceof MBDMultiblockMachine proxyController) {
+                        for (var trait : proxyController.getAdditionalTraits()) {
+                            if (trait instanceof IAutoIOTrait autoIOTrait && trait.getDefinition().getName().contains(proxy.traitNameFilter())) {
+                                for (var side : Direction.values()) {
+                                    var io =  proxy.autoIO().getIO(front, side);
+                                    if (io != IO.NONE) {
+                                        autoIOTrait.handleAutoIO(pos, side, io);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override

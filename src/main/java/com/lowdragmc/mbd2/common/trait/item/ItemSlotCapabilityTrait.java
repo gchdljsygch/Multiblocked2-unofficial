@@ -1,6 +1,10 @@
 package com.lowdragmc.mbd2.common.trait.item;
 
+import com.google.common.base.Predicates;
 import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
+import com.lowdragmc.lowdraglib.misc.ItemTransferList;
+import com.lowdragmc.lowdraglib.side.item.ItemTransferHelper;
+import com.lowdragmc.lowdraglib.side.item.forge.ItemTransferHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
@@ -10,9 +14,8 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemDurabilityRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
-import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.*;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
@@ -28,7 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait {
+public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ItemSlotCapabilityTrait.class);
     private final Random random = new Random();
     @Override
@@ -122,8 +125,15 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait {
     //////////////////////////////////////
     //********     AUTO IO     *********//
     //////////////////////////////////////
+
+    @Override
+    public @Nullable AutoIO getAutoIO() {
+        return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
+    }
+
     @Override
     public void serverTick() {
+        IAutoIOTrait.super.serverTick();
         var timer = getMachine().getOffsetTimer();
         var autoInput = getDefinition().getAutoInput();
         var autoOutput = getDefinition().getAutoOutput();
@@ -176,6 +186,18 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait {
                 itemEntity.setDefaultPickUpDelay();
                 level.addFreshEntity(itemEntity);
             }
+        }
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io == IO.IN) {
+            ItemTransferHelperImpl.importToTarget(new ItemTransferList(storage), Integer.MAX_VALUE,
+                    getDefinition().getItemFilterSettings().isEnable() ? getDefinition().getItemFilterSettings() : Predicates.alwaysTrue(),
+                    getMachine().getLevel(), port.relative(side), side.getOpposite());
+        } else if (io == IO.OUT) {
+            ItemTransferHelperImpl.exportToTarget(new ItemTransferList(storage), Integer.MAX_VALUE, Predicates.alwaysTrue(),
+                    getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
     }
 

@@ -15,6 +15,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
@@ -34,6 +35,9 @@ public class BotaniaManaCapabilityTraitDefinition extends SimpleCapabilityTraitD
     @Configurable(name = "config.definition.trait.botania_mana_storage.can_attach_spark",
             tips = "config.definition.trait.botania_mana_storage.can_attach_spark.tooltip")
     private boolean canAttachSpark = true;
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.botania_mana_storage.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.botania_mana_storage.fancy_renderer", subConfigurable = true,
             tips = "config.definition.trait.botania_mana_storage.fancy_renderer.tooltip")
     private final BotaniaManaFancyRendererSettings fancyRendererSettings = new BotaniaManaFancyRendererSettings(this);

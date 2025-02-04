@@ -14,6 +14,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.BucketItem;
@@ -276,11 +277,13 @@ public class BlockPattern {
 
                             // check inventory
                             ItemStack found = null;
+                            int foundSlot = -1;
                             if (!player.isCreative()) {
-                                for (ItemStack itemStack : player.getInventory().items) {
+                                for (int i = 0; i < player.getInventory().items.size(); i++) {
+                                    ItemStack itemStack = player.getInventory().items.get(i);
                                     if (candidates.stream().anyMatch(candidate -> ItemStack.isSameItemSameTags(candidate, itemStack)) && !itemStack.isEmpty() && (itemStack.getItem() instanceof BlockItem || itemStack.getItem() instanceof BucketItem)) {
                                         found = itemStack.copy();
-                                        itemStack.setCount(itemStack.getCount() - 1);
+                                        foundSlot = i;
                                         break;
                                     }
                                 }
@@ -294,11 +297,16 @@ public class BlockPattern {
                                 }
                             }
                             if (found == null) continue;
+                            boolean placed = false;
                             if (found.getItem() instanceof BlockItem itemBlock) {
                                 BlockPlaceContext context = new BlockPlaceContext(world, player, InteractionHand.MAIN_HAND, found, BlockHitResult.miss(player.getEyePosition(0), Direction.UP, pos));
-                                itemBlock.place(context);
+                                InteractionResult interactionResult = itemBlock.place(context);
+                                placed = interactionResult != InteractionResult.FAIL;
                             } else if (found.getItem() instanceof BucketItem itemBucket) {
-                                itemBucket.emptyContents(player, world, pos, null, null);
+                                placed = itemBucket.emptyContents(player, world, pos, null, null);
+                            }
+                            if (placed && foundSlot >= 0) {
+                                player.getInventory().getItem(foundSlot).shrink(1);
                             }
                             var machineOptional = IMachine.ofMachine(world, pos);
                             if (machineOptional.isPresent()) {

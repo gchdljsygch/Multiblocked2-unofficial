@@ -18,6 +18,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -43,6 +44,9 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
     @Getter
     @Configurable(name = "config.definition.trait.fluid_tank.filter", subConfigurable = true, tips = "config.definition.trait.fluid_tank.filter.tooltip")
     private final FluidFilterSettings fluidFilterSettings = new FluidFilterSettings();
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.fluid_tank.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.fluid_tank.fancy_renderer", subConfigurable = true,
             tips = {"config.definition.trait.fluid_tank.fancy_renderer.tooltip.0", "config.definition.trait.fluid_tank.fancy_renderer.tooltip.1"})
     private final FluidFancyRendererSettings fancyRendererSettings = new FluidFancyRendererSettings(this);

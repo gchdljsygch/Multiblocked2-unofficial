@@ -36,6 +36,6 @@ public class SinglePredicateError extends PatternError {
         if (type == 3) {
             number = predicate.minLayerCount;
         }
-        return Component.translatable("MBD2.multiblock.pattern.error.limited." + type, number);
+        return Component.translatable("mbd2.multiblock.pattern.error.limited." + type, number);
     }
 }

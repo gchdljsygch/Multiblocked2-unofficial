@@ -329,7 +329,7 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     public MBDMachine createMachine(IMachineBlockEntity blockEntity) {
-        return (partSettings != null && partSettings.canShare()) ? new MBDPartMachine(blockEntity, this) : new MBDMachine(blockEntity, this);
+        return partSettings != null ? new MBDPartMachine(blockEntity, this) : new MBDMachine(blockEntity, this);
     }
 
     @OnlyIn(Dist.CLIENT)

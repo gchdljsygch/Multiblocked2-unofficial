@@ -16,6 +16,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -41,6 +42,9 @@ public class ForgeEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitD
     @Configurable(name = "config.definition.trait.forge_energy_storage.max_extract", tips = "config.definition.trait.forge_energy_storage.max_extract.tooltip")
     @NumberRange(range = {0, Integer.MAX_VALUE})
     private int maxExtract = 5000;
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.forge_energy_storage.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.forge_energy_storage.fancy_renderer", subConfigurable = true,
             tips = "config.definition.trait.forge_energy_storage.fancy_renderer.tooltip")
     private final ForgeEnergyFancyRendererSettings fancyRendererSettings = new ForgeEnergyFancyRendererSettings(this);

@@ -15,6 +15,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
@@ -52,7 +53,9 @@ public class GTMEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitDef
     @Configurable(name = "config.definition.trait.gtm_energy_container.output_amperage", tips = "config.definition.trait.gtm_energy_container.output_amperage.tooltip")
     @NumberRange(range = {0, Long.MAX_VALUE})
     private long outputAmperage = 1;
-
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.gtm_energy_container.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
     @Configurable(name = "config.definition.trait.gtm_energy_container.fancy_renderer", subConfigurable = true,
             tips = "config.definition.trait.gtm_energy_container.fancy_renderer.tooltip")
     private final GTMEnergyFancyRendererSettings fancyRendererSettings = new GTMEnergyFancyRendererSettings(this);

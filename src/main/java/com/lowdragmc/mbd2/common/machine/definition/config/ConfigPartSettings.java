@@ -10,7 +10,8 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import com.lowdragmc.mbd2.common.gui.editor.MachineProject;
 import com.lowdragmc.mbd2.common.gui.editor.machine.MachineConfigPanel;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.CapabilityIO;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -124,6 +125,9 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
         private String traitNameFilter;
         @Configurable(name = "config.definition.trait.capability_io", subConfigurable = true,
                 tips = {"config.definition.trait.capability_io.tooltip.0", "config.definition.trait.capability_io.tooltip.1"})
-        private final SimpleCapabilityTraitDefinition.CapabilityIO capabilityIO = new SimpleCapabilityTraitDefinition.CapabilityIO();
+        private final CapabilityIO capabilityIO = new CapabilityIO();
+        @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true,
+                tips = {"config.definition.trait.auto_io.tooltip.0", "config.definition.trait.auto_io.tooltip.1"})
+        private final ToggleAutoIO autoIO = new ToggleAutoIO();
     }
 }

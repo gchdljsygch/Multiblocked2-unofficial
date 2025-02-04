@@ -22,7 +22,7 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
     @Getter
     protected final PredicateResource predicateResource;
     @Getter
-    protected Set<String> predicates = new HashSet<>();
+    protected Set<String> predicates = new LinkedHashSet<>();
     @Getter
     @Setter
     protected boolean isController;
