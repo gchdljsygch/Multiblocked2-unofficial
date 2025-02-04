@@ -70,7 +70,7 @@ public class TraitUIFloatView extends FloatViewWidget {
             });
             // add fuel bar
             addButton(new ImageWidget(0, 0, 18, 18, new ProgressTexture()), () -> "editor.machine.recipe_type_ui_view.fuel_progress", () -> {
-                if (WidgetUtils.getFirstWidgetById(project.getUi(), "ui:fuel_bar") == null) {
+                if (WidgetUtils.getFirstWidgetById(project.getUi(), "^ui:fuel_bar$") == null) {
                     var progress = new ProgressWidget(ProgressWidget.JEIProgress, 5, 5, 18, 18, new ProgressTexture());
                     progress.setId("ui:fuel_bar");
                     project.getUi().addWidget(progress);
@@ -80,7 +80,7 @@ public class TraitUIFloatView extends FloatViewWidget {
             addButton(new ButtonWidget(0, 0, 18, 18,
                     new GuiTextureGroup(ResourceBorderTexture.BUTTON_COMMON, new TextTexture("XEI").scale(0.8f)), null),
                     () -> "editor.machine.recipe_type_ui_view.xei_lookup", () -> {
-                        if (WidgetUtils.getFirstWidgetById(project.getUi(), "ui:xei_lookup") == null) {
+                        if (WidgetUtils.getFirstWidgetById(project.getUi(), "^ui:xei_lookup$") == null) {
                             var button = new ButtonWidget(5, 5, 18, 18,
                                     new GuiTextureGroup(ResourceBorderTexture.BUTTON_COMMON, new TextTexture("XEI").scale(0.8f)), null);
                             button.setId("ui:xei_lookup");

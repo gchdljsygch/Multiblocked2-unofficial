@@ -373,11 +373,11 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     //////////////////////////////////////
 
     public void bindXEIRecipeUI(WidgetGroup ui, MBDRecipe recipe) {
-        WidgetUtils.widgetByIdForEach(ui, "@progress_bar", ProgressWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^@progress_bar$", ProgressWidget.class,
                 progress -> progress.setHoverTooltips(Component.translatable("recipe.duration.value", recipe.duration)));
-        WidgetUtils.widgetByIdForEach(ui, "@duration", LabelWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^@duration$", LabelWidget.class,
                 label -> label.setComponent(Component.translatable("recipe.duration.value", recipe.duration)));
-        WidgetUtils.widgetByIdForEach(ui, "@condition", TextBoxWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^@condition$", TextBoxWidget.class,
                 textBoxWidget -> textBoxWidget.setContent(recipe.conditions.stream().map(RecipeCondition::getTooltips).map(Component::getString).toList()));
         bindCapIOUI(ui, recipe.inputs, IO.IN);
         bindCapIOUI(ui, recipe.outputs, IO.OUT);
@@ -387,7 +387,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         values.forEach((cap, contents) -> {
             for (int i = 0; i < contents.size(); i++) {
                 var content = contents.get(i);
-                var id = content.uiName.isEmpty() ? "@%s_%s_%d".formatted(cap.name, io.name, i) : content.uiName;
+                var id = content.uiName.isEmpty() ? "^@%s_%s_%d$".formatted(cap.name, io.name, i) : content.uiName;
                 for (var widget : WidgetUtils.getWidgetsById(ui, id)) {
                     cap.bindXEIWidget(widget, content, switch (io) {
                         case IN -> IngredientIO.INPUT;

@@ -72,7 +72,7 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
                     new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0, 1, 0.5),
                     new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0.5, 1, 0.5)
             )), () -> "editor.machine.recipe_type_ui_view.progress", () -> {
-                if (WidgetUtils.getFirstWidgetById(ui, "@progress_bar") == null) {
+                if (WidgetUtils.getFirstWidgetById(ui, "^@progress_bar$") == null) {
                     var progress = new ProgressWidget(ProgressWidget.JEIProgress, 5, 5, 18, 18, new ProgressTexture(
                             new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0, 1, 0.5),
                             new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0.5, 1, 0.5)
@@ -84,7 +84,7 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
 
             // create duration label
             addButton(new ImageWidget(0, 0, 18, 18, Icons.FILE), () -> "editor.machine.recipe_type_ui_view.duration", () -> {
-                if (WidgetUtils.getFirstWidgetById(ui, "@duration") == null) {
+                if (WidgetUtils.getFirstWidgetById(ui, "^@duration$") == null) {
                     var duration = new LabelWidget(5, 5, Component.translatable("recipe.duration.value", 100));
                     duration.setId("@duration");
                     ui.addWidget(duration);
@@ -93,7 +93,7 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
 
             // create conditions
             addButton(new ImageWidget(0, 0, 18, 18, DimensionCondition.INSTANCE.getIcon()), () -> "editor.machine.recipe_type_ui_view.condition", () -> {
-                if (WidgetUtils.getFirstWidgetById(ui, "@condition") == null) {
+                if (WidgetUtils.getFirstWidgetById(ui, "^@condition$") == null) {
                     var duration = new TextBoxWidget(5, 5, ui.getSizeWidth() - 10, List.of(DimensionCondition.INSTANCE.getTooltips().getString()));
                     duration.isShadow = true;
                     duration.fontColor = -1;
@@ -148,7 +148,7 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
             addButton(cap.createPreviewWidget(cap.createDefaultContent()), () -> {
                 var found = 0;
                 for (int i = 0; i < maxSize; i++) {
-                    var id = "@%s_%s_%d".formatted(cap.name, io.name, i);
+                    var id = "^@%s_%s_%d$".formatted(cap.name, io.name, i);
                     if (WidgetUtils.getFirstWidgetById(ui, id) != null) {
                         found++;
                     }
@@ -167,7 +167,7 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
             }, () -> {
                 var x = 5;
                 for (int i = 0; i < maxSize; i++) {
-                    var id = "@%s_%s_%d".formatted(cap.name, io.name, i);
+                    var id = "^@%s_%s_%d$".formatted(cap.name, io.name, i);
                     if (WidgetUtils.getFirstWidgetById(ui, id) == null) {
                         var template = cap.createXEITemplate();
                         template.setSelfPosition(x, 5);

@@ -277,11 +277,11 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     protected void bindMachineUI(MBDMachine machine, WidgetGroup ui) {
-        WidgetUtils.widgetByIdForEach(ui, "ui:progress_bar", ProgressWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^ui:progress_bar$", ProgressWidget.class,
                 progressWidget -> progressWidget.setProgressSupplier(() -> machine.getRecipeLogic().getProgressPercent()));
-        WidgetUtils.widgetByIdForEach(ui, "ui:fuel_bar", ProgressWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^ui:fuel_bar$", ProgressWidget.class,
                 progressWidget -> progressWidget.setProgressSupplier(() -> machine.getRecipeLogic().getFuelProgressPercent()));
-        WidgetUtils.widgetByIdForEach(ui, "ui:xei_lookup", ButtonWidget.class,
+        WidgetUtils.widgetByIdForEach(ui, "^ui:xei_lookup$", ButtonWidget.class,
                 buttonWidget -> buttonWidget.setOnPressCallback(cd -> {
                     if (cd.isRemote && (LDLib.isReiLoaded() || LDLib.isJeiLoaded() || LDLib.isEmiLoaded()) && Editor.INSTANCE == null) {
                         var recipeType = machine.getRecipeType();
