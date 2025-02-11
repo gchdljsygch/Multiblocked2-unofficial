@@ -148,8 +148,8 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
             addButton(cap.createPreviewWidget(cap.createDefaultContent()), () -> {
                 var found = 0;
                 for (int i = 0; i < maxSize; i++) {
-                    var id = "^@%s_%s_%d$".formatted(cap.name, io.name, i);
-                    if (WidgetUtils.getFirstWidgetById(ui, id) != null) {
+                    var id = "@%s_%s_%d".formatted(cap.name, io.name, i);
+                    if (WidgetUtils.getFirstWidgetById(ui, "^%s$".formatted(id)) != null) {
                         found++;
                     }
                 }
@@ -167,8 +167,8 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
             }, () -> {
                 var x = 5;
                 for (int i = 0; i < maxSize; i++) {
-                    var id = "^@%s_%s_%d$".formatted(cap.name, io.name, i);
-                    if (WidgetUtils.getFirstWidgetById(ui, id) == null) {
+                    var id = "@%s_%s_%d".formatted(cap.name, io.name, i);
+                    if (WidgetUtils.getFirstWidgetById(ui, "^%s$".formatted(id)) == null) {
                         var template = cap.createXEITemplate();
                         template.setSelfPosition(x, 5);
                         template.setId(id);
