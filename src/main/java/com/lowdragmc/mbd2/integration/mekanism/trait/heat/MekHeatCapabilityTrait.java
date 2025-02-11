@@ -14,8 +14,12 @@ import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import lombok.Getter;
+import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.EnumUtils;
+import mekanism.common.util.WorldUtils;
 import net.minecraft.core.Direction;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
@@ -52,6 +56,54 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
 
     protected CopiableHeatContainer createStorages() {
         return new CopiableHeatContainer(getDefinition().getCapacity(),getDefinition().getInverseConduction());
+    }
+
+    protected double getTotalInverseConductionCoefficient() {
+        var heatCapacitorCount = container.getHeatCapacitorCount();
+        if (heatCapacitorCount == 0) {
+            return HeatAPI.DEFAULT_INVERSE_CONDUCTION;
+        } else if (heatCapacitorCount == 1) {
+            return container.getInverseConduction(0);
+        }
+        var sum = 0d;
+        var totalCapacity = container.getTotalHeatCapacity();
+        for (var capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
+            sum += container.getInverseConduction(capacitor) * (container.getHeatCapacity(capacitor) / totalCapacity);
+        }
+        return sum;
+    }
+
+    @Override
+    public void serverTick() {
+        super.serverTick();
+        if (getDefinition().isSimulateEnvironment()) {
+            var heatCapacity = container.getTotalHeatCapacity();
+            //transfer to air otherwise
+            var invConduction = HeatAPI.AIR_INVERSE_COEFFICIENT + HeatAPI.DEFAULT_INVERSE_INSULATION + getTotalInverseConductionCoefficient();
+            //transfer heat difference based on environment temperature (ambient)
+            var tempToTransfer = (container.getTotalTemperature() - HeatAPI.AMBIENT_TEMP) / invConduction;
+            container.handleHeat(-tempToTransfer * heatCapacity);
+        }
+        var autoIO = getDefinition().getAutoIO();
+        if (autoIO.isEnable() && getMachine().getOffsetTimer() % autoIO.getInterval() == 0) {
+            var front = getMachine().getFrontFacing().orElse(Direction.NORTH);
+            for (var side : EnumUtils.DIRECTIONS) {
+                var io = autoIO.getIO(front, side);
+                if (io.support(IO.OUT)) {
+                    var adj = WorldUtils.getTileEntity(getMachine().getLevel(), getMachine().getPos().relative(side));
+                    var sink = CapabilityUtils.getCapability(adj, Capabilities.HEAT_HANDLER, side.getOpposite()).resolve().orElse(null);
+                    if (sink != null) {
+                        double heatCapacity = container.getTotalHeatCapacity();
+                        double invConduction = sink.getTotalInverseConduction() + getTotalInverseConductionCoefficient();
+                        double tempToTransfer = (container.getTotalTemperature() - HeatAPI.AMBIENT_TEMP) / invConduction;
+                        double heatToTransfer = tempToTransfer * heatCapacity;
+                        container.handleHeat(-heatToTransfer);
+                        sink.handleHeat(heatToTransfer);
+                    }
+                }
+            }
+        }
+
     }
 
     @Override

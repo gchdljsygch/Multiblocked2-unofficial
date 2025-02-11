@@ -508,6 +508,9 @@
     "config.definition.trait.mek_heat_container.min_heat_display.tooltip.1": "It is not actually the minimum heat of the container, but the minimum heat of the UI display.",
     "config.definition.trait.mek_heat_container.inverse_conduction": "Inverse Conduction",
     "config.definition.trait.mek_heat_container.inverse_conduction.tooltip": "Returns the inverse conduction coefficient of a given capacitor. This value defines how much heat is allowed to be dissipated. The larger the number the less heat can dissipate. The trade-off is that it also allows for lower amounts of heat to be inserted.",
+    "config.definition.trait.mek_heat_container.auto_io.tooltip": "Auto extract from the nearby energy storage or fill to the nearby heat capacitor.",
+    "config.definition.trait.mek_heat_container.simulate_environment": "Simulate Environment",
+    "config.definition.trait.mek_heat_container.simulate_environment.tooltip": "Whether the heat capacitor will transfer heat to the environment.",
     "config.definition.trait.mek_heat_container.ui_container_hover": "Stored: %d / %d heat",
 
     "config.definition.trait.fancy_renderer.filters": "State Filters",

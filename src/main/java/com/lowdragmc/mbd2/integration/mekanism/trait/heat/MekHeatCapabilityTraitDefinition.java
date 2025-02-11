@@ -14,6 +14,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
@@ -40,6 +41,12 @@ public class MekHeatCapabilityTraitDefinition extends SimpleCapabilityTraitDefin
             tips = "config.definition.trait.mek_heat_container.inverse_conduction.tooltip")
     @NumberRange(range = {1d, Double.MAX_VALUE})
     private double inverseConduction = 1d;
+    @Getter
+    @Configurable(name = "config.definition.trait.mek_heat_container.simulate_environment", tips = "config.definition.trait.mek_heat_container.simulate_environment.tooltip")
+    private boolean simulateEnvironment = false;
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.mek_heat_container.auto_io.tooltip")
+    private final ToggleAutoIO autoIO = new ToggleAutoIO();
 
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {

@@ -49,8 +49,8 @@ public class MultiblockWorldSavedData extends SavedData {
         this(serverLevel);
     }
 
-    public Collection<MultiblockState> getControllerInPos(BlockPos pos) {
-        return structureCachePosMapping.getOrDefault(pos.asLong(), Collections.emptySet());
+    public MultiblockState[] getControllerInPos(BlockPos pos) {
+        return structureCachePosMapping.getOrDefault(pos.asLong(), Collections.emptySet()).toArray(MultiblockState[]::new);
     }
 
     public void addMapping(MultiblockState state) {
