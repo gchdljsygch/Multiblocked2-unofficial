@@ -13,7 +13,6 @@ import com.lowdragmc.lowdraglib.utils.Size;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
-import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.ContentWidget;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
@@ -223,15 +222,41 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                     });
             if (selected != null) {
                 menu.crossLine();
+                menu.leaf("ldlib.gui.editor.menu.rename", () -> {
+                    var currentID = selected.getId().toString();
+                    DialogWidget.showStringEditorDialog(this.recipeTypePanel.editor, "ldlib.gui.editor.tips.rename", currentID,
+                            s -> true, s -> {
+                                if (s == null || !ResourceLocation.isValidResourceLocation(s)) return;
+                                var id = new ResourceLocation(s);
+                                var index2 = 0;
+                                while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
+                                    id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
+                                }
+                                if (currentID.equals(id.toString())) return;
+                                var copied = selected.copy(id);
+                                this.recipeTypePanel.recipeType.getBuiltinRecipes().put(id, copied);
+                                addRecipe(copied);
+                                removeRecipe(selected);
+                            });
+                });
                 menu.leaf(Icons.COPY, "ldlib.gui.editor.menu.copy", () -> {
                     var copiedID = new ResourceLocation(selected.getId().getNamespace(), selected.getId().getPath() + "_copy");
                     var index = 0;
                     while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(copiedID)) {
                         copiedID = new ResourceLocation(copiedID.getNamespace(), copiedID.getPath() + "_" + index++);
                     }
-                    var copied = selected.copy(copiedID);
-                    this.recipeTypePanel.recipeType.getBuiltinRecipes().put(copiedID, copied);
-                    addRecipe(copied);
+                    DialogWidget.showStringEditorDialog(this.recipeTypePanel.editor, "ldlib.gui.editor.menu.copy", copiedID.toString(),
+                            s -> true, s -> {
+                                if (s == null || !ResourceLocation.isValidResourceLocation(s)) return;
+                                var id = new ResourceLocation(s);
+                                var index2 = 0;
+                                while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
+                                    id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
+                                }
+                                var copied = selected.copy(id);
+                                this.recipeTypePanel.recipeType.getBuiltinRecipes().put(id, copied);
+                                addRecipe(copied);
+                            });
                 });
                 menu.leaf(Icons.REMOVE_FILE, "editor.machine.recipe_type.remove_recipe", () -> removeRecipe(selected));
             }
