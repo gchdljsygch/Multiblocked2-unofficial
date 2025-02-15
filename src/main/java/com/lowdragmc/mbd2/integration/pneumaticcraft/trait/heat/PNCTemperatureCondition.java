@@ -27,10 +27,10 @@ import java.util.ArrayList;
 public class PNCTemperatureCondition extends RecipeCondition {
     public final static PNCTemperatureCondition INSTANCE = new PNCTemperatureCondition();
     @Configurable(name = "config.recipe.condition.temperature.min")
-    @NumberRange(range = {0f, Float.MAX_VALUE})
+    @NumberRange(range = {-Float.MAX_VALUE, Float.MAX_VALUE})
     private float minTemperature;
     @Configurable(name = "config.recipe.condition.temperature.max")
-    @NumberRange(range = {0f, Float.MAX_VALUE})
+    @NumberRange(range = {-Float.MAX_VALUE, Float.MAX_VALUE})
     private float maxTemperature;
 
     public PNCTemperatureCondition(float minTemperature, float maxTemperature) {
