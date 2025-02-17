@@ -80,6 +80,9 @@ dependencies {
     // Mana and Artifice
 //    implementation fg.deobf("maven.modrinth:mana-and-artifice:${mana_and_artifice_version}")
 
+    // Jade
+    implementation fg.deobf("maven.modrinth:jade:${jade_version}")
+
     // Ars Nouveau
     // TODO 1.21
 //    implementation fg.deobf("com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_nouveau_version}")

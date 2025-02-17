@@ -466,7 +466,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * if the machine has no recipe logic or using the {@link MBDRecipeType#DUMMY}, it will return false.
      */
     public boolean runRecipeLogic() {
-        return getDefinition().recipeLogicSettings().isEnable() && getRecipeType() != MBDRecipeType.DUMMY;
+        return getDefinition().recipeLogicSettings().isEnable() && IMachine.super.runRecipeLogic();
     }
 
     @Override

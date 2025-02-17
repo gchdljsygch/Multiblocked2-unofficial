@@ -867,5 +867,12 @@
     "graph_processor.node.mbd2.machine.photon.force_death.tips.2": "if true, emitter will remove and particles from rendering and ticking immediately when the fx was removed.",
     "pattern_preview.page": "switch pages",
     "pattern_preview.layer": "switch layers",
-    "pattern_preview.formed": "switch structure formed"
+    "pattern_preview.formed": "switch structure formed",
+
+    "recipe_logic.status.idle": "idle",
+    "recipe_logic.status.working": "§aworking§r",
+    "recipe_logic.status.waiting": "§6waiting§r",
+    "recipe_logic.status.suspend": "§4suspending§r",
+    "multiblock.unformed": "§6not formed§r",
+    "multiblock.catalyst": "§arequire catalyst§r"
 }

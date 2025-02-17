@@ -193,6 +193,15 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
+     * Shall we run the recipe logic during the server tick?
+     * <br>
+     * if the machine has no recipe logic or using the {@link MBDRecipeType#DUMMY}, it will return false.
+     */
+    default boolean runRecipeLogic() {
+        return getRecipeType() != MBDRecipeType.DUMMY;
+    }
+
+    /**
      * Recipe logic
      */
     @Nonnull
