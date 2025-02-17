@@ -136,6 +136,17 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
     }
 
     @Override
+    public @Nullable Object getXEICurrentIngredient() {
+        var items = entities.stream().map(Entity::getType).map(ForgeSpawnEggItem::fromEntityType).filter(Objects::nonNull).map(ItemStack::new).toList();
+        if (items.isEmpty()) return null;
+        var realStack = items.get(0);
+        if (LDLib.isJeiLoaded()) {
+            return JEIPlugin.getItemIngredient(realStack, getPosition().x, getPosition().y, getSize().width, getSize().height);
+        }
+        return null;
+    }
+
+    @Override
     public List<Component> getFullTooltipTexts() {
         var tooltips = new ArrayList<Component>();
         var entity = getCurrentEntity();

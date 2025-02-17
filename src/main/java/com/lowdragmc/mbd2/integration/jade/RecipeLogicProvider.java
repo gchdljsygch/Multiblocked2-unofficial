@@ -3,8 +3,10 @@ package com.lowdragmc.mbd2.integration.jade;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IBlockComponentProvider;
@@ -24,18 +26,24 @@ public class RecipeLogicProvider implements IBlockComponentProvider, IServerData
         if (data.contains("recipe_logic")) {
             data = data.getCompound("recipe_logic");
             var status = data.getString("status");
-            var progress = data.getInt("progress");
-            var duration = data.getInt("duration");
             tooltip.add(Component.translatable("recipe_logic.status." + status.toLowerCase()));
-            tooltip.add(new ProgressElement(progress * 1f / duration,
-                    Component.literal("%fs / %fs".formatted(progress / 20f, duration / 20f)),
-                    new ProgressStyle().color(ColorPattern.T_GREEN.color), new BoxStyle(), true));
+            var boxStyle = new BoxStyle();
+            boxStyle.borderColor = ColorPattern.GRAY.color;
+            boxStyle.borderWidth = 1;
+            if (data.contains("duration")) {
+                var progress = data.getInt("progress");
+                var duration = data.getInt("duration");
+                tooltip.add(tooltip.getElementHelper().progress(progress * 1f / duration,
+                        Component.literal("%.2fs / %.2fs".formatted(progress / 20f, duration / 20f)).withStyle(ChatFormatting.WHITE),
+                        new ProgressStyle().color(ColorPattern.GREEN.color), boxStyle, true));
+            }
+
             if (data.contains("fuel")) {
                 var fuel = data.getInt("fuel");
                 var maxFuel = data.getInt("maxFuel");
                 tooltip.add(new ProgressElement(fuel * 1f / maxFuel,
-                        Component.literal("%d / %d".formatted(fuel, maxFuel)),
-                        new ProgressStyle().color(ColorPattern.T_ORANGE.color), new BoxStyle(), true));
+                        Component.literal("%.2f / %.2f ".formatted(fuel / 20f, maxFuel / 20f)).withStyle(ChatFormatting.WHITE),
+                        new ProgressStyle().color(ColorPattern.ORANGE.color), boxStyle, true));
             }
             if (data.contains("waitingReason")) {
                 var reason = Component.Serializer.fromJson(data.getString("waitingReason"));

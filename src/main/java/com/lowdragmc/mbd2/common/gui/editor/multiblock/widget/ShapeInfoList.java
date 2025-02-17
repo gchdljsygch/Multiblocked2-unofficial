@@ -2,11 +2,11 @@ package com.lowdragmc.mbd2.common.gui.editor.multiblock.widget;
 
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
 import com.lowdragmc.lowdraglib.gui.editor.Icons;
-import com.lowdragmc.lowdraglib.gui.editor.ui.sceneeditor.SceneEditorWidget;
 import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.util.TreeBuilder;
 import com.lowdragmc.lowdraglib.gui.widget.DraggableScrollableWidgetGroup;
 import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
+import com.lowdragmc.lowdraglib.gui.widget.SceneWidget;
 import com.lowdragmc.lowdraglib.gui.widget.SelectableWidgetGroup;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import com.lowdragmc.lowdraglib.utils.Size;
@@ -66,7 +66,7 @@ public class ShapeInfoList extends DraggableScrollableWidgetGroup {
             int yOffset = 3 + widgets.size() * 82;
             var selectableWidgetGroup = new SelectableWidgetGroup(0, yOffset, getSizeWidth() - 2, 95);
             // scene
-            var scene = new SceneEditorWidget((selectableWidgetGroup.getSizeWidth() - 80) / 2, 0, 80, 80, null);
+            var scene = new SceneWidget((selectableWidgetGroup.getSizeWidth() - 80) / 2, 0, 80, 80, null);
             scene.setRenderFacing(false);
             scene.setRenderSelect(false);
             scene.setIntractable(false);

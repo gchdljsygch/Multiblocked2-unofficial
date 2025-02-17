@@ -6,3 +6,4 @@
 * Added environment transfer / adjacent transfer to the Mek Heat Trait.
 * Added Jade support
 * QoL Being able to change recipe ids (create and copy)
+* Bump up ldlib to fix jei compat issue.

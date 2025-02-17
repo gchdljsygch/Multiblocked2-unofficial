@@ -200,10 +200,10 @@ public class PatternPreviewWidget extends WidgetGroup {
         var buttonBackground = ResourceBorderTexture.BUTTON_COMMON;
         var upButton = new ButtonWidget(136 + 1, 117 + 1, 16, 16,
                 new GuiTextureGroup(buttonBackground, Icons.UP.copy().scale(0.8f)),cd -> updateCandidatePage(candidatePage - 1))
-                .setHoverBorderTexture(-1, -1);
+                .setHoverBorderTexture(-1, ColorPattern.GRAY.color);
         var downButton = new ButtonWidget(136 + 1, 135 + 1, 16, 16,
                 new GuiTextureGroup(buttonBackground, Icons.DOWN.copy().scale(0.8f)), cd -> updateCandidatePage(candidatePage + 1))
-                .setHoverBorderTexture(-1, -1);
+                .setHoverBorderTexture(-1, ColorPattern.GRAY.color);
         addWidget(upButton);
         addWidget(downButton);
 

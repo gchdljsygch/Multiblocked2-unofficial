@@ -191,6 +191,15 @@ public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, ST
     }
 
     @Override
+    public @Nullable Object getXEICurrentIngredient() {
+        if (lastChemicalInTank == null || lastChemicalInTank.isEmpty()) return Collections.emptyList();
+        if (LDLib.isModLoaded(LDLib.MODID_JEI)) {
+            return JEIPlugin.jeiHelpers.getIngredientManager().createTypedIngredient(lastChemicalInTank);
+        }
+        return null;
+    }
+
+    @Override
     public List<Component> getTooltipTexts() {
         List<Component> tooltips = getAdditionalToolTips(new ArrayList<>());
         tooltips.addAll(tooltipTexts);

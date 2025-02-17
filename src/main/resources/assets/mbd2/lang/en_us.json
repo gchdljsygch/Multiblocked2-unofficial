@@ -874,5 +874,7 @@
     "recipe_logic.status.waiting": "§6waiting§r",
     "recipe_logic.status.suspend": "§4suspending§r",
     "multiblock.unformed": "§6not formed§r",
-    "multiblock.catalyst": "§arequire catalyst§r"
+    "multiblock.catalyst": "§arequire catalyst§r",
+    "config.jade.plugin_mbd2.recipe_logic_provider": "Multiblock2 Recipe Logic Provider",
+    "config.jade.plugin_mbd2.multiblock_provider": "Multiblock2 Multiblock Provider"
 }
