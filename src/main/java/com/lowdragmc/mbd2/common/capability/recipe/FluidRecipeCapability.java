@@ -1,5 +1,9 @@
 package com.lowdragmc.mbd2.common.capability.recipe;
 
+import com.gregtechceu.gtceu.integration.xei.entry.fluid.FluidEntryList;
+import com.gregtechceu.gtceu.integration.xei.entry.fluid.FluidStackList;
+import com.gregtechceu.gtceu.integration.xei.entry.fluid.FluidTagList;
+import com.gregtechceu.gtceu.integration.xei.handlers.fluid.CycleFluidEntryHandler;
 import com.lowdragmc.lowdraglib.gui.editor.accessors.CompoundTagAccessor;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.*;
 import com.lowdragmc.lowdraglib.gui.texture.GuiTextureGroup;
@@ -9,9 +13,11 @@ import com.lowdragmc.lowdraglib.gui.widget.TankWidget;
 import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.jei.IngredientIO;
 import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
+import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.utils.CycleFluidStorage;
 import com.lowdragmc.lowdraglib.utils.Size;
 import com.lowdragmc.lowdraglib.utils.TagOrCycleFluidTransfer;
+import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.SerializerFluidIngredient;
@@ -27,10 +33,7 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -98,6 +101,33 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
             tankWidget.setAllowClickDrained(false);
             tankWidget.setAllowClickFilled(false);
             tankWidget.setXEIChance(content.chance);
+        } else if (MBD2.isGTMLoaded()) {
+            try {
+                if (widget instanceof com.gregtechceu.gtceu.api.gui.widget.TankWidget tankWidget) {
+                    var fluidIngredient = of(content.content);
+                    var fluidEntries = new ArrayList<FluidEntryList>();
+                    Either<FluidTagList, FluidStackList> either = null;
+                    // if all fluid tags
+                    Arrays.stream(fluidIngredient.values).forEach(value -> {
+                        if (value instanceof FluidIngredient.TagValue tagValue) {
+                            fluidEntries.add(FluidTagList.of(tagValue.getTag(), (int) fluidIngredient.getAmount(), null));
+                        } else {
+                            fluidEntries.add(FluidStackList.of(Arrays.stream(fluidIngredient.getStacks()).map(FluidHelperImpl::toFluidStack).toList()));
+                        }
+                    });
+                    if (tankWidget.getOverlay() == null || tankWidget.getOverlay() == IGuiTexture.EMPTY) {
+                        tankWidget.setOverlay(content.createOverlay());
+                    } else {
+                        var groupTexture = new GuiTextureGroup(tankWidget.getOverlay(), content.createOverlay());
+                        tankWidget.setOverlay(groupTexture);
+                    }
+                    tankWidget.setFluidTank(new CycleFluidEntryHandler(fluidEntries), 0);
+                    tankWidget.setIngredientIO(ingredientIO);
+                    tankWidget.setAllowClickDrained(false);
+                    tankWidget.setAllowClickFilled(false);
+                    tankWidget.setXEIChance(content.chance);
+                }
+            } catch (Exception ignored) {}
         }
     }
 
