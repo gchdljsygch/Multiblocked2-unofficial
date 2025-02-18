@@ -87,7 +87,7 @@ public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
             // check temp condition first
             for (var condition : recipe.conditions) {
                 if (condition instanceof PNCTemperatureCondition tempCondition) {
-                    if (tempCondition.getMinTemperature() > temp || tempCondition.getMinTemperature() < temp) {
+                    if (tempCondition.getMinTemperature() > (temp - 273) || tempCondition.getMaxTemperature() < (temp - 273)) {
                         return left;
                     }
                 }

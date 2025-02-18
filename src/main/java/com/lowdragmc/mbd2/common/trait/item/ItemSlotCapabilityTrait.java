@@ -260,7 +260,7 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
                         for (int i = 0; i < shuffledItems.size(); i++) {
                             var output = shuffledItems.get(i).copy();
                             if (!output.isEmpty()) {
-                                for (int slot = 0; i < capability.getSlots(); slot++) {
+                                for (int slot = 0; slot < capability.getSlots(); slot++) {
                                     var leftStack = capability.insertItem(slot, output.copy(), true);
                                     output.setCount(leftStack.getCount());
                                     if (output.isEmpty()) break;

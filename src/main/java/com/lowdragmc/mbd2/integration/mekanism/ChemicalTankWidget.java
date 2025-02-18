@@ -192,9 +192,9 @@ public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, ST
 
     @Override
     public @Nullable Object getXEICurrentIngredient() {
-        if (lastChemicalInTank == null || lastChemicalInTank.isEmpty()) return Collections.emptyList();
+        if (lastChemicalInTank == null || lastChemicalInTank.isEmpty()) return null;
         if (LDLib.isModLoaded(LDLib.MODID_JEI)) {
-            return JEIPlugin.jeiHelpers.getIngredientManager().createTypedIngredient(lastChemicalInTank);
+            return JEIPlugin.jeiHelpers.getIngredientManager().createTypedIngredient(lastChemicalInTank).orElse(null);
         }
         return null;
     }
