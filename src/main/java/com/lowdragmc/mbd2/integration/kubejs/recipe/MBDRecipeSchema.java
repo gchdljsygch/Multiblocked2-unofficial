@@ -328,7 +328,7 @@ public interface MBDRecipeSchema {
             if (!MBD2.isGTMLoaded()) {
                 throw new IllegalStateException("Try to add a eu ingredient while the gtceu is not loaded!");
             }
-            return outputs(GTMEnergyRecipeCapability.CAP, eu);
+            return inputs(GTMEnergyRecipeCapability.CAP, eu);
         }
 
         public MBDRecipeJS outputEU(long eu) {
