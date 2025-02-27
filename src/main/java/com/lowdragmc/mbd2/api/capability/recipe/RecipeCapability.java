@@ -37,6 +37,10 @@ public abstract class RecipeCapability<T> {
         return serializer.fromNetwork(buf);
     }
 
+    public final T deepCopyContent(Object content, ContentModifier modifier) {
+        return serializer.copyWithModifier(deepCopyContent(content), modifier);
+    }
+
     /**
      * deep copy of this content. recipe need it for searching and such things
      */

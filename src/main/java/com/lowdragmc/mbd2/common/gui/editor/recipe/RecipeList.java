@@ -233,7 +233,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                                     id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
                                 }
                                 if (currentID.equals(id.toString())) return;
-                                var copied = selected.copy(id);
+                                var copied = selected.deepCopied(id);
                                 this.recipeTypePanel.recipeType.getBuiltinRecipes().put(id, copied);
                                 addRecipe(copied);
                                 removeRecipe(selected);
@@ -253,7 +253,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                                 while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
                                     id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
                                 }
-                                var copied = selected.copy(id);
+                                var copied = selected.deepCopied(id);
                                 this.recipeTypePanel.recipeType.getBuiltinRecipes().put(id, copied);
                                 addRecipe(copied);
                             });

@@ -58,8 +58,12 @@ public class Content {
         }
     }
 
-    public Content deepCopy(RecipeCapability<?> capability) {
-        return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost, slotName, uiName);
+    public Content deepCopy(RecipeCapability<?> capability, @Nullable ContentModifier modifier) {
+        if (modifier == null || chance == 0) {
+            return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost, slotName, uiName);
+        } else {
+            return new Content(capability.deepCopyContent(content, modifier), perTick, chance, tierChanceBoost, slotName, uiName);
+        }
     }
 
     public IGuiTexture createOverlay() {
