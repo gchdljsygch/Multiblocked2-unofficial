@@ -42,6 +42,15 @@ public class AutoIO {
     private int interval = 20;
 
     public IO getIO(Direction front, @Nullable Direction side) {
+        if (front.getAxis() == Direction.Axis.Y) {
+            if (side == front) {
+                return frontIO;
+            } else if (side == front.getOpposite()) {
+                return backIO;
+            } else {
+                return topIO;
+            }
+        }
         if (side == Direction.UP) {
             return topIO;
         } else if (side == Direction.DOWN) {

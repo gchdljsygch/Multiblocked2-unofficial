@@ -27,7 +27,16 @@ public class CapabilityIO {
     private IO bottomIO = IO.BOTH;
 
     public IO getIO(Direction front, @Nullable Direction side) {
-        if (side == null || front.getAxis() == Direction.Axis.Y) {
+        if (front.getAxis() == Direction.Axis.Y) {
+            if (side == front) {
+                return frontIO;
+            } else if (side == front.getOpposite()) {
+                return backIO;
+            } else {
+                return internal;
+            }
+        }
+        if (side == null) {
             return internal;
         }
         if (side == Direction.UP) {
