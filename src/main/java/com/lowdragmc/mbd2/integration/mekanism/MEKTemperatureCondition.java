@@ -23,20 +23,20 @@ import java.util.ArrayList;
 
 @Getter
 @NoArgsConstructor
-public class MekanismHeatCondition extends RecipeCondition {
+public class MEKTemperatureCondition extends RecipeCondition {
 
-    public final static MekanismHeatCondition INSTANCE = new MekanismHeatCondition();
-    @Configurable(name = "config.recipe.condition.heat.min")
-    @NumberRange(range = {0f, Float.MAX_VALUE})
-    private double minHeat;
-    @Configurable(name = "config.recipe.condition.heat.max")
-    @NumberRange(range = {0f, Float.MAX_VALUE})
-    private double maxHeat;
+    public final static MEKTemperatureCondition INSTANCE = new MEKTemperatureCondition();
+    @Configurable(name = "config.recipe.condition.temperature.min")
+    @NumberRange(range = {-Float.MAX_VALUE, Float.MAX_VALUE})
+    private double minTemperature;
+    @Configurable(name = "config.recipe.condition.temperature.max")
+    @NumberRange(range = {-Float.MAX_VALUE, Float.MAX_VALUE})
+    private double maxTemperature;
 
 
-    public MekanismHeatCondition(double minHeat, double maxHeat) {
-        this.minHeat = minHeat;
-        this.maxHeat = maxHeat;
+    public MEKTemperatureCondition(double minTemperature, double maxTemperature) {
+        this.minTemperature = minTemperature;
+        this.maxTemperature = maxTemperature;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class MekanismHeatCondition extends RecipeCondition {
 
     @Override
     public Component getTooltips() {
-        return Component.translatable("recipe.condition.mekanism_heat.tooltip", minHeat, maxHeat);
+        return Component.translatable("recipe.condition.mekanism_heat.tooltip", minTemperature, maxTemperature);
     }
 
     @Override
@@ -71,8 +71,8 @@ public class MekanismHeatCondition extends RecipeCondition {
         }
         for (IRecipeHandler<?> handler : toCheck) {
             if (handler instanceof MekHeatCapabilityTrait.HeatRecipeHandler heatRecipeHandler) {
-                var heat = ((MekHeatCapabilityTrait)heatRecipeHandler.trait).getContainer().getTemperature(0);
-                if (heat >= minHeat && heat <= maxHeat) {
+                var temp = ((MekHeatCapabilityTrait)heatRecipeHandler.trait).getContainer().getTemperature(0);
+                if (temp >= minTemperature && temp <= maxTemperature) {
                     return true;
                 }
             }
@@ -84,47 +84,47 @@ public class MekanismHeatCondition extends RecipeCondition {
     @Override
     public JsonObject serialize() {
         JsonObject config = super.serialize();
-        config.addProperty("minHeat", minHeat);
-        config.addProperty("maxHeat", maxHeat);
+        config.addProperty("minTemperature", minTemperature);
+        config.addProperty("maxTemperature", maxTemperature);
         return config;
     }
 
     @Override
     public RecipeCondition deserialize(@Nonnull JsonObject config) {
         super.deserialize(config);
-        minHeat = GsonHelper.getAsDouble(config, "minHeat", 0);
-        maxHeat = GsonHelper.getAsDouble(config, "maxHeat", 1);
+        minTemperature = GsonHelper.getAsDouble(config, "minTemperature", 0);
+        maxTemperature = GsonHelper.getAsDouble(config, "maxTemperature", 1);
         return this;
     }
 
     @Override
     public RecipeCondition fromNetwork(FriendlyByteBuf buf) {
         super.fromNetwork(buf);
-        minHeat = buf.readDouble();
-        maxHeat = buf.readDouble();
+        minTemperature = buf.readDouble();
+        maxTemperature = buf.readDouble();
         return this;
     }
 
     @Override
     public void toNetwork(FriendlyByteBuf buf) {
         super.toNetwork(buf);
-        buf.writeDouble(minHeat);
-        buf.writeDouble(maxHeat);
+        buf.writeDouble(minTemperature);
+        buf.writeDouble(maxTemperature);
     }
 
     @Override
     public CompoundTag toNBT() {
         var tag = super.toNBT();
-        tag.putDouble("minHeat", minHeat);
-        tag.putDouble("maxHeat", maxHeat);
+        tag.putDouble("minTemperature", minTemperature);
+        tag.putDouble("maxTemperature", maxTemperature);
         return tag;
     }
 
     @Override
     public RecipeCondition fromNBT(CompoundTag tag) {
         super.fromNBT(tag);
-        minHeat = tag.getDouble("minHeat");
-        maxHeat = tag.getDouble("maxHeat");
+        minTemperature = tag.getDouble("minTemperature");
+        maxTemperature = tag.getDouble("maxTemperature");
         return this;
     }
 

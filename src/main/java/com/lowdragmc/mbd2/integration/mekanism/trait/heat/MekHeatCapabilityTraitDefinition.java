@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 import mekanism.common.registries.MekanismBlocks;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 
 @Setter
 @Getter
@@ -29,14 +30,21 @@ public class MekHeatCapabilityTraitDefinition extends SimpleCapabilityTraitDefin
 
     @Configurable(name = "config.definition.trait.mek_heat_container.capacity")
     @NumberRange(range = {1, Double.MAX_VALUE})
-    private double capacity = 5000d;
-    @Configurable(name = "config.definition.trait.mek_heat_container.min_heat_display",
+    private double capacity = 1;
+    @Configurable(name = "config.definition.trait.mek_heat_container.min_temp_display",
             tips = {
-                    "config.definition.trait.mek_heat_container.min_heat_display.tooltip.0",
-                    "config.definition.trait.mek_heat_container.min_heat_display.tooltip.1"
+                    "config.definition.trait.mek_heat_container.min_temp_display.tooltip.0",
+                    "config.definition.trait.mek_heat_container.min_temp_display.tooltip.1"
             })
     @NumberRange(range = {-Double.MAX_VALUE, Double.MAX_VALUE})
-    private double minHeatDisplay = 0;
+    private double minTempDisplay = 0;
+    @Configurable(name = "config.definition.trait.mek_heat_container.max_temp_display",
+            tips = {
+                    "config.definition.trait.mek_heat_container.max_temp_display.tooltip.0",
+                    "config.definition.trait.mek_heat_container.max_temp_display.tooltip.1"
+            })
+    @NumberRange(range = {-Double.MAX_VALUE, Double.MAX_VALUE})
+    private double maxTempDisplay = 600;
     @Configurable(name = "config.definition.trait.mek_heat_container.inverse_conduction",
             tips = "config.definition.trait.mek_heat_container.inverse_conduction.tooltip")
     @NumberRange(range = {1d, Double.MAX_VALUE})
@@ -67,7 +75,7 @@ public class MekHeatCapabilityTraitDefinition extends SimpleCapabilityTraitDefin
         energyBar.setBackground(MekanismHeatRecipeCapability.HUD_BACKGROUND);
         energyBar.setId(prefix);
         var energyBarText = new TextTextureWidget(5, 3, 90, 10)
-                .setText("0 heat")
+                .setText("0K")
                 .textureStyle(texture -> texture.setDropShadow(true));
         energyBarText.setId(prefix + "_text");
         ui.addWidget(energyBar);
@@ -78,15 +86,15 @@ public class MekHeatCapabilityTraitDefinition extends SimpleCapabilityTraitDefin
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof MekHeatCapabilityTrait heatTrait) {
             var prefix = uiPrefixName();
-            var range = capacity - minHeatDisplay;
+            var range = maxTempDisplay - minTempDisplay;
             WidgetUtils.widgetByIdForEach(group, "^%s$".formatted(prefix), ProgressWidget.class, energyBar -> {
-                energyBar.setProgressSupplier(() -> Math.max(heatTrait.container.getTotalTemperature() - minHeatDisplay, 0) / range);
+                energyBar.setProgressSupplier(() -> Mth.clamp((heatTrait.container.getTemperature(0) - minTempDisplay) / range, 0, 1));
                 energyBar.setDynamicHoverTips(value -> LocalizationUtils.format(
                         "config.definition.trait.mek_heat_container.ui_container_hover",
                         Math.round(range * value), range));
             });
             WidgetUtils.widgetByIdForEach(group, "^%s_text$".formatted(prefix), TextTextureWidget.class, energyBarText -> {
-                energyBarText.setText(() -> Component.literal(Math.round(heatTrait.container.getTotalTemperature()) + " heat"));
+                energyBarText.setText(() -> Component.literal("%.1fK".formatted(heatTrait.container.getTotalTemperature())));
             });
         }
     }

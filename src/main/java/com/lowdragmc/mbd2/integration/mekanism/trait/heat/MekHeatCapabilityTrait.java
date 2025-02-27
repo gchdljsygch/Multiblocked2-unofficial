@@ -11,12 +11,13 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
-import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatCondition;
+import com.lowdragmc.mbd2.integration.mekanism.MEKTemperatureCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import lombok.Getter;
 import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.heat.CachedAmbientTemperature;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.EnumUtils;
 import mekanism.common.util.WorldUtils;
@@ -37,6 +38,8 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
     public final CopiableHeatContainer container;
     private final HeatRecipeHandler recipeHandler = new HeatRecipeHandler();
     private final HeatHandlerCap heatHandlerCap = new HeatHandlerCap();
+    private final CachedAmbientTemperature ambientTemperature = new CachedAmbientTemperature(() -> getMachine().getLevel(), () -> getMachine().getPos());
+
 
     public MekHeatCapabilityTrait(MBDMachine machine, MekHeatCapabilityTraitDefinition definition) {
         super(machine, definition);
@@ -51,7 +54,7 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
 
     @Override
     public void onLoadingTraitInPreview() {
-        container.handleHeat(getDefinition().getCapacity() / 2);
+        container.handleHeat(container.capacity * HeatAPI.AMBIENT_TEMP);
     }
 
     protected CopiableHeatContainer createStorages() {
@@ -95,7 +98,7 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
                     if (sink != null) {
                         double heatCapacity = container.getTotalHeatCapacity();
                         double invConduction = sink.getTotalInverseConduction() + getTotalInverseConductionCoefficient();
-                        double tempToTransfer = (container.getTotalTemperature() - HeatAPI.AMBIENT_TEMP) / invConduction;
+                        double tempToTransfer = (container.getTotalTemperature() - ambientTemperature.getTemperature(side)) / invConduction;
                         double heatToTransfer = tempToTransfer * heatCapacity;
                         container.handleHeat(-heatToTransfer);
                         sink.handleHeat(heatToTransfer);
@@ -128,9 +131,9 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
             var capability = simulate ? container.copy() : container;
             // check heat condition first
             for (RecipeCondition condition : recipe.conditions) {
-                if (condition instanceof MekanismHeatCondition heatCondition) {
+                if (condition instanceof MEKTemperatureCondition heatCondition) {
                     var temp = capability.getTemperature(0);
-                    if (heatCondition.getMinHeat() > temp || heatCondition.getMaxHeat() < temp) {
+                    if (heatCondition.getMinTemperature() > temp || heatCondition.getMaxTemperature() < temp) {
                         return left;
                     }
                 }

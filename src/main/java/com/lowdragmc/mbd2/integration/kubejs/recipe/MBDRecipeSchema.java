@@ -21,7 +21,7 @@ import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismChemicalRecipeCapability;
-import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatCondition;
+import com.lowdragmc.mbd2.integration.mekanism.MEKTemperatureCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import com.lowdragmc.mbd2.integration.naturesaura.NaturesAuraRecipeCapability;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.PNCHeatRecipeCapability;
@@ -488,15 +488,15 @@ public interface MBDRecipeSchema {
             return this;
         }
 
-        public MBDRecipeJS heatCondition(double minHeat, double maxHeat) {
+        public MBDRecipeJS mekTemperatureCondition(double minTemperature, double maxTemperature) {
             if (!MBD2.isMekanismLoaded()) {
                 throw new IllegalStateException("Try to add a heat condition while the mekanism is not loaded!");
             }
-            addCondition(new MekanismHeatCondition(minHeat, maxHeat));
+            addCondition(new MEKTemperatureCondition(minTemperature, maxTemperature));
             return this;
         }
 
-        public MBDRecipeJS temperatureCondition(float minTemperature, float maxTemperature) {
+        public MBDRecipeJS pncTemperatureCondition(float minTemperature, float maxTemperature) {
             if (!MBD2.isPneumaticCraftLoaded()) {
                 throw new IllegalStateException("Try to add a temperature condition while the pneumatic is not loaded!");
             }
