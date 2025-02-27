@@ -51,6 +51,9 @@ public class PNCPressureAirHandlerTraitDefinition extends RecipeCapabilityTraitD
                     "config.definition.trait.pneumatic_pressure_air_handler.critical_pressure.tips.1"})
     @NumberRange(range = {0, Double.MAX_VALUE})
     private float criticalPressure = 0;
+    @Getter
+    @Configurable(name = "config.definition.trait.connected_io", subConfigurable = true, tips = "config.definition.trait.pneumatic_pressure_air_handler.connected_io.tooltip")
+    private final ConnectedIO connectionIO = new ConnectedIO();
 
     @Override
     public PNCPressureAirHandlerTrait createTrait(MBDMachine machine) {

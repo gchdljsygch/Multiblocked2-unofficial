@@ -16,10 +16,12 @@ import lombok.Getter;
 import me.desht.pneumaticcraft.api.PNCCapabilities;
 import me.desht.pneumaticcraft.api.tileentity.IAirHandler;
 import me.desht.pneumaticcraft.api.tileentity.IAirHandlerMachine;
+import me.desht.pneumaticcraft.common.util.DirectionUtil;
 import net.minecraft.core.Direction;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -33,6 +35,8 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
     public final CopiableAirHandler handler;
     private final AirHandlerMachineCap airHandlerMachineCap = new AirHandlerMachineCap();
     private final AirHandlerCap airHandlerCap = new AirHandlerCap();
+    @Nullable
+    private Direction lastFront = null;
 
     public PNCPressureAirHandlerTrait(MBDMachine machine, PNCPressureAirHandlerTraitDefinition definition) {
         super(machine, definition);
@@ -54,15 +58,30 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
         return new CopiableAirHandler(getDefinition().getPressureTier(), getDefinition().getVolume(), getDefinition().getMaxPressure());
     }
 
+    protected void updateHullAirHandlers() {
+        var front = getMachine().getFrontFacing().orElse(Direction.NORTH);
+        if (lastFront == front) return;
+        var list = new ArrayList<Direction>();
+        for (Direction side : DirectionUtil.VALUES) {
+            if (getDefinition().getConnectionIO().getConnection(front, side)) {
+                list.add(side);
+            }
+        }
+        handler.setConnectedFaces(list);
+        lastFront = front;
+    }
+
     @Override
     public void serverTick() {
         super.serverTick();
+        updateHullAirHandlers();
         handler.tick(getMachine().getHolder());
     }
 
     @Override
     public void clientTick() {
         super.clientTick();
+        updateHullAirHandlers();
         handler.tick(getMachine().getHolder());
     }
 
