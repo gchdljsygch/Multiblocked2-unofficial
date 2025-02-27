@@ -26,6 +26,8 @@ public class MachineInfoNode extends BaseNode {
     public String recipeStatus;
     @OutputPort(name = "custom data")
     public CompoundTag customData;
+    @OutputPort(name = "machine level")
+    public int machineLevel;
 
     @Override
     protected void process() {
@@ -37,6 +39,7 @@ public class MachineInfoNode extends BaseNode {
             status = machine.getMachineState().name();
             recipeStatus = machine.getRecipeLogic().getStatus().toString();
             customData = machine.getCustomData();
+            machineLevel = machine.getMachineLevel();
         }
     }
 }

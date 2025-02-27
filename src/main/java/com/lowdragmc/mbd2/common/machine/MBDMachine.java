@@ -110,6 +110,10 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     private Map<IRenderer, Object> animatableMachine = new HashMap<>(); // it's used for Geckolib
     @Getter
     private Map<String, Object> photonFXs = new HashMap<>(); // it's used for Photon
+    @Persisted
+    @DescSynced
+    @Getter
+    private int dynamicMachineLevel = -1;
     // redstone signal
     @Getter
     @Persisted
@@ -371,7 +375,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     @Override
     public int getMachineLevel() {
-        return getDefinition().machineSettings().machineLevel();
+        return dynamicMachineLevel < 0 ? getDefinition().machineSettings().machineLevel() : dynamicMachineLevel;
+    }
+
+    /**
+     * Set the machine level dynamically.
+     */
+    public void setMachineLevel(int level) {
+        dynamicMachineLevel = level;
     }
 
     /**
