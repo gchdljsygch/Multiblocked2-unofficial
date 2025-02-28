@@ -131,6 +131,7 @@ public class MultiblockInWorldPreviewRenderer {
 
         var blocks = shapeInfo.getBlocks();
         BlockPos controllerPatternPos = null;
+        var controllerPatternFront = Direction.NORTH;
         var maxY = 0;
 
         // find the pos of controller
@@ -141,13 +142,17 @@ public class MultiblockInWorldPreviewRenderer {
                 BlockInfo[] column = aisle[y];
                 for (int z = 0; z < column.length; z++) {
                     // if its controller record its position offset.
-                    if (column[z] instanceof ControllerBlockInfo) {
+                    if (column[z] instanceof ControllerBlockInfo info) {
                         controllerPatternPos = new BlockPos(x, y, z);
+                        controllerPatternFront = info.getFacing();
                     } else {
                         var blockState = column[z].getBlockState();
                         if (blockState != null && blockState.getBlock() instanceof MBDMachineBlock machineBlock &&
-                                machineBlock.getDefinition() instanceof MultiblockMachineDefinition) {
+                                machineBlock.getDefinition() instanceof MultiblockMachineDefinition definition) {
                             controllerPatternPos = new BlockPos(x, y, z);
+                            if (definition.blockProperties().rotationState().property.isPresent()) {
+                                controllerPatternFront = blockState.getValue(definition.blockProperties().rotationState().property.get());
+                            }
                         }
                     }
                 }
@@ -178,8 +183,15 @@ public class MultiblockInWorldPreviewRenderer {
                 for (int z = 0; z < column.length; z++) {
                     var blockState = column[z].getBlockState();
                     var offset = new BlockPos(x, y, z).subtract(controllerPatternPos);
+                    if (blockState == null || offset.equals(new BlockPos(0, 0, 0))) continue;
 
                     // rotation
+                    offset = switch (controllerPatternFront) {
+                        case SOUTH -> offset.rotate(Rotation.CLOCKWISE_180);
+                        case EAST -> offset.rotate(Rotation.COUNTERCLOCKWISE_90);
+                        case WEST -> offset.rotate(Rotation.CLOCKWISE_90);
+                        default -> offset.rotate(Rotation.NONE);
+                    };
                     offset = switch (front) {
                         case SOUTH -> offset.rotate(Rotation.CLOCKWISE_180);
                         case EAST -> offset.rotate(Rotation.COUNTERCLOCKWISE_90);
@@ -188,6 +200,7 @@ public class MultiblockInWorldPreviewRenderer {
                     };
 
 
+                    // TODO rotation by front axis in the future
                     offset = rotateByFrontAxis(offset, front, Rotation.NONE);
 
                     if (blockState.getBlock() instanceof MBDMachineBlock machineBlock) {

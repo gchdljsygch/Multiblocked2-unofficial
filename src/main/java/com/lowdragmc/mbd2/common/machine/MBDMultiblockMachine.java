@@ -433,6 +433,12 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     @Override
     public InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        if (!isFormed() && player.isShiftKeyDown() && player.getItemInHand(hand).isEmpty()) {
+            if (world.isClientSide()) {
+                MultiblockInWorldPreviewRenderer.showPreview(pos, this, ConfigHolder.multiblockPreviewDuration * 20);
+            }
+            return InteractionResult.SUCCESS;
+        }
         if (!isFormed() && getDefinition().multiblockSettings().catalyst().isEnable()) {
             var catalyst = getDefinition().multiblockSettings().catalyst();
             var held = player.getItemInHand(hand);
@@ -452,12 +458,6 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                 return InteractionResult.SUCCESS;
             }
             return InteractionResult.FAIL;
-        }
-        if (!isFormed() && player.isShiftKeyDown() && player.getItemInHand(hand).isEmpty()) {
-            if (world.isClientSide()) {
-                MultiblockInWorldPreviewRenderer.showPreview(pos, this, ConfigHolder.multiblockPreviewDuration * 20);
-            }
-            return InteractionResult.SUCCESS;
         }
         return super.onUse(state, world, pos, player, hand, hit);
     }
