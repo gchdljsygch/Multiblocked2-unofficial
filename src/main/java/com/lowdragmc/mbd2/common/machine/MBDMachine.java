@@ -68,6 +68,7 @@ import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
+import software.bernie.geckolib.core.animation.AnimationController;
 
 import javax.annotation.Nonnull;
 import java.util.*;
@@ -837,8 +838,8 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
-    public void triggerGeckolibAnim(String animName){
-        triggerGeckolibAnim("", animName);
+    public void triggerGeckolibAnim(String animName, float speed){
+        triggerGeckolibAnim("", animName, speed);
     }
 
     /**
@@ -847,19 +848,24 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * It's safe to call this method on both side.
      */
     @RPCMethod
-    public void triggerGeckolibAnim(String controllerName, String animName){
+    public void triggerGeckolibAnim(String controllerName, String animName, float speed){
         if (MBD2.isGeckolibLoaded()) {
             if (isRemote()) {
                 if (controllerName.isEmpty()) {
                     controllerName = "base_controller";
                 }
                 if (getMachineState().getRenderer() instanceof GeckolibRenderer renderer) {
-                    renderer.getAnimatableFromMachine(this).getAnimatableInstanceCache()
+                    var controller = renderer.getAnimatableFromMachine(this).getAnimatableInstanceCache()
                             .getManagerForId(0)
-                            .tryTriggerAnimation(controllerName, animName);
+                            .getAnimationControllers()
+                            .get(controllerName);
+                    if (controller != null) {
+                        controller.setAnimationSpeed(Math.max(speed, 0));
+                        controller.tryTriggerAnimation(animName);
+                    }
                 }
             } else {
-                rpcToTracking("triggerGeckolibAnim", controllerName, animName);
+                rpcToTracking("triggerGeckolibAnim", controllerName, animName, speed);
             }
         }
     }
