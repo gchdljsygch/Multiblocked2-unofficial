@@ -5,8 +5,10 @@ import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.simibubi.create.content.kinetics.base.IRotate;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.content.kinetics.base.RotatedPillarKineticBlock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
@@ -14,6 +16,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 public class MBDKineticMachineBlock extends MBDMachineBlock implements IRotate {
 
@@ -62,6 +65,29 @@ public class MBDKineticMachineBlock extends MBDMachineBlock implements IRotate {
         }
     }
 
+    @Override
+    public @Nullable BlockState getStateForPlacement(BlockPlaceContext context) {
+        var state = super.getStateForPlacement(context);
+        if (state == null) return null;
+        var preferredAxis = RotatedPillarKineticBlock.getPreferredAxis(context);
+        if (preferredAxis != null && (context.getPlayer() == null || !context.getPlayer().isShiftKeyDown())) {
+            if (preferredAxis == getRotationAxis(state)) {
+                return state;
+            }
+            var rotationState = getRotationState();
+            if (rotationState.property.isPresent()) {
+                for (var value : Direction.values()) {
+                    if (rotationState.test(value)) {
+                        var newState = state.setValue(rotationState.property.get(), value);
+                        if (getRotationAxis(newState) == preferredAxis) {
+                            return newState;
+                        }
+                    }
+                }
+            }
+        }
+        return state;
+    }
 
     public boolean areStatesKineticallyEquivalent(BlockState oldState, BlockState newState) {
         if (oldState.getBlock() != newState.getBlock())
