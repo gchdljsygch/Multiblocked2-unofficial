@@ -76,9 +76,6 @@ public class CommonProxy {
         ProxyPartBlockEntity.TYPE = BLOCK_ENTITY_TYPES.register("proxy_part_block", () -> BlockEntityType.Builder.of(ProxyPartBlockEntity::new, ProxyPartBlock.BLOCK).build(null));
         BLOCKS.register(eventBus);
         BLOCK_ENTITY_TYPES.register(eventBus);
-        if (MBD2.isCreateLoaded()) {
-            CreateKineticMachineDefinition.registerStressProvider();
-        }
     }
 
     public void registerRecipeType() {

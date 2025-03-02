@@ -1,50 +1,64 @@
 package com.lowdragmc.mbd2.integration.create.machine;
 
-import com.jozufozu.flywheel.api.InstanceData;
-import com.jozufozu.flywheel.api.MaterialManager;
-import com.jozufozu.flywheel.core.PartialModel;
-import com.simibubi.create.content.kinetics.base.KineticBlockEntityInstance;
-import com.simibubi.create.content.kinetics.base.flwdata.RotatingData;
-import com.simibubi.create.foundation.render.AllMaterialSpecs;
-import com.simibubi.create.foundation.render.CachedBufferer;
+import com.simibubi.create.content.kinetics.base.KineticBlockEntityVisual;
+import com.simibubi.create.content.kinetics.base.RotatingInstance;
+import com.simibubi.create.foundation.render.AllInstanceTypes;
+import dev.engine_room.flywheel.api.instance.Instance;
+import dev.engine_room.flywheel.api.visualization.VisualizationContext;
+import dev.engine_room.flywheel.lib.instance.AbstractInstance;
+import dev.engine_room.flywheel.lib.instance.FlatLit;
+import dev.engine_room.flywheel.lib.model.Models;
+import dev.engine_room.flywheel.lib.model.baked.PartialModel;
 import net.minecraft.core.Direction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
-public class MBDKineticInstance extends KineticBlockEntityInstance<MBDKineticMachineBlockEntity> {
+public class MBDKineticInstance extends KineticBlockEntityVisual<MBDKineticMachineBlockEntity> {
 
-    protected final List<RotatingData> keys = new ArrayList<>();
+    protected final List<RotatingInstance> keys = new ArrayList<>();
 
-    public MBDKineticInstance(MaterialManager modelManager, MBDKineticMachineBlockEntity tile, PartialModel model, ConfigKineticMachineSettings.RenderLayer layer) {
-        super(modelManager, tile);
+    public MBDKineticInstance(VisualizationContext modelManager, MBDKineticMachineBlockEntity tile, float partialTick, PartialModel model, ConfigKineticMachineSettings.RenderLayer layer) {
+        super(modelManager, tile, partialTick);
         var speed = tile.getSpeed();
         var rotationFacing = tile.definition.kineticMachineSettings.getRotationFacing(tile.getMetaMachine().getFrontFacing().orElse(Direction.NORTH));
-        var rotatingData = (layer == ConfigKineticMachineSettings.RenderLayer.SOLID ? modelManager.defaultSolid() :
-                        layer == ConfigKineticMachineSettings.RenderLayer.CUTOUT ? modelManager.defaultCutout() :
-                        layer == ConfigKineticMachineSettings.RenderLayer.TRANSPARENT ? modelManager.defaultTransparent() : modelManager.defaultSolid())
-                .material(AllMaterialSpecs.ROTATING)
-                .getModel(model, blockState, rotationFacing, CachedBufferer.rotateToFaceVertical(rotationFacing))
-                .createInstance();
-        setup(rotatingData, speed);
-        keys.add(rotatingData);
+        var instance = modelManager.instancerProvider().instancer(AllInstanceTypes.ROTATING, Models.partial(model)).createInstance();
+//        var rotatingData = (layer == ConfigKineticMachineSettings.RenderLayer.SOLID ? modelManager.defaultSolid() :
+//                        layer == ConfigKineticMachineSettings.RenderLayer.CUTOUT ? modelManager.defaultCutout() :
+//                        layer == ConfigKineticMachineSettings.RenderLayer.TRANSPARENT ? modelManager.defaultTransparent() : modelManager.defaultSolid())
+//                .material(AllInstanceTypes.ROTATING)
+//                .getModel(model, blockState, rotationFacing, CachedBuffers.rotateToFaceVertical(rotationFacing))
+//                .createInstance();
+        instance.setup(blockEntity, speed)
+                .setPosition(getVisualPosition())
+                .rotateToFace(rotationFacing)
+                .setChanged();
+
+        keys.add(instance);
     }
 
     @Override
-    public void update() {
+    public void update(float partialTick) {
         for (var rotatingData : keys) {
-            updateRotation(rotatingData, blockEntity.getSpeed());
+            rotatingData.setup(blockEntity, blockEntity.getSpeed())
+                    .setChanged();
         }
     }
 
     @Override
-    public void updateLight() {
-        relight(pos, keys.stream());
+    public void updateLight(float partialTick) {
+        relight(keys.toArray(FlatLit[]::new));
     }
 
     @Override
-    public void remove() {
-        keys.forEach(InstanceData::delete);
+    public void _delete() {
+        keys.forEach(AbstractInstance::delete);
         keys.clear();
+    }
+
+    @Override
+    public void collectCrumblingInstances(Consumer<Instance> consumer) {
+        keys.forEach(consumer);
     }
 }

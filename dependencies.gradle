@@ -54,11 +54,12 @@ dependencies {
 
     // GTM
     compileOnly fg.deobf("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtm_version}") { transitive = false }
-    implementation fg.deobf("com.tterrag.registrate:Registrate:${registrate_version}")
+    compileOnly fg.deobf("com.tterrag.registrate:Registrate:${registrate_version}")
 
     // Create
-    implementation fg.deobf("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
-    implementation fg.deobf("com.jozufozu.flywheel:flywheel-forge-${minecraft_version}:${flywheel_version}")
+    implementation fg.deobf("com.simibubi.create:create-${minecraft_version}:${create_version}:all") { transitive = false }
+    implementation fg.deobf("dev.engine-room.flywheel:flywheel-forge-${minecraft_version}:${flywheel_version}")
+    implementation fg.deobf("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}")
 
     // KubeJS
     implementation fg.deobf("dev.latvian.mods:kubejs-forge:${kubejs_version}") { transitive = false }

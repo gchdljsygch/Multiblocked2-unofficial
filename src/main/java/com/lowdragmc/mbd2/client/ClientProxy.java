@@ -4,9 +4,8 @@ import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.CommonProxy;
 import com.lowdragmc.mbd2.integration.create.machine.KineticInstanceRenderer;
-import com.simibubi.create.CreateClient;
+import net.createmod.catnip.render.SuperByteBufferCache;
 import net.minecraft.client.renderer.item.ItemProperties;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityRenderersEvent.RegisterRenderers;
@@ -23,7 +22,7 @@ public class ClientProxy extends CommonProxy {
     public ClientProxy() {
         super();
         if (MBD2.isCreateLoaded()) {
-            CreateClient.BUFFER_CACHE.registerCompartment(KineticInstanceRenderer.DIRECTIONAL_PARTIAL);
+            SuperByteBufferCache.getInstance().registerCompartment(KineticInstanceRenderer.DIRECTIONAL_PARTIAL);
         }
     }
 

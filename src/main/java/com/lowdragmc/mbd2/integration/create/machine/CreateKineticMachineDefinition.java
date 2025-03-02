@@ -1,7 +1,5 @@
 package com.lowdragmc.mbd2.integration.create.machine;
 
-import com.jozufozu.flywheel.backend.instancing.InstancedRenderRegistry;
-import com.jozufozu.flywheel.core.PartialModel;
 import com.lowdragmc.lowdraglib.client.renderer.impl.IModelRenderer;
 import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
@@ -9,8 +7,9 @@ import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
 import com.simibubi.create.AllPartialModels;
-import com.simibubi.create.content.kinetics.BlockStressValues;
-import com.simibubi.create.foundation.utility.Couple;
+import com.simibubi.create.api.stress.BlockStressValues;
+import dev.engine_room.flywheel.lib.model.baked.PartialModel;
+import dev.engine_room.flywheel.lib.visualization.SimpleBlockEntityVisualizer;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -25,6 +24,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.registries.RegisterEvent;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -77,7 +77,14 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
 
     @Override
     public Block createBlock() {
-        return new MBDKineticMachineBlock(blockProperties.apply(stateMachine, BlockBehaviour.Properties.of()), this);
+        var block = new MBDKineticMachineBlock(blockProperties.apply(stateMachine, BlockBehaviour.Properties.of()), this);
+        if (kineticMachineSettings.isGenerator) {
+            BlockStressValues.CAPACITIES.register(block, kineticMachineSettings::getCapacity);
+            BlockStressValues.RPM.register(block, new BlockStressValues.GeneratedRpm(kineticMachineSettings.maxRPM, true));
+        } else {
+            BlockStressValues.IMPACTS.register(block, kineticMachineSettings::getImpact);
+        }
+        return block;
     }
 
     @Override
@@ -91,9 +98,9 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
         super.initRenderer(event);
         if (kineticMachineSettings.useFlywheel) {
             var model = getRotationPartialModel();
-            InstancedRenderRegistry.configure((BlockEntityType<MBDKineticMachineBlockEntity>) blockEntityType())
-                    .factory((materialManager, be) -> new MBDKineticInstance(materialManager, be, model, kineticMachineSettings.renderLayer()))
-                    .skipRender((be) -> false)
+            SimpleBlockEntityVisualizer.builder((BlockEntityType<MBDKineticMachineBlockEntity>) blockEntityType())
+                    .factory((materialManager, be, pt) -> new MBDKineticInstance(materialManager, be, pt, model, kineticMachineSettings.renderLayer()))
+                    .skipVanillaRender(be -> false)
                     .apply();
         }
     }
@@ -107,64 +114,10 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
                 rotationRenderer = uiResourceRenderer.getRenderer();
             }
             if (rotationRenderer instanceof IModelRenderer modelRenderer) {
-                model = new PartialModel(modelRenderer.getModelLocation());
+                model = PartialModel.of(modelRenderer.getModelLocation());
             }
         }
         return model;
-    }
-
-    public static void registerStressProvider() {
-        BlockStressValues.registerProvider(MBD2.MOD_ID, new BlockStressValues.IStressValueProvider() {
-            @Override
-            public double getImpact(Block block) {
-                if (block instanceof MBDKineticMachineBlock machineBlock) {
-                    var definition = machineBlock.getDefinition();
-                    if (!definition.kineticMachineSettings.isGenerator) {
-                        return definition.kineticMachineSettings.getImpact();
-                    }
-                }
-                return 0;
-            }
-
-            @Override
-            public double getCapacity(Block block) {
-                if (block instanceof MBDKineticMachineBlock machineBlock) {
-                    var definition = machineBlock.getDefinition();
-                    if (definition.kineticMachineSettings.isGenerator) {
-                        return definition.kineticMachineSettings.getCapacity();
-                    }
-                }
-                return 0;
-            }
-
-            @Override
-            public boolean hasImpact(Block block) {
-                if (block instanceof MBDKineticMachineBlock machineBlock) {
-                    var definition = machineBlock.getDefinition();
-                    return !definition.kineticMachineSettings.isGenerator;
-                }
-                return false;
-            }
-
-            @Override
-            public boolean hasCapacity(Block block) {
-                if (block instanceof MBDKineticMachineBlock machineBlock) {
-                    var definition = machineBlock.getDefinition();
-                    return definition.kineticMachineSettings.isGenerator;
-                }
-                return false;
-            }
-
-            @Nullable
-            @Override
-            public Couple<Integer> getGeneratedRPM(Block block) {
-                if (block instanceof MBDKineticMachineBlock machineBlock) {
-                    var definition = machineBlock.getDefinition();
-                    return definition.kineticMachineSettings.isGenerator ? Couple.create(0, definition.kineticMachineSettings.maxRPM) : null;
-                }
-                return null;
-            }
-        });
     }
 
     @Setter

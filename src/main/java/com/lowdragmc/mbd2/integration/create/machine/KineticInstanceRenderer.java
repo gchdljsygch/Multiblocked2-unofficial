@@ -1,6 +1,5 @@
 package com.lowdragmc.mbd2.integration.create.machine;
 
-import com.jozufozu.flywheel.backend.Backend;
 import com.lowdragmc.lowdraglib.client.renderer.IItemRendererProvider;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
@@ -10,13 +9,13 @@ import com.lowdragmc.mbd2.common.gui.editor.texture.IRendererSlotTexture;
 import com.lowdragmc.mbd2.common.item.MBDMachineItem;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.simibubi.create.CreateClient;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntityRenderer;
-import com.simibubi.create.foundation.render.BakedModelRenderHelper;
-import com.simibubi.create.foundation.render.CachedBufferer;
-import com.simibubi.create.foundation.render.SuperByteBufferCache;
-import com.simibubi.create.foundation.utility.AnimationTickHolder;
+import dev.engine_room.flywheel.api.visualization.VisualizationManager;
+import net.createmod.catnip.animation.AnimationTickHolder;
+import net.createmod.catnip.render.CachedBuffers;
+import net.createmod.catnip.render.SuperBufferFactory;
+import net.createmod.catnip.render.SuperByteBufferCache;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -68,10 +67,10 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
             var axis = rotationFacing.getAxis();
             var angle = 3.1415927f * 0.3f;
             var state = blockItem.getBlock().defaultBlockState();
-            var superByteBuffer = CreateClient.BUFFER_CACHE.get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
-                    () -> BakedModelRenderHelper.standardModelRender(rotationModel, state, CachedBufferer.rotateToFaceVertical(rotationFacing).get()));
+            var superByteBuffer = SuperByteBufferCache.getInstance().get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
+                    () -> SuperBufferFactory.getInstance().createForBlock(rotationModel, state, CachedBuffers.rotateToFaceVertical(rotationFacing).get()));
             superByteBuffer.light(combinedLight);
-            superByteBuffer.rotateCentered(Direction.get(Direction.AxisDirection.POSITIVE, axis), angle);
+            superByteBuffer.rotateCentered(angle, Direction.get(Direction.AxisDirection.POSITIVE, axis));
             for (var renderType : rotationModel.getRenderTypes(state, RandomSource.create(49), ModelData.EMPTY)) {
                 superByteBuffer.renderInto(poseStack, bufferSource.getBuffer(renderType));
             }
@@ -96,7 +95,7 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
         if (machineOptional.isEmpty()) return false;
         var machine = machineOptional.get();
         if (machine.getDefinition() instanceof CreateKineticMachineDefinition definition) {
-            return !definition.kineticMachineSettings().useFlywheel() || !Backend.canUseInstancing(blockEntity.getLevel());
+            return !definition.kineticMachineSettings().useFlywheel() || !VisualizationManager.supportsVisualization(blockEntity.getLevel());
         }
         return false;
     }
@@ -113,14 +112,14 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
         if (machineOptional.isEmpty()) return;
         var machine = machineOptional.get();
         if (machine.getDefinition() instanceof CreateKineticMachineDefinition definition) {
-            if (Backend.canUseInstancing(blockEntity.getLevel()) && definition.kineticMachineSettings.useFlywheel()) return;
+            if (VisualizationManager.supportsVisualization(blockEntity.getLevel()) && definition.kineticMachineSettings.useFlywheel()) return;
             var state = blockEntity.getBlockState();
             var rotationFacing = definition.kineticMachineSettings().getRotationFacing(machine.getFrontFacing().orElse(Direction.NORTH));
             var axis = rotationFacing.getAxis();
             var angle = 0f;
 
-            var superByteBuffer = CreateClient.BUFFER_CACHE.get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
-                    () -> BakedModelRenderHelper.standardModelRender(rotationModel, state, CachedBufferer.rotateToFaceVertical(rotationFacing).get()));
+            var superByteBuffer = SuperByteBufferCache.getInstance().get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
+                    () -> SuperBufferFactory.getInstance().createForBlock(rotationModel, state, CachedBuffers.rotateToFaceVertical(rotationFacing).get()));
 
             // its a real block entity
             var time = AnimationTickHolder.getRenderTime(blockEntity.getLevel());
@@ -139,7 +138,7 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
                     angle = angle / 180.0F * 3.1415927F;
                 }
                 superByteBuffer.light(light);
-                superByteBuffer.rotateCentered(Direction.get(Direction.AxisDirection.POSITIVE, axis), angle);
+                superByteBuffer.rotateCentered(angle, Direction.get(Direction.AxisDirection.POSITIVE, axis));
             }
 
             for (var renderType : rotationModel.getRenderTypes(state, blockEntity.getLevel().getRandom(), ModelData.EMPTY)) {

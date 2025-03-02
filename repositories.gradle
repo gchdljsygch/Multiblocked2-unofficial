@@ -28,6 +28,7 @@ repositories {
     maven { // blood magic
         url "https://tehnut.info/maven/"
     }
+    maven { url = "https://maven.createmod.net" } // Ponder, Flywheel
     maven { // Flywheel
         url = "https://maven.tterrag.com/"
         content {
