@@ -75,10 +75,6 @@ public class ConfigKineticMachineSettings implements IConfigurable, IPersistedSe
         TRANSPARENT,
     }
 
-    @Configurable(name = "config.kinetic_machine.flywheel_render_layer", tips = "config.kinetic_machine.flywheel_render_layer.tooltip")
-    @Builder.Default
-    public RenderLayer renderLayer = RenderLayer.SOLID;
-
     /**
      * Get the rotation facing based on the machine front facing;
      */

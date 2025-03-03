@@ -19,17 +19,11 @@ public class MBDKineticInstance extends KineticBlockEntityVisual<MBDKineticMachi
 
     protected final List<RotatingInstance> keys = new ArrayList<>();
 
-    public MBDKineticInstance(VisualizationContext modelManager, MBDKineticMachineBlockEntity tile, float partialTick, PartialModel model, ConfigKineticMachineSettings.RenderLayer layer) {
+    public MBDKineticInstance(VisualizationContext modelManager, MBDKineticMachineBlockEntity tile, float partialTick, PartialModel model) {
         super(modelManager, tile, partialTick);
         var speed = tile.getSpeed();
         var rotationFacing = tile.definition.kineticMachineSettings.getRotationFacing(tile.getMetaMachine().getFrontFacing().orElse(Direction.NORTH));
         var instance = modelManager.instancerProvider().instancer(AllInstanceTypes.ROTATING, Models.partial(model)).createInstance();
-//        var rotatingData = (layer == ConfigKineticMachineSettings.RenderLayer.SOLID ? modelManager.defaultSolid() :
-//                        layer == ConfigKineticMachineSettings.RenderLayer.CUTOUT ? modelManager.defaultCutout() :
-//                        layer == ConfigKineticMachineSettings.RenderLayer.TRANSPARENT ? modelManager.defaultTransparent() : modelManager.defaultSolid())
-//                .material(AllInstanceTypes.ROTATING)
-//                .getModel(model, blockState, rotationFacing, CachedBuffers.rotateToFaceVertical(rotationFacing))
-//                .createInstance();
         instance.setup(blockEntity, speed)
                 .setPosition(getVisualPosition())
                 .rotateToFace(rotationFacing)

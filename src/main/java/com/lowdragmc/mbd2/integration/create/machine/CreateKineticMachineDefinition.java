@@ -24,7 +24,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.registries.RegisterEvent;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -99,7 +98,7 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
         if (kineticMachineSettings.useFlywheel) {
             var model = getRotationPartialModel();
             SimpleBlockEntityVisualizer.builder((BlockEntityType<MBDKineticMachineBlockEntity>) blockEntityType())
-                    .factory((materialManager, be, pt) -> new MBDKineticInstance(materialManager, be, pt, model, kineticMachineSettings.renderLayer()))
+                    .factory((materialManager, be, pt) -> new MBDKineticInstance(materialManager, be, pt, model))
                     .skipVanillaRender(be -> false)
                     .apply();
         }
