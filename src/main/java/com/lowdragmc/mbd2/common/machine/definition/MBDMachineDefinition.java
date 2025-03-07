@@ -5,6 +5,7 @@ import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurableWidget;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.IRendererResource;
@@ -74,6 +75,7 @@ import java.util.function.Supplier;
  */
 @Getter
 @Accessors(fluent = true)
+@LDLRegister(name = "single_machine", group = "machine_definition")
 public class MBDMachineDefinition implements IConfigurable, IPersistedSerializable {
     @FunctionalInterface
     public interface ConfigMachineSettingsFactory extends Supplier<ConfigMachineSettings> {}

@@ -302,6 +302,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    public ITrait getTraitByName(String name) {
+        for (var trait : additionalTraits) {
+            if (trait.getDefinition().getName().equals(name)) {
+                return trait;
+            }
+        }
+        return null;
+    }
+
     /**
      * Get the block entity holder.
      */
@@ -533,7 +542,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     @Override
     public boolean alwaysTryModifyRecipe() {
-        return !getDefinition().recipeLogicSettings().recipeModifiers().recipeModifiers.isEmpty();
+        return !getDefinition().recipeLogicSettings().recipeModifiers().recipeModifiers.isEmpty() || getDefinition().recipeLogicSettings().alwaysModifyRecipe();
     }
 
     /**

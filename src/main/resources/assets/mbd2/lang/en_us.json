@@ -251,9 +251,12 @@
 
     "config.recipe_logic_settings.recipe_damping_value": "Recipe Damping Value",
     "config.recipe_logic_settings.recipe_damping_value.tooltip": "if the recipe handling is waiting, damping value is the decreased ticks of the current progress.",
-    "config.recipe_logic_settings.always_search_recipe": "Always Search Recipe",
+    "config.recipe_logic_settings.always_search_recipe": "Always Re-search Recipe",
     "config.recipe_logic_settings.always_search_recipe.tooltip.0": "If false, the machine will automatically attempt to execute the last recipe again once it finishes, which offers better performance.",
     "config.recipe_logic_settings.always_search_recipe.tooltip.1": "If true, the machine will re-search all available recipes each time, which is useful when multiple recipes are available for execution with different priority levels.",
+    "config.recipe_logic_settings.always_modify_recipe": "Always Modify Recipe",
+    "config.recipe_logic_settings.always_modify_recipe.tooltip.0": "If false, the machine will automatically attempt to execute the last recipe again once it finishes, which offers better performance.",
+    "config.recipe_logic_settings.always_modify_recipe.tooltip.1": "If true, the machine will try to apply modifier to last recipe, if failed, try to research recipe.",
 
     "config.definition.id.tooltip": "The unique identifier of the definition.",
     "config.definition.block_properties": "Block Properties",

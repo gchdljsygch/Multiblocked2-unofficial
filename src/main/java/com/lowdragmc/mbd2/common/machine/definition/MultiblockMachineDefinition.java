@@ -1,7 +1,7 @@
 package com.lowdragmc.mbd2.common.machine.definition;
 
-import com.google.common.base.Suppliers;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiPart;
@@ -36,6 +36,7 @@ import static com.lowdragmc.mbd2.common.gui.editor.MultiblockMachineProject.crea
  */
 @Getter
 @Accessors(fluent = true)
+@LDLRegister(name = "multiblock", group = "machine_definition")
 public class MultiblockMachineDefinition extends MBDMachineDefinition {
     public static final Map<Block, Set<MultiblockMachineDefinition>> CATALYST_CANDIDATES = Collections.synchronizedMap(new HashMap<>());
     @FunctionalInterface

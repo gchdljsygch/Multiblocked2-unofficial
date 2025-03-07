@@ -47,8 +47,14 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
             "config.recipe_logic_settings.always_search_recipe.tooltip.0",
             "config.recipe_logic_settings.always_search_recipe.tooltip.1"
     })
-    @NumberRange(range = {0, Integer.MAX_VALUE})
     protected boolean alwaysSearchRecipe = false;
+    @Getter
+    @Builder.Default
+    @Configurable(name = "config.recipe_logic_settings.always_modify_recipe", tips = {
+            "config.recipe_logic_settings.always_modify_recipe.tooltip.0",
+            "config.recipe_logic_settings.always_modify_recipe.tooltip.1"
+    })
+    protected boolean alwaysModifyRecipe = false;
 
     public MBDRecipeType getRecipeType() {
         return MBDRegistries.RECIPE_TYPES.getOrDefault(recipeType, MBDRecipeType.DUMMY);
