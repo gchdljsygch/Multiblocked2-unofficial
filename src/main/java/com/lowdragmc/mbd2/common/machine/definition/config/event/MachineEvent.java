@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.common.machine.definition.config.event;
 
+import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.gui.editor.ILDLRegister;
 import com.lowdragmc.lowdraglib.gui.graphprocessor.data.parameter.ExposedParameter;
 import com.lowdragmc.mbd2.MBD2;
@@ -31,15 +32,17 @@ public class MachineEvent extends Event implements ILDLRegister {
         return this;
     }
 
-    public void postKubeJSEvent() {
+    public MachineEvent postKubeJSEvent() {
         // post to the KubeJS events
         if (MBD2.isKubeJSLoaded()) {
-            if (machine.isRemote()) {
+            if (LDLib.isClient()) {
+                MBDServerEvents.postMachineEvent(this);
                 MBDClientEvents.postMachineEvent(this);
             } else {
                 MBDServerEvents.postMachineEvent(this);
             }
         }
+        return this;
     }
 
     /**

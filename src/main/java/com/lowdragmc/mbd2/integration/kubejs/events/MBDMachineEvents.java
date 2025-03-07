@@ -23,6 +23,12 @@ public class MBDMachineEvents {
         }
     }
 
+    public static class MachineUIEventJS extends MachineEventJS<MachineUIEvent> {
+        public MachineUIEventJS(MachineUIEvent event) {
+            super(event);
+        }
+    }
+
     public static class MachineBeforeRecipeWorkingEventJS extends MachineEventJS<MachineBeforeRecipeWorkingEvent> {
         public MachineBeforeRecipeWorkingEventJS(MachineBeforeRecipeWorkingEvent event) {
             super(event);

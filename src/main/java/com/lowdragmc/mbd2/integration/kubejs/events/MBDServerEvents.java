@@ -119,6 +119,11 @@ public interface MBDServerEvents {
             MBDMachineEvents.MachineUseCatalystEventJS.class,
             MBDMachineEvents.MachineUseCatalystEventJS::new);
 
+    EventHandler MACHINE_UI = registerMachineEvent("onUI",
+            MachineUIEvent.class,
+            MBDMachineEvents.MachineUIEventJS.class,
+            MBDMachineEvents.MachineUIEventJS::new);
+
     static void init() {
         // NO-OP
     }

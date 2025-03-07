@@ -68,7 +68,6 @@ import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
-import software.bernie.geckolib.core.animation.AnimationController;
 
 import javax.annotation.Nonnull;
 import java.util.*;
@@ -306,6 +305,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         for (var trait : additionalTraits) {
             if (trait.getDefinition().getName().equals(name)) {
                 return trait;
+            }
+        }
+        return null;
+    }
+
+    public <T> T getTraitByName(Class<T> clazz, String name) {
+        for (var trait : additionalTraits) {
+            if (trait.getDefinition().getName().equals(name) && clazz.isInstance(trait)) {
+                return (T) trait;
             }
         }
         return null;
@@ -791,6 +799,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     public ModularUI createUI(Player entityPlayer) {
         var ui = getDefinition().uiCreator().apply(this);
+        var event = new MachineUIEvent(this, ui);
+        MinecraftForge.EVENT_BUS.post(event.postKubeJSEvent());
+        ui = event.getRoot();
+        if (ui == null) {
+            return null;
+        }
         return new ModularUI(ui, this, entityPlayer);
     }
 
