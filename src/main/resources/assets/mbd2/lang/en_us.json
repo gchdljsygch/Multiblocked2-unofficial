@@ -435,7 +435,7 @@
     "config.definition.trait.forge_energy_storage.max_receive.tooltip": "Max received energy per action.",
     "config.definition.trait.forge_energy_storage.max_extract": "Max Extract",
     "config.definition.trait.forge_energy_storage.max_extract.tooltip": "Max extracted energy per action.",
-    "config.definition.trait.forge_energy_storage.ui_container_hover": "Stored: %d / %d FE",
+    "config.definition.trait.forge_energy_storage.ui_container_hover": "Stored: %dFE / %dFE",
     "config.definition.trait.forge_energy_storage.auto_io.tooltip": "Auto extract from the nearby energy storage or fill to the nearby energy storage.",
     "config.definition.trait.forge_energy_storage.fancy_renderer": "Fancy Forge Storage Renderer",
     "config.definition.trait.forge_energy_storage.fancy_renderer.tooltip": "Allow you render stored energy in the world. (e.g. Energy Container).",
