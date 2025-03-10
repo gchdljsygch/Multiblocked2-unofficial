@@ -13,12 +13,15 @@ import software.bernie.geckolib.core.keyframe.event.CustomInstructionKeyframeEve
 @Setter
 @LDLRegister(name = "MachineCustomKeyframeEvent", group = "MachineEvent")
 public class MachineCustomKeyframeEvent extends MachineEvent {
-    @GraphParameterGet(identity = "keyframe_instructions")
     public CustomInstructionKeyframeEvent<AnimatableMachine> event;
+    @GraphParameterGet()
+    public String instruction;
 
     public MachineCustomKeyframeEvent(MBDMachine machine, CustomInstructionKeyframeEvent<AnimatableMachine> event) {
         super(machine);
         this.event = event;
+
+        instruction = event.getKeyframeData().getInstructions();
     }
 
 }
