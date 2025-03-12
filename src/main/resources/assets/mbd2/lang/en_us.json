@@ -865,6 +865,8 @@
     "MachineEvent.MachineClientTickEvent.tips": "The event will be triggered every client tick.",
     "MachineEvent.Multiblock.MachineUseCatalystEvent": "Multiblock Use Catalyst Event",
     "MachineEvent.Multiblock.MachineUseCatalystEvent.tips": "The event will be triggered while using catalyst to form the stucture. Cancel the event will stop the forming.",
+    "MachineEvent.MachineCustomKeyframeEvent.tips": "Triggered by 'Instruction' keyframes in geckolib animations.",
+    "MachineEvent.MachineCustomKeyframeEvent": "Instruction Keyframe Event",
     "graph_processor.node.mbd2.recipe_logic.status.tips": "The status of the recipe logic will be one of the following: §cIDLE§r, §cWORKING§r, §cWAITING§r, §cSUSPENDING§r.",
     "graph_processor.node.mbd2.machine": "Machine",
     "graph_processor.node.mbd2.machine.recipe": "Machine Recipe",

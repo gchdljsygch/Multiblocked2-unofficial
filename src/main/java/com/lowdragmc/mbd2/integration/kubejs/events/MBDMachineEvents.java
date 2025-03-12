@@ -160,4 +160,10 @@ public class MBDMachineEvents {
             super(event);
         }
     }
+
+    public static class MachineCustomKeyframeEventJS extends MachineEventJS<MachineCustomKeyframeEvent> {
+        public MachineCustomKeyframeEventJS(MachineCustomKeyframeEvent event) {
+            super(event);
+        }
+    }
 }
