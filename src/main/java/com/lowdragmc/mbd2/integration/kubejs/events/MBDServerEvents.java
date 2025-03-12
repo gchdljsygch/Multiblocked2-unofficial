@@ -124,11 +124,6 @@ public interface MBDServerEvents {
             MBDMachineEvents.MachineUIEventJS.class,
             MBDMachineEvents.MachineUIEventJS::new);
 
-    EventHandler CUSTOM_KEYFRAME = registerMachineEvent("onCustomKeyframeTrigger",
-            MachineCustomKeyframeEvent.class,
-            MBDMachineEvents.MachineCustomKeyframeEventJS.class,
-            MBDMachineEvents.MachineCustomKeyframeEventJS::new);
-
     static void init() {
         // NO-OP
     }
