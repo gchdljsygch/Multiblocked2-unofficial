@@ -87,4 +87,9 @@ dependencies {
     // Ars Nouveau
     // TODO 1.21
 //    implementation fg.deobf("com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_nouveau_version}")
+
+    //oculus
+    minecraftLibrary(runtimeOnly("org.anarres:jcpp:1.4.14"))
+    runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}") {transitive  = false}
+    runtimeOnly fg.deobf("maven.modrinth:oculus:${oculus_version}") {transitive = true}
 }

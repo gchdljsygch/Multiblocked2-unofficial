@@ -1,5 +1,4 @@
 # ChangeLog
 
-* Added more settings, APIs.
-* Added energy formatting (thanks to @andrrihorpenko)
-* Added support to setup machine UI via KubeJS.
+* Fixed Create Rotation Condition doesn't work in some cases.
+* Added Custom Instruction Keyframe handler for Geckolib Animations (Thanks to @Tcat20000)

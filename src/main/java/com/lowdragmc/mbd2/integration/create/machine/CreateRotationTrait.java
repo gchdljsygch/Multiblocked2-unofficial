@@ -114,6 +114,11 @@ public class CreateRotationTrait implements ITrait {
     }
 
     public class StressRecipeHandler implements IRecipeHandlerTrait<Float> {
+
+        public CreateRotationTrait getTrait() {
+            return CreateRotationTrait.this;
+        }
+
         @Override
         public ISubscription addChangedListener(Runnable listener) {
             listeners.add(listener);
@@ -164,6 +169,11 @@ public class CreateRotationTrait implements ITrait {
     }
 
     public class RPMRecipeHandler implements IRecipeHandlerTrait<Float> {
+
+        public CreateRotationTrait getTrait() {
+            return CreateRotationTrait.this;
+        }
+
         @Override
         public ISubscription addChangedListener(Runnable listener) {
             listeners.add(listener);

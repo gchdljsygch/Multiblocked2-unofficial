@@ -26,7 +26,6 @@ public class DayLightCondition extends RecipeCondition {
 
     public final static DayLightCondition INSTANCE = new DayLightCondition();
     @Configurable(name = "config.recipe.condition.day_light.is_day")
-    @NumberRange(range = {0f, 1f})
     private boolean isDay;
 
     public DayLightCondition(boolean isDay) {

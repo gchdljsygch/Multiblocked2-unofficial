@@ -1,8 +1,10 @@
 package com.lowdragmc.mbd2.integration.kubejs.events;
 
+import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import dev.latvian.mods.kubejs.event.EventHandler;
 import dev.latvian.mods.kubejs.event.Extra;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +27,19 @@ public interface MBDClientEvents {
             MachineCustomDataUpdateEvent.class,
             MBDMachineEvents.MachineCustomDataUpdateEventJS.class,
             MBDMachineEvents.MachineCustomDataUpdateEventJS::new);
+
+    @Nullable
+    EventHandler CUSTOM_KEYFRAME = createCustomKeyframeEvent();
+
+    static EventHandler createCustomKeyframeEvent() {
+        if (MBD2.isGeckolibLoaded()) {
+            return registerMachineEvent("onCustomKeyframe",
+                    MachineCustomKeyframeEvent.class,
+                    MBDMachineEvents.MachineCustomKeyframeEventJS.class,
+                    MBDMachineEvents.MachineCustomKeyframeEventJS::new);
+        }
+        return null;
+    }
 
     static void init() {
         // NO-OP
