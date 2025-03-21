@@ -49,7 +49,7 @@ public class MultiblockAreaPanel extends WidgetGroup {
     @Getter
     protected final MultiblockMachineProject project;
     @Getter
-    protected final SceneWidget scene;
+    protected final SceneEditorWidget scene;
     @Getter
     protected final MultiblockPatternPanel patternPanel;
     protected final WidgetGroup buttonGroup;
@@ -163,11 +163,12 @@ public class MultiblockAreaPanel extends WidgetGroup {
     }
 
     public MultiblockAreaPanel(MultiblockMachineProject project, MultiblockPatternPanel patternPanel) {
-        super(0, MenuPanel.HEIGHT, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
+        super(0, MenuPanel.HEIGHT + 16, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
         this.project = project;
         this.patternPanel = patternPanel;
         addWidget(scene = new SceneEditorWidget(0, 0, this.getSize().width, this.getSize().height, null));
         addWidget(buttonGroup = new WidgetGroup(0, 0, this.getSize().width, this.getSize().height));
+        scene.disableTransformGizmo();
         scene.setRenderFacing(false);
         scene.setRenderSelect(false);
         scene.createScene(Minecraft.getInstance().level);

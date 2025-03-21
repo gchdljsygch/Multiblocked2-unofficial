@@ -50,7 +50,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
     @Getter
     protected final TrackedDummyWorld level;
     @Getter
-    protected final SceneWidget scene;
+    protected final SceneEditorWidget scene;
     protected final WidgetGroup buttonGroup;
     // runtime
     private long lastClickTime;
@@ -61,11 +61,12 @@ public class MultiblockPatternPanel extends WidgetGroup {
     private final Set<Vector3i> selectedBlocks = new HashSet<>();
 
     public MultiblockPatternPanel(MachineEditor editor, MultiblockMachineProject project) {
-        super(0, MenuPanel.HEIGHT, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
+        super(0, MenuPanel.HEIGHT + 16, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
         this.editor = editor;
         this.project = project;
         addWidget(scene = new SceneEditorWidget(0, 0, this.getSize().width, this.getSize().height, null));
         addWidget(buttonGroup = new WidgetGroup(0, 0, this.getSize().width, this.getSize().height));
+        scene.disableTransformGizmo();
         scene.setRenderFacing(false);
         scene.setRenderSelect(false);
         scene.createScene(level = new TrackedDummyWorld());
