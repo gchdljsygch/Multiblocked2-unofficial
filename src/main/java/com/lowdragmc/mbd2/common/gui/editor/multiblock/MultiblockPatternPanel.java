@@ -3,10 +3,7 @@ package com.lowdragmc.mbd2.common.gui.editor.multiblock;
 import com.lowdragmc.lowdraglib.client.utils.RenderBufferUtils;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
 import com.lowdragmc.lowdraglib.gui.editor.Icons;
-import com.lowdragmc.lowdraglib.gui.editor.configurator.ArrayConfiguratorGroup;
-import com.lowdragmc.lowdraglib.gui.editor.configurator.ConfiguratorGroup;
-import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
-import com.lowdragmc.lowdraglib.gui.editor.configurator.WrapperConfigurator;
+import com.lowdragmc.lowdraglib.gui.editor.configurator.*;
 import com.lowdragmc.lowdraglib.gui.editor.ui.ConfigPanel;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
 import com.lowdragmc.lowdraglib.gui.editor.ui.MenuPanel;
@@ -30,8 +27,10 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.datafixers.util.Either;
 import lombok.Getter;
 import lombok.val;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
@@ -39,6 +38,7 @@ import net.minecraft.core.Direction;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3i;
 
+import java.io.File;
 import java.util.*;
 
 public class MultiblockPatternPanel extends WidgetGroup {
@@ -174,6 +174,20 @@ public class MultiblockPatternPanel extends WidgetGroup {
     }
 
     private class PredicateConfigurator implements IConfigurable {
+
+        public String mapName(Either<String, File> key) {
+            return key.map(l -> l, r -> ChatFormatting.YELLOW + project.getPredicateResource().getStaticResourceName(r) + ChatFormatting.RESET);
+        }
+
+        public Either<String, File> mapKey(String name) {
+            if (name.startsWith(ChatFormatting.YELLOW.toString()) && name.endsWith(ChatFormatting.RESET.toString())) {
+                var realName = name.substring(ChatFormatting.YELLOW.toString().length(), name.length() - ChatFormatting.RESET.toString().length());
+                return Either.right(project.getPredicateResource().getStaticResourceFile(realName));
+            } else {
+                return Either.left(name);
+            }
+        }
+
         @Override
         public void buildConfigurator(ConfiguratorGroup father) {
             var placeholders =  selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
@@ -196,29 +210,34 @@ public class MultiblockPatternPanel extends WidgetGroup {
                     return resource.getPreviewTexture();
                 }).setBorder(2, ColorPattern.T_WHITE.color);
                 preview.setDraggingConsumer(
-                        o -> o instanceof String key && project.getPredicateResource().hasResource(key),
+                        o -> o instanceof Either<?, ?> key && key.map(
+                                l -> l instanceof String s && project.getPredicateResource().hasBuiltinResource(s),
+                                r -> r instanceof File f && project.getPredicateResource().hasStaticResource(f)),
                         o -> preview.setBorder(2, ColorPattern.GREEN.color),
                         o -> preview.setBorder(2, ColorPattern.T_WHITE.color),
                         o -> {
-                            if (o instanceof String key && project.getPredicateResource().hasResource(key)) {
-                                setter.accept(key);
+                            if (o instanceof Either<?, ?> key && key.map(
+                                    l -> l instanceof String s && project.getPredicateResource().hasBuiltinResource(s),
+                                    r -> r instanceof File f && project.getPredicateResource().hasStaticResource(f))) {
+                                setter.accept((Either<String, File>) key);
                             }
                         });
+                var resource = project.getPredicateResource();
                 var selector = new SelectorWidget(0, 85, 180, 10,
-                        project.getPredicateResource().allResources().stream().map(Map.Entry::getKey).toList(), -1)
-                        .setCandidatesSupplier(() -> project.getPredicateResource().allResources().stream().map(Map.Entry::getKey).toList())
-                        .setSupplier(getter)
-                        .setOnChanged(setter)
+                        resource.allResources().map(Map.Entry::getKey).map(this::mapName).toList(), -1)
+                        .setCandidatesSupplier(() -> resource.allResources().map(Map.Entry::getKey).map(this::mapName).toList())
+                        .setSupplier(() -> mapName(getter.get()))
+                        .setOnChanged(name -> setter.accept(mapKey(name)))
                         .setMaxCount(5)
                         .setIsUp(true)
                         .setButtonBackground(ColorPattern.T_GRAY.rectTexture().setRadius(5))
                         .setBackground(new GuiTextureGroup(ColorPattern.BLACK.rectTexture(), ColorPattern.GRAY.borderTexture(1)))
-                        .setValue(getter.get());
+                        .setValue(mapName(getter.get()));
                 group.addWidget(preview);
                 group.addWidget(selector);
                 return new WrapperConfigurator("", group);
             }, true);
-            predicatesConfigurator.setAddDefault(() -> "any");
+            predicatesConfigurator.setAddDefault(() -> Either.left("any"));
             predicatesConfigurator.setOnAdd(value -> {
                 intersection.add(value);
                 notifyUpdate.run();
@@ -318,8 +337,9 @@ public class MultiblockPatternPanel extends WidgetGroup {
 
         // draw predicate dragging highlight
         if (scene.getHoverPosFace() != null &&
-                gui.getModularUIGui().getDraggingElement() instanceof String key &&
-                project.getPredicateResource().hasResource(key)) {
+                gui.getModularUIGui().getDraggingElement() instanceof Either<?, ?> key &&
+                key.map(l -> l instanceof String s && project.getPredicateResource().hasBuiltinResource(s),
+                        r -> r instanceof File f && project.getPredicateResource().hasStaticResource(f))) {
             var pos = scene.getHoverPosFace().pos;
             RenderBufferUtils.drawCubeFace(poseStack, buffer,
                     pos.getX() - 0.002f, pos.getY() - 0.002f, pos.getZ() - 0.002f,
@@ -353,9 +373,9 @@ public class MultiblockPatternPanel extends WidgetGroup {
                 }
                 editor.setCopy(COPY_TAG, intersection);
             });
-            if (COPY_TAG.equals(editor.getCopyType())) {
+            if (COPY_TAG.equals(editor.getCopyType()) && editor.getCopied() instanceof List<?>) {
                 menu.leaf(Icons.PASTE, "ldlib.gui.editor.menu.paste", () -> {
-                    var predicates = (List<String>) editor.getCopied();
+                    var predicates = (List<Either<String, File>>) editor.getCopied();
                     selectedBlocks.forEach(pos -> {
                         var holder = project.getBlockPlaceholders()[pos.x][pos.y][pos.z];
                         holder.getPredicates().clear();
@@ -446,13 +466,14 @@ public class MultiblockPatternPanel extends WidgetGroup {
                 openMenu(mouseX, mouseY);
             }
             // apply predicate dragging
-            if (hoverPosFace != null && button == 0 &&
-                    gui.getModularUIGui().getDraggingElement() instanceof String key &&
-                    project.getPredicateResource().hasResource(key)) {
+            if (hoverPosFace != null && button == 0 && gui != null &&
+                    gui.getModularUIGui().getDraggingElement() instanceof Either<?, ?> key &&
+                    key.map(l -> l instanceof String s && project.getPredicateResource().hasBuiltinResource(s),
+                            r -> r instanceof File f && project.getPredicateResource().hasStaticResource(f))) {
                 var pos = scene.getHoverPosFace().pos;
                 var holder = project.getBlockPlaceholders()[pos.getX()][pos.getY()][pos.getZ()];
                 holder.getPredicates().clear();
-                holder.getPredicates().add(key);
+                holder.getPredicates().add((Either<String, File>) key);
                 reloadScene(false, true);
             }
         }

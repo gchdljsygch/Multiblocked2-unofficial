@@ -28,6 +28,7 @@ import com.lowdragmc.mbd2.common.gui.editor.MultiblockMachineProject;
 import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.datafixers.util.Either;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -262,19 +263,19 @@ public class MultiblockAreaPanel extends WidgetGroup {
                         if (block instanceof LiquidBlock liquidBlock) {
                             var fluid = liquidBlock.getFluid().getSource();
                             id = Optional.ofNullable(ForgeRegistries.FLUIDS.getKey(fluid)).map(ResourceLocation::toString).orElse("any");
-                            if (!predicateResource.hasResource(id)) {
-                                predicateResource.addResource(id, new PredicateFluids(fluid));
+                            if (!predicateResource.hasBuiltinResource(id)) {
+                                predicateResource.addBuiltinResource(id, new PredicateFluids(fluid));
                                 addNewResource = true;
                             }
                         } else {
                             id = block == Blocks.AIR ? "any" : Optional.ofNullable(ForgeRegistries.BLOCKS.getKey(block)).map(ResourceLocation::toString).orElse("any");
-                            if (!predicateResource.hasResource(id)) {
-                                predicateResource.addResource(id, new PredicateBlocks(block));
+                            if (!predicateResource.hasBuiltinResource(id)) {
+                                predicateResource.addBuiltinResource(id, new PredicateBlocks(block));
                                 addNewResource = true;
                             }
                         }
 
-                        holder = BlockPlaceholder.create(predicateResource, id);
+                        holder = BlockPlaceholder.create(predicateResource, Either.left(id));
                     }
                     blockPlaceholders[x - minX][y - minY][z - minZ] = holder;
                 }

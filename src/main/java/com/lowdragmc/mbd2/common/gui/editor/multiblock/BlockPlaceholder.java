@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.common.gui.editor.multiblock;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
 import com.lowdragmc.lowdraglib.syncdata.ITagSerializable;
 import com.lowdragmc.mbd2.common.gui.editor.PredicateResource;
+import com.mojang.datafixers.util.Either;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -10,9 +11,9 @@ import lombok.experimental.Accessors;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 
+import java.io.File;
 import java.util.*;
 
 @Accessors(chain = true)
@@ -22,7 +23,17 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
     @Getter
     protected final PredicateResource predicateResource;
     @Getter
-    protected Set<String> predicates = new LinkedHashSet<>();
+    protected Set<Either<String, File>> predicates = new LinkedHashSet<>() {
+        @Override
+        public boolean remove(Object o) {
+            return super.remove(o);
+        }
+
+        @Override
+        public void clear() {
+            super.clear();
+        }
+    };
     @Getter
     @Setter
     protected boolean isController;
@@ -34,13 +45,15 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
         this.predicateResource = predicateResource;
     }
 
-    public static BlockPlaceholder create(PredicateResource predicateResource, String... predicates) {
+    @SafeVarargs
+    public static BlockPlaceholder create(PredicateResource predicateResource, Either<String, File>... predicates) {
         var holder = new BlockPlaceholder(predicateResource);
         holder.predicates.addAll(Arrays.asList(predicates));
         return holder;
     }
 
-    public static BlockPlaceholder controller(PredicateResource predicateResource, String... predicates) {
+    @SafeVarargs
+    public static BlockPlaceholder controller(PredicateResource predicateResource, Either<String, File>... predicates) {
         var holder = create(predicateResource, predicates);
         holder.isController = true;
         return holder;
@@ -57,7 +70,19 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
         var tag = new CompoundTag();
         var predicatesTag = new ListTag();
         for (var predicate : predicates) {
-            predicatesTag.add(StringTag.valueOf(predicate));
+            predicatesTag.add(predicate.map(
+                    l -> {
+                        var key = new CompoundTag();
+                        key.putString("key", l);
+                        key.putString("type", "builtin");
+                        return key;
+                    }, r-> {
+                        var key = new CompoundTag();
+                        key.putString("key", r.getPath());
+                        key.putString("type", "project");
+                        return key;
+                    }
+            ));
         }
         tag.put("predicates", predicatesTag);
         tag.putBoolean("isController", isController);
@@ -69,8 +94,22 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
     public void deserializeNBT(CompoundTag nbt) {
         this.predicates.clear();
         var predicatesTag = nbt.getList("predicates", Tag.TAG_STRING);
-        for (var tag : predicatesTag) {
-            predicates.add(tag.getAsString());
+        if (predicatesTag.isEmpty()) {
+            predicatesTag = nbt.getList("predicates", Tag.TAG_COMPOUND);
+            for (var tag : predicatesTag) {
+                var compoundTag = (CompoundTag) tag;
+                var key = compoundTag.getString("key");
+                var type = compoundTag.getString("type");
+                if ("builtin".equals(type)) {
+                    predicates.add(Either.left(key));
+                } else if ("project".equals(type)) {
+                    predicates.add(Either.right(new File(key)));
+                }
+            }
+        } else {
+            for (var tag : predicatesTag) {
+                predicates.add(Either.left(tag.getAsString()));
+            }
         }
         isController = nbt.getBoolean("isController");
         facing = Direction.from3DDataValue(nbt.getInt("facing"));

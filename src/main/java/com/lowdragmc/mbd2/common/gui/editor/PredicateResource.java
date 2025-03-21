@@ -1,5 +1,7 @@
 package com.lowdragmc.mbd2.common.gui.editor;
 
+import com.lowdragmc.lowdraglib.LDLib;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.Resource;
 import com.lowdragmc.lowdraglib.gui.editor.ui.ResourcePanel;
 import com.lowdragmc.lowdraglib.gui.editor.ui.resource.ResourceContainer;
@@ -9,12 +11,19 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
+
+import static com.lowdragmc.mbd2.common.gui.editor.PredicateResource.RESOURCE_NAME;
+
+
+@LDLRegister(name = RESOURCE_NAME, group = "resource")
 public class PredicateResource extends Resource<SimplePredicate> {
     public final static String RESOURCE_NAME = "mbd2.gui.editor.group.predicate";
 
     public PredicateResource() {
-        data.put("any", SimplePredicate.ANY);
-        data.put("air", SimplePredicate.AIR);
+        super(new File(LDLib.getLDLibDir(), "assets/resources/predicates"));
+        addBuiltinResource("any", SimplePredicate.ANY);
+        addBuiltinResource("air", SimplePredicate.AIR);
     }
 
     @Override
@@ -43,11 +52,11 @@ public class PredicateResource extends Resource<SimplePredicate> {
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        data.clear();
-        data.put("any", SimplePredicate.ANY);
-        data.put("air", SimplePredicate.AIR);
+        getBuiltinResources().clear();
+        addBuiltinResource("any", SimplePredicate.ANY);
+        addBuiltinResource("air", SimplePredicate.AIR);
         for (String key : nbt.getAllKeys()) {
-            data.put(key, deserialize(nbt.get(key)));
+            addBuiltinResource(key, deserialize(nbt.get(key)));
         }
     }
 }

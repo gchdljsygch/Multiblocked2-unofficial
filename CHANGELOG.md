@@ -1,4 +1,4 @@
 # ChangeLog
 
-* Fixed Create Rotation Condition doesn't work in some cases.
-* Added Custom Instruction Keyframe handler for Geckolib Animations (Thanks to @Tcat20000)
+* Added openUIMask and check if clicked block supports opening UI (Thanks to @Taylor)
+* Bumped up ldlib for better QoL
