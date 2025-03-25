@@ -119,15 +119,13 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
             var prefix = uiPrefixName();
             var guiIO = getGuiIO();
             var ingredientIO = guiIO == IO.IN ? IngredientIO.INPUT : guiIO == IO.OUT ? IngredientIO.OUTPUT : guiIO == IO.BOTH ? IngredientIO.BOTH : IngredientIO.RENDER_ONLY;
-            var canTakeItems = guiIO == IO.BOTH || guiIO == IO.OUT;
-            var canPutItems = guiIO == IO.BOTH || guiIO == IO.IN;
             WidgetUtils.widgetByIdForEach(group, "^%s_[0-9]+$".formatted(prefix), SlotWidget.class, slotWidget -> {
                 var index = WidgetUtils.widgetIdIndex(slotWidget);
                 if (index >= 0 && index < itemSlotTrait.storage.getSlots()) {
                     slotWidget.setHandlerSlot(itemSlotTrait.storage, index);
                     slotWidget.setIngredientIO(ingredientIO);
-                    slotWidget.setCanTakeItems(canTakeItems);
-                    slotWidget.setCanPutItems(canPutItems);
+                    slotWidget.setCanTakeItems(guiIO.support(IO.OUT));
+                    slotWidget.setCanPutItems(guiIO.support(IO.IN));
                 }
             });
         }

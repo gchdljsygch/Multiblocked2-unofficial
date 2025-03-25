@@ -87,15 +87,13 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
             var prefix = uiPrefixName();
             var guiIO = getGuiIO();
             var ingredientIO = guiIO == IO.IN ? IngredientIO.INPUT : guiIO == IO.OUT ? IngredientIO.OUTPUT : guiIO == IO.BOTH ? IngredientIO.BOTH : IngredientIO.RENDER_ONLY;
-            var allowClickDrained = guiIO == IO.BOTH || guiIO == IO.OUT;
-            var allowClickFilled = guiIO == IO.BOTH || guiIO == IO.IN;
             WidgetUtils.widgetByIdForEach(group, "^%s_[0-9]+$".formatted(prefix), TankWidget.class, tankWidget -> {
                 var index = WidgetUtils.widgetIdIndex(tankWidget);
                 if (index >= 0 && index < fluidTankTrait.storages.length) {
                     tankWidget.setFluidTank(fluidTankTrait.storages[index]);
                     tankWidget.setIngredientIO(ingredientIO);
-                    tankWidget.setAllowClickDrained(allowClickDrained);
-                    tankWidget.setAllowClickFilled(allowClickFilled);
+                    tankWidget.setAllowClickDrained(guiIO.support(IO.IN));
+                    tankWidget.setAllowClickFilled(guiIO.support(IO.OUT));
                 }
             });
         }
