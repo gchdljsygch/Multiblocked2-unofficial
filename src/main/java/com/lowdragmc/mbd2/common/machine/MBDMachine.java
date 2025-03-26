@@ -897,7 +897,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * Emit the photon fx.
      */
     @RPCMethod
-    public void emitPhotonFx(String identifier, ResourceLocation fxLocation, Vector3f offset, Vector3f rotation, int delay, boolean forcedDeath){
+    public void emitPhotonFx(String identifier, ResourceLocation fxLocation, Vector3f offset, Vector3f rotation, int delay, boolean forcedDeath, boolean replaceExisting){
         if (MBD2.isPhotonLoaded()) {
             if (isRemote()) {
                 var fx = FXHelper.getFX(fxLocation);
@@ -907,6 +907,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                     machineFX.setRotation(rotation.x, rotation.y, rotation.z);
                     machineFX.setDelay(delay);
                     machineFX.setForcedDeath(forcedDeath);
+                    machineFX.setReplaceExisting(replaceExisting);
                     machineFX.start();
                 }
             } else {
