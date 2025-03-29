@@ -1,4 +1,5 @@
 # ChangeLog
 
 * Fixed Tank Widget GUI IO reversed
-* bump up photon version
+* Fixed disable recipe logic settings doesn't work
+* Bump up photon version, and fix photon version compatibility

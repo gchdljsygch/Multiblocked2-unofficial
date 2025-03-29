@@ -28,6 +28,7 @@ import java.util.HashSet;
 public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersistedSerializable {
     @Builder.Default
     @Setter
+    @Persisted
     @Accessors(fluent = false)
     private boolean enable = true;
     @Builder.Default
