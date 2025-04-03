@@ -130,6 +130,16 @@ public class MBDRecipeBuilder {
         return this;
     }
 
+    public <T> MBDRecipeBuilder removeInputs(RecipeCapability<T> capability) {
+        input.remove(capability);
+        return this;
+    }
+
+    public <T> MBDRecipeBuilder removeOutputs(RecipeCapability<T> capability) {
+        output.remove(capability);
+        return this;
+    }
+
     public <T> MBDRecipeBuilder inputs(RecipeCapability<T> capability, Object... obj) {
         input.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)

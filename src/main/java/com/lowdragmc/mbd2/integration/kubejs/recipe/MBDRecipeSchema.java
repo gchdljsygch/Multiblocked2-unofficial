@@ -197,6 +197,18 @@ public interface MBDRecipeSchema {
             return this;
         }
 
+        public MBDRecipeJS removeInputs(RecipeCapability<?> capability) {
+            inputs.remove(capability);
+            save();
+            return this;
+        }
+
+        public MBDRecipeJS removeOutputs(RecipeCapability<?> capability) {
+            outputs.remove(capability);
+            save();
+            return this;
+        }
+
         public MBDRecipeJS inputItems(InputItem... items) {
             return inputs(ItemRecipeCapability.CAP, Arrays.stream(items).map(item -> SizedIngredient.create(item.ingredient, item.count)).toArray());
         }
