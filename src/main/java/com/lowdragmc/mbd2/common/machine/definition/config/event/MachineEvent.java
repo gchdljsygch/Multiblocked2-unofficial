@@ -35,11 +35,15 @@ public class MachineEvent extends Event implements ILDLRegister {
     public MachineEvent postKubeJSEvent() {
         // post to the KubeJS events
         if (MBD2.isKubeJSLoaded()) {
-            if (LDLib.isClient()) {
-                MBDServerEvents.postMachineEvent(this);
-                MBDClientEvents.postMachineEvent(this);
-            } else {
-                MBDServerEvents.postMachineEvent(this);
+            try {
+                if (LDLib.isClient()) {
+                    MBDServerEvents.postMachineEvent(this);
+                    MBDClientEvents.postMachineEvent(this);
+                } else {
+                    MBDServerEvents.postMachineEvent(this);
+                }
+            } catch (Exception e) {
+                MBD2.LOGGER.error("Failed to post KubeJS event {}", this, e);
             }
         }
         return this;
@@ -132,4 +136,12 @@ public class MachineEvent extends Event implements ILDLRegister {
         }
     }
 
+    @Override
+    public String toString() {
+        return "MachineEvent{" +
+                "machine=" + machine +
+                ", eventName='" + getClass().getSimpleName() + '\'' +
+                ", isCanceled=" + isCanceled() +
+                '}';
+    }
 }
