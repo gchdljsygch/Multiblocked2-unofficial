@@ -8,8 +8,8 @@ import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
+import com.lowdragmc.mbd2.common.trait.IProxyAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.PNCPressureAirRecipeCapability;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.PressureAir;
@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Getter
-public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<PressureAir> {
+public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<PressureAir>, IProxyAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCPressureAirHandlerTrait.class);
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
@@ -92,6 +92,16 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
         super.clientTick();
         updateHullAirHandlers();
         handler.tick(getMachine().getHolder());
+    }
+
+    @Override
+    public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        if (io.support(IO.OUT)) {
+            var lastSides = handler.getSides();
+            handler.setConnectedFaces(List.of(side));
+            handler.tick(getMachine().getLevel().getBlockEntity(port));
+            handler.setConnectedFaces(lastSides);
+        }
     }
 
     @Override

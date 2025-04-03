@@ -301,6 +301,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    @Nullable
     public ITrait getTraitByName(String name) {
         for (var trait : additionalTraits) {
             if (trait.getDefinition().getName().equals(name)) {

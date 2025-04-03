@@ -2,6 +2,8 @@ package com.lowdragmc.mbd2.common.machine.definition;
 
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
+import com.lowdragmc.lowdraglib.gui.widget.Widget;
+import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiPart;
@@ -9,8 +11,10 @@ import com.lowdragmc.mbd2.api.pattern.BlockPattern;
 import com.lowdragmc.mbd2.api.pattern.MultiblockShapeInfo;
 import com.lowdragmc.mbd2.common.gui.editor.MultiblockMachineProject;
 import com.lowdragmc.mbd2.common.gui.editor.PredicateResource;
+import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
+import com.lowdragmc.mbd2.common.trait.IUIProviderTrait;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -153,6 +157,35 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
             }));
         });
         return this;
+    }
+
+    @Override
+    protected void bindMachineUI(MBDMachine machine, WidgetGroup ui) {
+        super.bindMachineUI(machine, ui);
+        // proxy part ui
+        if (machine instanceof MBDMultiblockMachine multiblock) {
+            var prefix = "part:";
+            var midTag = "@ui:";
+            for (Widget widget : ui.getWidgetsById("part:.*?@ui:")) {
+                var id = widget.getId();
+                if (id.startsWith(prefix)) {
+                    int atIndex = id.indexOf(midTag);
+                    if (atIndex != -1) {
+                        var traitName = id.substring(prefix.length(), atIndex);
+                        var uiName = "ui:" + id.substring(atIndex + midTag.length());
+                        for (IMultiPart part : multiblock.getParts()) {
+                            if (part instanceof MBDMachine mbdMachine) {
+                                var trait = mbdMachine.getTraitByName(traitName);
+                                if (trait != null && trait.getDefinition() instanceof IUIProviderTrait provider && uiName.startsWith(provider.uiPrefixName())) {
+                                    widget.setId(uiName);
+                                    provider.initTraitUI(trait, ui);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public BlockPattern getPattern(MBDMultiblockMachine controller) {

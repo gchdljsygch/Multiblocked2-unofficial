@@ -32,10 +32,15 @@ public class RecipeTypeEvent extends Event implements ILDLRegister {
         if (MBD2.isKubeJSLoaded()) {
             try {
                 if (LDLib.isClient()) {
-                    MBDServerEvents.postRecipeTypeEvent(this);
-                    MBDClientEvents.postRecipeTypeEvent(this);
+                    if (MBDServerEvents.postRecipeTypeEvent(this).interruptFalse() && isCancelable()) {
+                        setCanceled(true);
+                    } else if (MBDClientEvents.postRecipeTypeEvent(this).interruptFalse() && isCancelable()) {
+                        setCanceled(true);
+                    }
                 } else {
-                    MBDServerEvents.postRecipeTypeEvent(this);
+                    if (MBDServerEvents.postRecipeTypeEvent(this).interruptFalse() && isCancelable()) {
+                        setCanceled(true);
+                    }
                 }
             } catch (Exception e) {
                 MBD2.LOGGER.error("Failed to post KubeJS event {}", this, e);

@@ -13,12 +13,14 @@ import com.lowdragmc.lowdraglib.gui.editor.data.resource.TexturesResource;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
 import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
 import com.lowdragmc.lowdraglib.gui.widget.ProgressWidget;
+import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.jei.JEIPlugin;
 import com.lowdragmc.lowdraglib.syncdata.IPersistedSerializable;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
+import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.client.renderer.MBDBESRenderer;
 import com.lowdragmc.mbd2.client.renderer.MBDBlockRenderer;
@@ -27,6 +29,7 @@ import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
 import com.lowdragmc.mbd2.common.blockentity.MachineBlockEntity;
 import com.lowdragmc.mbd2.common.item.MBDMachineItem;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
 import com.lowdragmc.mbd2.common.machine.MBDPartMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
 import com.lowdragmc.mbd2.common.trait.IUIProviderTrait;
@@ -303,6 +306,30 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                 var trait = machine.getTraitByDefinition(traitDefinition);
                 if (trait != null)
                     provider.initTraitUI(trait, ui);
+            }
+        }
+        // proxy controller ui
+        if (partSettings != null && partSettings.isEnable() && machine instanceof MBDPartMachine partMachine) {
+            var prefix = "controller:";
+            var midTag = "@ui:";
+            for (Widget widget : ui.getWidgetsById("controller:.*?@ui:")) {
+                var id = widget.getId();
+                if (id.startsWith(prefix)) {
+                    int atIndex = id.indexOf(midTag);
+                    if (atIndex != -1) {
+                        var traitName = id.substring(prefix.length(), atIndex);
+                        var uiName = "ui:" + id.substring(atIndex + midTag.length());
+                        for (var controller : partMachine.getControllers()) {
+                            if (controller instanceof MBDMachine mbdMachine) {
+                                var trait = mbdMachine.getTraitByName(traitName);
+                                if (trait != null && trait.getDefinition() instanceof IUIProviderTrait provider && uiName.startsWith(provider.uiPrefixName())) {
+                                    widget.setId(uiName);
+                                    provider.initTraitUI(trait, ui);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
