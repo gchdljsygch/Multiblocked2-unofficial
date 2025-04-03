@@ -6,6 +6,7 @@ import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeSerializer;
+import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.ingredient.EntityIngredient;
@@ -75,6 +76,16 @@ public interface MBDRecipeSchema {
         public float chance = 1;
         @Setter
         public float tierChanceBoost = 0;
+        @Nullable
+        private final MBDRecipeType recipeType;
+
+        public MBDRecipeJS() {
+            this(null);
+        }
+
+        public MBDRecipeJS(@Nullable MBDRecipeType recipeType) {
+            this.recipeType = recipeType;
+        }
 
         //////////////// misc ////////////////
         public MBDRecipeJS duration(int duration) {
@@ -504,6 +515,17 @@ public interface MBDRecipeSchema {
             return this;
         }
 
+        private MBDRecipeType getRecipeType() {
+            if (recipeType == null) {
+                var recipeType = MBDRegistries.RECIPE_TYPES.get(type.schemaType.id);
+                if (recipeType == null) {
+                    throw new IllegalStateException("MBD Recipe type " + type.schemaType.id + " not found!");
+                }
+                return recipeType;
+            }
+            return recipeType;
+        }
+
         @Override
         public void deserialize(boolean merge) {
             super.deserialize(merge);
@@ -522,15 +544,24 @@ public interface MBDRecipeSchema {
 
         @Override
         public void serialize() {
-            var recipeType = MBDRegistries.RECIPE_TYPES.get(type.schemaType.id);
-            if (recipeType == null) {
-                throw new IllegalStateException("MBD Recipe type " + type.schemaType.id + " not found!");
-            }
             json = MBDRecipeSerializer.SERIALIZER.toJson(
-                    new MBDRecipe(recipeType, getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, priority)
+                    new MBDRecipe(getRecipeType(), getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, priority)
             );
         }
 
+        public MBDRecipe buildMBDRecipe() {
+            return new MBDRecipe(
+                    getRecipeType(),
+                    getOrCreateId(),
+                    inputs,
+                    outputs,
+                    conditions,
+                    data,
+                    duration,
+                    isFuel,
+                    priority
+            );
+        }
     }
 
     record EntityIngredientJS(@Nullable EntityIngredient ingredient) {

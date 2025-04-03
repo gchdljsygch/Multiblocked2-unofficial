@@ -1,13 +1,16 @@
 package com.lowdragmc.mbd2.api.recipe;
 
 import com.google.common.collect.Table;
+import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.capability.recipe.*;
-import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
+import com.lowdragmc.mbd2.integration.kubejs.recipe.MBDRecipeSchema;
 import com.mojang.datafixers.util.Pair;
+import dev.latvian.mods.rhino.util.HideFromJS;
+import dev.latvian.mods.rhino.util.RemapPrefixForJS;
 import lombok.Getter;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.RegistryAccess;
@@ -36,6 +39,7 @@ import java.util.function.Supplier;
 @SuppressWarnings({"ConstantValue", "rawtypes", "unchecked"})
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
+@RemapPrefixForJS("kjs$")
 public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Container> {
     public MBDRecipeType recipeType;
     public final ResourceLocation id;
@@ -110,6 +114,40 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             copied.duration = modifier.apply(this.duration).intValue();
         }
         return copied;
+    }
+
+    @HideFromJS
+    public MBDRecipeBuilder toBuilder() {
+        var builder =  recipeType.getRecipeBuilder()
+                .id(id)
+                .duration(duration)
+                .isFuel(isFuel)
+                .priority(priority);
+        builder.data = data.copy();
+        builder.input.putAll(copyContents(inputs, true, null));
+        builder.output.putAll(copyContents(outputs, true, null));
+        for (RecipeCondition condition : conditions) {
+            builder.addCondition(condition.copy());
+        }
+        return builder;
+    }
+
+    public Object kjs$toBuilder() {
+        if (LDLib.isKubejsLoaded()) {
+            var builder = new MBDRecipeSchema.MBDRecipeJS(recipeType);
+            builder.id(id);
+            builder.duration(duration);
+            builder.isFuel(isFuel);
+            builder.priority(priority);
+            builder.data = data.copy();
+            builder.inputs.putAll(copyContents(inputs, true, null));
+            builder.outputs.putAll(copyContents(outputs, true, null));
+            for (RecipeCondition condition : conditions) {
+                builder.addCondition(condition.copy());
+            }
+            return builder;
+        }
+        throw new UnsupportedOperationException("KubeJS is not loaded");
     }
 
     @Override

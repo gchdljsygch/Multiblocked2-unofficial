@@ -1,8 +1,10 @@
 package com.lowdragmc.mbd2.integration.kubejs.events;
 
 import com.lowdragmc.mbd2.MBD2;
+import com.lowdragmc.mbd2.api.recipe.event.RecipeTypeEvent;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import dev.latvian.mods.kubejs.event.EventHandler;
+import dev.latvian.mods.kubejs.event.EventResult;
 import dev.latvian.mods.kubejs.event.Extra;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,7 +17,7 @@ import java.util.function.Function;
 import static com.lowdragmc.mbd2.integration.kubejs.events.MBDMachineEvents.MBD_MACHINE_EVENTS;
 
 public interface MBDClientEvents {
-    Map<Class<? extends MachineEvent>, Consumer<MachineEvent>> eventHandlers = new HashMap<>();
+    Map<Class<? extends MachineEvent>, Function<MachineEvent, EventResult>> eventHandlers = new HashMap<>();
 
     // Client events
     EventHandler CLIENT_TICK = registerMachineEvent("onClientTick",
@@ -53,7 +55,12 @@ public interface MBDClientEvents {
         return handler;
     }
     
-    static void postMachineEvent(MachineEvent machineEvent) {
-        Optional.ofNullable(eventHandlers.get(machineEvent.getClass())).ifPresent(handler -> handler.accept(machineEvent));
+    static EventResult postMachineEvent(MachineEvent machineEvent) {
+        return Optional.ofNullable(eventHandlers.get(machineEvent.getClass())).map(handler -> handler.apply(machineEvent)).orElse(EventResult.PASS);
+    }
+
+    static EventResult postRecipeTypeEvent(RecipeTypeEvent recipeTypeEvent) {
+        // TODO: Implement this method if we have client side recipe type event
+        return EventResult.PASS;
     }
 }
