@@ -406,8 +406,8 @@ public class RecipeLogic implements IEnhancedManaged {
     }
 
     public void onRecipeFinish() {
-        machine.afterWorking();
         if (lastRecipe != null) {
+            machine.afterWorking();
             lastRecipe.postWorking(this.machine);
             lastRecipe.handleRecipeIO(IO.OUT, this.machine);
             if (machine.alwaysReSearchRecipe()) {
@@ -443,8 +443,10 @@ public class RecipeLogic implements IEnhancedManaged {
      * Interrupt current recipe without io.
      */
     public void interruptRecipe(){
-        machine.afterWorking();
         if (lastRecipe != null) {
+            if (!isIdle()) {
+                machine.afterWorking();
+            }
             lastRecipe.postWorking(this.machine);
             setStatus(Status.IDLE);
             progress = 0;
