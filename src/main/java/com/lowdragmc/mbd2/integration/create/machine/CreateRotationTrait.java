@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.integration.create.machine;
 
 import com.lowdragmc.lowdraglib.gui.texture.IGuiTexture;
+import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.syncdata.ISubscription;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeCapabilityHolder;
@@ -9,10 +10,10 @@ import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
+import com.lowdragmc.mbd2.common.trait.IUIProviderTrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
-import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
-import com.lowdragmc.mbd2.integration.create.CreateRotationCondition;
-import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
+import com.lowdragmc.mbd2.integration.create.*;
+import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
 import net.minecraft.util.Mth;
 import org.jetbrains.annotations.Nullable;
@@ -24,7 +25,7 @@ import java.util.List;
 public class CreateRotationTrait implements ITrait {
     protected List<Runnable> listeners = new ArrayList<>();
 
-    public final static TraitDefinition DEFINITION = new TraitDefinition() {
+    public static class CreateRotationTraitDefinition extends TraitDefinition implements IUIProviderTrait {
         @Override
         public ITrait createTrait(MBDMachine machine) {
             return new CreateRotationTrait(machine);
@@ -49,14 +50,43 @@ public class CreateRotationTrait implements ITrait {
         public boolean allowMultiple() {
             return false;
         }
-    };
+
+        @Override
+        public void createTraitUITemplate(WidgetGroup ui) {
+            var prefix = uiPrefixName();
+            var group = new WidgetGroup(0, 0, 100, 32);
+            var rpm = new CreateRPMWidget();
+            rpm.setId(prefix + "_rpm");
+            var stress = new CreateStressWidget();
+            stress.setId(prefix + "_stress");
+            stress.setSelfPositionY(16);
+            group.addWidget(rpm);
+            group.addWidget(stress);
+            ui.addWidget(group);
+        }
+
+        @Override
+        public void initTraitUI(ITrait trait, WidgetGroup group) {
+            if (trait instanceof CreateRotationTrait rotationTrait) {
+                var prefix = uiPrefixName();
+                WidgetUtils.widgetByIdForEach(group, "^%s_rpm$".formatted(prefix), CreateRPMWidget.class, rpmWidget -> {
+                    rpmWidget.setRpmSupplier(() -> Mth.abs(rotationTrait.lastSpeed));
+                });
+                WidgetUtils.widgetByIdForEach(group, "^%s_stress$".formatted(prefix), CreateStressWidget.class, stressWidget -> {
+                    stressWidget.setStressSupplier(() -> rotationTrait.getTorque() * Mth.abs(rotationTrait.lastSpeed));
+                });
+            }
+        }
+    }
+
+    public final static TraitDefinition DEFINITION = new CreateRotationTraitDefinition();
 
     @Getter
     private final MBDMachine machine;
     @Getter
     private final boolean isGenerator;
     @Getter
-    private float impact;
+    private final float torque;
     @Getter
     private float available, lastSpeed;
     private final StressRecipeHandler stressRecipeHandler = new StressRecipeHandler();
@@ -65,7 +95,7 @@ public class CreateRotationTrait implements ITrait {
     public CreateRotationTrait(MBDMachine machine) {
         this.machine = machine;
         this.isGenerator = machine.getDefinition() instanceof CreateKineticMachineDefinition definition && definition.kineticMachineSettings().isGenerator();
-        this.impact = machine.getDefinition() instanceof CreateKineticMachineDefinition definition ? definition.kineticMachineSettings().getImpact() : 0;
+        this.torque = machine.getDefinition() instanceof CreateKineticMachineDefinition definition ? definition.kineticMachineSettings().torque() : 0;
     }
 
     public void notifyListeners() {
@@ -131,7 +161,7 @@ public class CreateRotationTrait implements ITrait {
             if (machine.getHolder() instanceof MBDKineticMachineBlockEntity holder) {
                 float sum = left.stream().reduce(0f, Float::sum);
                 if (io == IO.IN && !isGenerator) {
-                    float capacity = Mth.abs(holder.getSpeed()) * impact;
+                    float capacity = Mth.abs(holder.getSpeed()) * torque;
                     if (capacity > 0) {
                         sum = sum - capacity;
                     }
@@ -188,7 +218,7 @@ public class CreateRotationTrait implements ITrait {
                 if (io == IO.IN && !isGenerator) {
                     // check rotation condition first
                     var rpm = Mth.abs(holder.getSpeed());
-                    var stress = rpm * getImpact();
+                    var stress = rpm * torque;
                     for (var condition : recipe.conditions) {
                         if (condition instanceof CreateRotationCondition rotationCondition) {
                             if (rpm < rotationCondition.getMinRPM() || rpm > rotationCondition.getMaxRPM() ||

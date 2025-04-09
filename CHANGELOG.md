@@ -1,5 +1,9 @@
 # ChangeLog
 
+## v1.0.28
+* Added Create Trait UI to display the rpm and stress of the machine. 
+
+## v1.0.27
 * Fixed Tank Widget GUI IO reversed
 * Fixed disable recipe logic settings doesn't work
 * Fixed After Recipe Working Event also triggers when structure is destroyed
