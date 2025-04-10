@@ -74,7 +74,7 @@ public class CreateRotationCondition extends RecipeCondition {
                 }
                 if (trait != null) {
                     var rpm = Math.abs(trait.getLastSpeed());
-                    var stress = rpm * trait.getImpact();
+                    var stress = rpm * trait.getTorque();
                     if (rpm >= minRPM && rpm <= maxRPM && stress >= minStress && stress <= maxStress) {
                         return true;
                     }
