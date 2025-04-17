@@ -17,7 +17,7 @@ public abstract class SimpleCapabilityTrait extends RecipeCapabilityTrait {
         return (SimpleCapabilityTraitDefinition)super.getDefinition();
     }
 
-    public IO CapabilityIO (@Nullable Direction side) {
+    public IO getCapabilityIO(@Nullable Direction side) {
         var front = getMachine().getFrontFacing().orElse(Direction.NORTH);
         var IO = getCapabilityIOOverride == null ? getDefinition().getCapabilityIO() : getCapabilityIOOverride;
         return IO.getIO(front, side);
