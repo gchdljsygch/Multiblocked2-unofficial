@@ -3,6 +3,7 @@
 ## v1.0.29
 * Added Trait Capability IO Override (thanks to @Tcat2000)
 * Fixed crash while the ui name contains bracket-like characters
+* Fixed PNC Proxy Block crash
 * Improved the Tag Ingredient Copy
 
 ## v1.0.28

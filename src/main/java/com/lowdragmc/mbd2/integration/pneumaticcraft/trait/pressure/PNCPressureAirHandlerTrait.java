@@ -98,6 +98,8 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
         if (io.support(IO.OUT)) {
             var lastSides = handler.getSides();
+            var ownTE = getMachine().getLevel().getBlockEntity(port);
+            if (ownTE == null) return; // happens when the chunk loading.
             handler.setConnectedFaces(List.of(side));
             handler.tick(getMachine().getLevel().getBlockEntity(port));
             handler.setConnectedFaces(lastSides);

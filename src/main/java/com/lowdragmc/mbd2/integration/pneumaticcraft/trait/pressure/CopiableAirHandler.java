@@ -10,6 +10,7 @@ import me.desht.pneumaticcraft.common.capabilities.MachineAirHandler;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -20,7 +21,7 @@ public class CopiableAirHandler extends MachineAirHandler implements ITagSeriali
     protected final float maxPressure;
     private final PressureTier tier;
     @Getter
-    private List<Direction> sides;
+    private List<Direction> sides = new ArrayList<>();
 
     public CopiableAirHandler(PressureTier tier, int baseVolume, float maxPressure) {
         this(tier, baseVolume, 0, maxPressure);
