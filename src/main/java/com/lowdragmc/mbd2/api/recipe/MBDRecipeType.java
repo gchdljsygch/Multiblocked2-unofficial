@@ -50,6 +50,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -424,7 +425,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         values.forEach((cap, contents) -> {
             for (int i = 0; i < contents.size(); i++) {
                 var content = contents.get(i);
-                var id = content.uiName.isEmpty() ? "^@%s_%s_%d$".formatted(cap.name, io.name, i) : content.uiName;
+                var id = content.uiName.isEmpty() ? "^@%s_%s_%d$".formatted(cap.name, io.name, i) : Pattern.quote(content.uiName);
                 for (var widget : WidgetUtils.getWidgetsById(ui, id)) {
                     cap.bindXEIWidget(widget, content, switch (io) {
                         case IN -> IngredientIO.INPUT;
