@@ -1,13 +1,11 @@
 # ChangeLog
 
-## v1.0.29
+## v1.0.28
+* Added Create Trait UI to display the rpm and stress of the machine
 * Added Trait Capability IO Override (thanks to @Tcat2000)
 * Fixed crash while the ui name contains bracket-like characters
 * Fixed PNC Proxy Block crash
 * Improved the Tag Ingredient Copy
-
-## v1.0.28
-* Added Create Trait UI to display the rpm and stress of the machine. 
 
 ## v1.0.27
 * Fixed Tank Widget GUI IO reversed
