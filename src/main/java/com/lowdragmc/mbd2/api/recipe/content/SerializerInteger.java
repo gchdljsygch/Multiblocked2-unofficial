@@ -67,4 +67,9 @@ public class SerializerInteger implements IContentSerializer<Integer> {
     public Integer copyInner(Integer content) {
         return content;
     }
+
+    @Override
+    public Integer deepCopyInner(Integer content) {
+        return content;
+    }
 }

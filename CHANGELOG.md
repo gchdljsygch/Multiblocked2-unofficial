@@ -1,8 +1,9 @@
 # ChangeLog
 
 ## v1.0.29
-* Added Trait Capability IO Override. (thanks to @Tcat2000)
-* Fixed crash while the ui name contains bracket-like characters.
+* Added Trait Capability IO Override (thanks to @Tcat2000)
+* Fixed crash while the ui name contains bracket-like characters
+* Improved the Tag Ingredient Copy
 
 ## v1.0.28
 * Added Create Trait UI to display the rpm and stress of the machine. 

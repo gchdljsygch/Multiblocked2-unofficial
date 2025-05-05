@@ -71,6 +71,17 @@ public class SizedIngredient extends Ingredient {
         return SizedIngredient.create(ingredient);
     }
 
+    public static SizedIngredient deepCopy(Ingredient ingredient) {
+        if (ingredient instanceof SizedIngredient sizedIngredient) {
+            var copied = SizedIngredient.create(Ingredient.fromJson(sizedIngredient.inner.toJson()), sizedIngredient.amount);
+            if (sizedIngredient.itemStacks != null) {
+                copied.itemStacks = Arrays.stream(sizedIngredient.itemStacks).map(ItemStack::copy).toArray(ItemStack[]::new);
+            }
+            return copied;
+        }
+        return SizedIngredient.create(Ingredient.fromJson(ingredient.toJson()));
+    }
+
     public void updateInnerIngredient(@Nonnull Ingredient inner) {
         this.inner = inner;
         this.itemStacks = null;

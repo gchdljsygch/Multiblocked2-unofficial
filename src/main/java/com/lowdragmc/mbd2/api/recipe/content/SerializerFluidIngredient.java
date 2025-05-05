@@ -54,4 +54,9 @@ public class SerializerFluidIngredient implements IContentSerializer<FluidIngred
         copy.setAmount(modifier.apply(copy.getAmount()).intValue());
         return copy;
     }
+
+    @Override
+    public FluidIngredient deepCopyInner(FluidIngredient content) {
+        return content.copy();
+    }
 }

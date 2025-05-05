@@ -41,9 +41,19 @@ public interface IContentSerializer<T> {
     T copyWithModifier(T content, ContentModifier modifier);
 
     /**
-     * deep copy of this content. recipe need it for searching and such things
+     * deep copy of this content. recipe need it for searching and such things.
+     * The returned content is a new instance but may not be deep copied.
      */
     T copyInner(T content);
+
+    /**
+     * deep copy of this content.
+     */
+    default T deepCopyInner(T content) {
+        var buf = new FriendlyByteBuf(Unpooled.buffer());
+        toNetwork(buf, content);
+        return fromNetwork(buf);
+    }
 
     default void toNetworkContent(FriendlyByteBuf buf, Content content) {
         T inner = (T) content.getContent();

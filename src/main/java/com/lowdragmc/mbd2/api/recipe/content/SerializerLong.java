@@ -73,4 +73,8 @@ public class SerializerLong implements IContentSerializer<Long> {
         return content;
     }
 
+    @Override
+    public Long deepCopyInner(Long content) {
+        return content;
+    }
 }

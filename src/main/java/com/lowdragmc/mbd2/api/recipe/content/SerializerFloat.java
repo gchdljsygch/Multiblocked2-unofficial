@@ -68,4 +68,8 @@ public class SerializerFloat implements IContentSerializer<Float> {
         return content;
     }
 
+    @Override
+    public Float deepCopyInner(Float content) {
+        return content;
+    }
 }

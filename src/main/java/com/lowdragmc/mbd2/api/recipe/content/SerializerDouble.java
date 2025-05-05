@@ -68,4 +68,8 @@ public class SerializerDouble implements IContentSerializer<Double> {
         return content;
     }
 
+    @Override
+    public Double deepCopyInner(Double content) {
+        return content;
+    }
 }
