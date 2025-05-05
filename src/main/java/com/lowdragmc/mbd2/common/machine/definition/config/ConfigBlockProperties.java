@@ -88,7 +88,7 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
     @Configurable(name = "config.block_properties.is_suffocating", tips = {"config.block_properties.is_suffocating.tooltip",
             "config.require_restart"})
     @Builder.Default
-    private boolean isSuffocating = true;
+    private boolean isSuffocating = false;
 
     @Configurable(name = "config.block_properties.emissive", tips = {"config.block_properties.emissive.tooltip",
             "config.require_restart"})
