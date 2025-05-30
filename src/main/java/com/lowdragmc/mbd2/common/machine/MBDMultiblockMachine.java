@@ -112,7 +112,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     @Override
     public void serverTick() {
         if (isFormed && !isFormedValid && getLevel() instanceof ServerLevel serverLevel) {
-            if (checkPatternWithLock()) {
+            if (checkPatternWithTryLock()) {
                 onStructureFormed();
                 var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
                 mwsd.addMapping(getMultiblockState());
