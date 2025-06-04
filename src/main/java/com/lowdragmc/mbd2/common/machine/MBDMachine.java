@@ -912,7 +912,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                     machineFX.start();
                 }
             } else {
-                rpcToTracking("emitPhotonFx", identifier, fxLocation, offset, rotation, delay, forcedDeath);
+                rpcToTracking("emitPhotonFx", identifier, fxLocation, offset, rotation, delay, forcedDeath, replaceExisting);
             }
         }
     }
