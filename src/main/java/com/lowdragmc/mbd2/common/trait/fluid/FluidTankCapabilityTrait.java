@@ -3,8 +3,8 @@ package com.lowdragmc.mbd2.common.trait.fluid;
 import com.google.common.base.Predicates;
 import com.lowdragmc.lowdraglib.misc.FluidStorage;
 import com.lowdragmc.lowdraglib.misc.FluidTransferList;
-import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
-import com.lowdragmc.lowdraglib.side.fluid.FluidTransferHelper;
+import com.lowdragmc.lowdraglib.side.fluid.*;
+import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
@@ -18,9 +18,7 @@ import com.lowdragmc.mbd2.common.trait.*;
 import lombok.Setter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.EntitySelector;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -98,36 +96,63 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         var timer = getMachine().getOffsetTimer();
         var autoInput = getDefinition().getAutoInput();
         var autoOutput = getDefinition().getAutoOutput();
+        var level = getMachine().getLevel();
         if (autoInput.isEnable() && timer % autoInput.getInterval() == 0) {
-            var leftCount = autoInput.getSpeed();
+            var leftBlocks = autoInput.getSpeed();
             var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
             for (int x = (int) range.minX; x <= range.maxX; x++) {
+                if (leftBlocks <= 0) break;
                 for (int y = (int) range.minY; y <= range.maxY; y++) {
+                    if (leftBlocks <= 0) break;
                     for (int z = (int) range.minZ; z <= range.maxZ; z++) {
-                        var fluidState = 
+                        if (leftBlocks <= 0) break;
+                        var pos = new BlockPos(x, y, z);
+                        var state = level.getBlockState(pos);
+                        var block = state.getBlock();
+                        if (block instanceof LiquidBlock liquidBlock) {
+                            if (liquidBlock.getFluid().isSource(state.getFluidState())) {
+                                var toFilled = FluidStack.create(liquidBlock.getFluid().getSource(), 1000);
+                                for (FluidStorage storage : storages) {
+                                    if (storage.fill(toFilled, true) == 1000) {
+                                        storage.fill(toFilled, false);
+                                        leftBlocks--;
+                                        level.removeBlock(pos, false);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
         if (autoOutput.isEnable() && timer % autoOutput.getInterval() == 0) {
-            var leftCount = autoOutput.getSpeed();
+            var leftBlocks = autoOutput.getSpeed();
             var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
-            for (int i = 0; i < storage.getSlots(); i++) {
-                if (leftCount <= 0) break;
-                var stored = storage.getStackInSlot(i);
-                if (stored.isEmpty()) continue;
-                var pop = stored.copyWithCount(Math.min(leftCount, stored.getCount()));
-                leftCount -= pop.getCount();
-                storage.extractItem(i, pop.getCount(), false);
-                // drop items
-                var level = getMachine().getLevel();
-                var d0 = (double) EntityType.ITEM.getHeight() / 2.0D;
-                var x = level.random.nextFloat() * range.getXsize() + range.minX;
-                var y = level.random.nextFloat() * range.getYsize() + range.minY - d0;
-                var z = level.random.nextFloat() * range.getZsize() + range.minZ;
-                var itemEntity = new ItemEntity(level, x, y, z, pop);
-                itemEntity.setDefaultPickUpDelay();
-                level.addFreshEntity(itemEntity);
+
+            for (int x = (int) range.minX; x <= range.maxX; x++) {
+                if (leftBlocks <= 0 || isEmpty()) break;
+                for (int y = (int) range.minY; y <= range.maxY; y++) {
+                    if (leftBlocks <= 0 || isEmpty()) break;
+                    for (int z = (int) range.minZ; z <= range.maxZ; z++) {
+                        if (leftBlocks <= 0 || isEmpty()) break;
+                        var pos = new BlockPos(x, y, z);
+                        var state = level.getBlockState(pos);
+                        for (FluidStorage storage : storages) {
+                            var drained = storage.drain(1000, true);
+                            if (drained.getAmount() == 1000 && drained.getFluid().getFluidType().canBePlacedInLevel(level, pos, FluidHelperImpl.toFluidStack(drained))) {
+                                if (state.canBeReplaced(drained.getFluid())) {
+                                    if (!level.isClientSide) {
+                                        level.destroyBlock(pos, true);
+                                    }
+                                    level.setBlockAndUpdate(pos, drained.getFluid().defaultFluidState().createLegacyBlock());
+                                    leftBlocks--;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
