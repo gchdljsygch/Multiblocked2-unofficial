@@ -4,4 +4,5 @@
 * Fixed Mek EMI support 
 * Fixed Photon node crash
 * Added an option for whether the block is `collisionShapeFullBlock`
+* Added machine translated ru_ru lang file (thanks to @серый калчедан)
 
