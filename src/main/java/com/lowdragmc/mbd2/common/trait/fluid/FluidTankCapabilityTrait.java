@@ -18,6 +18,9 @@ import com.lowdragmc.mbd2.common.trait.*;
 import lombok.Setter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.EntitySelector;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -87,6 +90,46 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
             }
         }
         return isEmpty;
+    }
+
+    @Override
+    public void serverTick() {
+        IAutoIOTrait.super.serverTick();
+        var timer = getMachine().getOffsetTimer();
+        var autoInput = getDefinition().getAutoInput();
+        var autoOutput = getDefinition().getAutoOutput();
+        if (autoInput.isEnable() && timer % autoInput.getInterval() == 0) {
+            var leftCount = autoInput.getSpeed();
+            var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
+            for (int x = (int) range.minX; x <= range.maxX; x++) {
+                for (int y = (int) range.minY; y <= range.maxY; y++) {
+                    for (int z = (int) range.minZ; z <= range.maxZ; z++) {
+                        var fluidState = 
+                    }
+                }
+            }
+        }
+        if (autoOutput.isEnable() && timer % autoOutput.getInterval() == 0) {
+            var leftCount = autoOutput.getSpeed();
+            var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
+            for (int i = 0; i < storage.getSlots(); i++) {
+                if (leftCount <= 0) break;
+                var stored = storage.getStackInSlot(i);
+                if (stored.isEmpty()) continue;
+                var pop = stored.copyWithCount(Math.min(leftCount, stored.getCount()));
+                leftCount -= pop.getCount();
+                storage.extractItem(i, pop.getCount(), false);
+                // drop items
+                var level = getMachine().getLevel();
+                var d0 = (double) EntityType.ITEM.getHeight() / 2.0D;
+                var x = level.random.nextFloat() * range.getXsize() + range.minX;
+                var y = level.random.nextFloat() * range.getYsize() + range.minY - d0;
+                var z = level.random.nextFloat() * range.getZsize() + range.minZ;
+                var itemEntity = new ItemEntity(level, x, y, z, pop);
+                itemEntity.setDefaultPickUpDelay();
+                level.addFreshEntity(itemEntity);
+            }
+        }
     }
 
     @Override

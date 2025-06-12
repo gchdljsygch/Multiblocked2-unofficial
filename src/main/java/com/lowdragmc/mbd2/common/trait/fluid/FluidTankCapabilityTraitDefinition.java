@@ -15,10 +15,7 @@ import com.lowdragmc.lowdraglib.utils.Size;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
-import com.lowdragmc.mbd2.common.trait.ITrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
-import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTraitDefinition;
-import com.lowdragmc.mbd2.common.trait.ToggleAutoIO;
+import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -47,6 +44,12 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
     @Getter
     @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true, tips = "config.definition.trait.fluid_tank.auto_io.tooltip")
     private final ToggleAutoIO autoIO = new ToggleAutoIO();
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_world_io.input", subConfigurable = true, tips = "config.definition.trait.auto_world_io.input.tooltip")
+    private final AutoWorldIO autoInput = new AutoWorldIO().setSpeed(1);
+    @Getter
+    @Configurable(name = "config.definition.trait.auto_world_io.output", subConfigurable = true, tips = "config.definition.trait.auto_world_io.output.tooltip")
+    private final AutoWorldIO autoOutput = new AutoWorldIO();
     @Configurable(name = "config.definition.trait.fluid_tank.fancy_renderer", subConfigurable = true,
             tips = {"config.definition.trait.fluid_tank.fancy_renderer.tooltip.0", "config.definition.trait.fluid_tank.fancy_renderer.tooltip.1"})
     private final FluidFancyRendererSettings fancyRendererSettings = new FluidFancyRendererSettings(this);
