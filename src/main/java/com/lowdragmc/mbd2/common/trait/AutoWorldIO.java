@@ -17,18 +17,20 @@ import java.util.Map;
 
 @Setter
 @Getter
-@Accessors(chain = true)
 public class AutoWorldIO implements IToggleConfigurable {
     @Persisted
     public boolean enable;
     @Configurable(name = "config.definition.trait.auto_world_io.range", tips = "config.definition.trait.auto_world_io.range.tooltip")
     @DefaultValue(numberValue = {-1, -1, -1, 2, 2, 2})
+    @Accessors(chain = true)
     public AABB range = new AABB(-1, -1, -1, 2, 2, 2);
     @Configurable(name = "config.definition.trait.auto_world_io.interval", tips = "config.definition.trait.auto_world_io.interval.tooltip")
     @NumberRange(range = {1, Integer.MAX_VALUE})
+    @Accessors(chain = true)
     public int interval = 20;
     @Configurable(name = "config.definition.trait.auto_world_io.speed", tips = "config.definition.trait.auto_world_io.speed.tooltip")
     @NumberRange(range = {1, Integer.MAX_VALUE})
+    @Accessors(chain = true)
     public int speed = 64;
 
     // runtime

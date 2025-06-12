@@ -18,6 +18,7 @@ import com.lowdragmc.mbd2.common.trait.*;
 import lombok.Setter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.common.capabilities.Capability;
@@ -100,25 +101,23 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         if (autoInput.isEnable() && timer % autoInput.getInterval() == 0) {
             var leftBlocks = autoInput.getSpeed();
             var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
-            for (int x = (int) range.minX; x <= range.maxX; x++) {
+            for (int x = (int) Math.round(range.minX); x < (int) Math.round(range.maxX); x++) {
                 if (leftBlocks <= 0) break;
-                for (int y = (int) range.minY; y <= range.maxY; y++) {
+                for (int y = (int) Math.round(range.minY); y < (int) Math.round(range.maxY); y++) {
                     if (leftBlocks <= 0) break;
-                    for (int z = (int) range.minZ; z <= range.maxZ; z++) {
+                    for (int z = (int) Math.round(range.minZ); z < (int) Math.round(range.maxZ); z++) {
                         if (leftBlocks <= 0) break;
                         var pos = new BlockPos(x, y, z);
                         var state = level.getBlockState(pos);
                         var block = state.getBlock();
-                        if (block instanceof LiquidBlock liquidBlock) {
-                            if (liquidBlock.getFluid().isSource(state.getFluidState())) {
-                                var toFilled = FluidStack.create(liquidBlock.getFluid().getSource(), 1000);
-                                for (FluidStorage storage : storages) {
-                                    if (storage.fill(toFilled, true) == 1000) {
-                                        storage.fill(toFilled, false);
-                                        leftBlocks--;
-                                        level.removeBlock(pos, false);
-                                        break;
-                                    }
+                        if (block instanceof LiquidBlock liquidBlock && state.getFluidState().isSource()) {
+                            var toFilled = FluidStack.create(liquidBlock.getFluid().getSource(), 1000);
+                            for (FluidStorage storage : storages) {
+                                if (storage.fill(toFilled, true) == 1000) {
+                                    storage.fill(toFilled, false);
+                                    leftBlocks--;
+                                    level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+                                    break;
                                 }
                             }
                         }
@@ -130,23 +129,24 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
             var leftBlocks = autoOutput.getSpeed();
             var range = autoOutput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos());
 
-            for (int x = (int) range.minX; x <= range.maxX; x++) {
+            for (int x = (int) Math.round(range.minX); x < (int) Math.round(range.maxX); x++) {
                 if (leftBlocks <= 0 || isEmpty()) break;
-                for (int y = (int) range.minY; y <= range.maxY; y++) {
+                for (int y = (int) Math.round(range.minY); y < (int) Math.round(range.maxY); y++) {
                     if (leftBlocks <= 0 || isEmpty()) break;
-                    for (int z = (int) range.minZ; z <= range.maxZ; z++) {
+                    for (int z = (int) Math.round(range.minZ); z < (int) Math.round(range.maxZ) ; z++) {
                         if (leftBlocks <= 0 || isEmpty()) break;
                         var pos = new BlockPos(x, y, z);
                         var state = level.getBlockState(pos);
                         for (FluidStorage storage : storages) {
                             var drained = storage.drain(1000, true);
                             if (drained.getAmount() == 1000 && drained.getFluid().getFluidType().canBePlacedInLevel(level, pos, FluidHelperImpl.toFluidStack(drained))) {
-                                if (state.canBeReplaced(drained.getFluid())) {
+                                if (!(state.getFluidState().isSource()) && state.canBeReplaced(drained.getFluid())) {
                                     if (!level.isClientSide) {
                                         level.destroyBlock(pos, true);
                                     }
                                     level.setBlockAndUpdate(pos, drained.getFluid().defaultFluidState().createLegacyBlock());
                                     leftBlocks--;
+                                    storage.drain(1000, false);
                                     break;
                                 }
                             }
