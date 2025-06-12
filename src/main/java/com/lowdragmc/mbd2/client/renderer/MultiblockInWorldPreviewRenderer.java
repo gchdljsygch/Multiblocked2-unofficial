@@ -393,11 +393,11 @@ public class MultiblockInWorldPreviewRenderer {
                 shaderInstance.apply();
 
                 RenderSystem.setShaderColor(1, 1, 1, 1);
-                if (layer == RenderType.translucent()) { // SOLID
+                if (layer == RenderType.translucent()) { // TRANSLUCENT
                     RenderSystem.enableBlend();
                     RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
                     RenderSystem.depthMask(false);
-                } else { // TRANSLUCENT
+                } else { // SOLID
                     RenderSystem.enableDepthTest();
                     RenderSystem.disableBlend();
                     RenderSystem.depthMask(true);

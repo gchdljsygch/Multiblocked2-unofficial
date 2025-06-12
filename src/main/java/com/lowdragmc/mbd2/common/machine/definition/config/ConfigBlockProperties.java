@@ -149,6 +149,10 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
     @Builder.Default
     private boolean canBeWaterlogged = false;
 
+    @Configurable(name = "config.block_properties.collision_shape_full_block", tips = "config.block_properties.collision_shape_full_block.tooltip")
+    @Builder.Default
+    private boolean collisionShapeFullBlock = false;
+
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         IConfigurable.super.buildConfigurator(father);

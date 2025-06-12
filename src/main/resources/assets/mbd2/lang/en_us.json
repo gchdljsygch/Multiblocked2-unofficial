@@ -172,6 +172,8 @@
     "config.block_properties.no_particle_on_break.tooltip": "enable it to remove breaking particle.",
     "config.block_properties.can_be_waterlogged": "Can Be Waterlogged",
     "config.block_properties.can_be_waterlogged.tooltip": "enable it if the block can be waterlogged.",
+    "config.block_properties.collision_shape_full_block": "Is the collision shape full block.",
+    "config.block_properties.collision_shape_full_block.tooltip": "It affects whether neighbor blocks render the connected sides.",
 
     "config.item_properties.max_stack_size": "Max Stack Size",
     "config.item_properties.max_stack_size.tooltip": "The maximum stack size of the item.",
