@@ -332,6 +332,16 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
+     * Whether the inputs will be consumed after working?
+     * @return false - it will be consumed before working.
+     * true - it will be consumed after working (before output). During processing, if the inputs do not match the current recipe anymore,
+     * the current recipe process will be discarded.
+     */
+    default boolean consumeInputsAfterWorking(MBDRecipe recipe) {
+        return false;
+    }
+
+    /**
      * Get the machine level. it will be used for recipe condition {@link com.lowdragmc.mbd2.common.recipe.MachineLevelCondition} an so on.
      */
     default int getMachineLevel() {

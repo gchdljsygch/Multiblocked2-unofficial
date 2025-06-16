@@ -83,6 +83,12 @@ public class MBDMachineEvents {
         }
     }
 
+    public static class MachineOnConsumeInputsAfterWorkingEventJS extends MachineEventJS<MachineOnConsumeInputsAfterWorkingEvent> {
+        public MachineOnConsumeInputsAfterWorkingEventJS(MachineOnConsumeInputsAfterWorkingEvent event) {
+            super(event);
+        }
+    }
+
     public static class MachinePlacedEventJS extends MachineEventJS<MachinePlacedEvent> {
         public MachinePlacedEventJS(MachinePlacedEvent event) {
             super(event);

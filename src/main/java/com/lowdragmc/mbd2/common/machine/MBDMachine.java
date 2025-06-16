@@ -573,6 +573,16 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     }
 
     @Override
+    public boolean consumeInputsAfterWorking(MBDRecipe recipe) {
+        if (getDefinition().recipeLogicSettings().consumeInputsAfterWorking()) {
+            var event = new MachineAfterRecipeWorkingEvent(this, recipe).postCustomEvent();
+            MinecraftForge.EVENT_BUS.post(event);
+            return !event.isCanceled();
+        }
+        return false;
+    }
+
+    @Override
     public boolean beforeWorking(MBDRecipe recipe) {
         var event = new MachineBeforeRecipeWorkingEvent(this, recipe);
         MinecraftForge.EVENT_BUS.post(event.postCustomEvent());

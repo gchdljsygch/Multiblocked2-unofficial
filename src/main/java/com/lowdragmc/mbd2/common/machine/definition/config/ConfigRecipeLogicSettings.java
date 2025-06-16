@@ -44,6 +44,13 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     protected int recipeDampingValue = 2;
     @Getter
     @Builder.Default
+    @Configurable(name = "config.recipe_logic_settings.consume_inputs_after_working", tips = {
+            "config.recipe_logic_settings.consume_inputs_after_working.tooltip.0",
+            "config.recipe_logic_settings.consume_inputs_after_working.tooltip.1"
+    })
+    protected boolean consumeInputsAfterWorking = false;
+    @Getter
+    @Builder.Default
     @Configurable(name = "config.recipe_logic_settings.always_search_recipe", tips = {
             "config.recipe_logic_settings.always_search_recipe.tooltip.0",
             "config.recipe_logic_settings.always_search_recipe.tooltip.1"
