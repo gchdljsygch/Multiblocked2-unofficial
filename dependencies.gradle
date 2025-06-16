@@ -72,6 +72,9 @@ dependencies {
     // Pneumaticcraft
     implementation fg.deobf("me.desht.pneumaticcraft:pneumaticcraft-repressurized:${pneumaticcraft_version}")
 
+    // Applied Energistics 2
+    implementation fg.deobf("appeng:appliedenergistics2-forge:${applied_energistics_version}")
+
     // Blood Magic
 //    implementation fg.deobf("com.wayoftime.bloodmagic:BloodMagic:${blood_magic_version}")
 

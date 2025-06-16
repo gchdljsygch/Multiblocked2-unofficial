@@ -56,6 +56,12 @@ public class MachineBlockEntity extends BlockEntity implements IMachineBlockEnti
     }
 
     @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        getMetaMachine().onChunkUnloaded();
+    }
+
+    @Override
     public void setRemoved() {
         super.setRemoved();
         getMetaMachine().onUnload();

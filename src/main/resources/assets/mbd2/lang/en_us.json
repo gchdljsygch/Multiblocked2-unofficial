@@ -459,6 +459,9 @@
     "config.definition.trait.entity_handler.area.tooltip.0": "If it's input, the detection area of the entity.",
     "config.definition.trait.entity_handler.area.tooltip.1": "If it's output, the random spawn area of the entity.",
 
+    "config.definition.trait.ae2_me_interface.name": "AE2 ME Interface",
+    "config.definition.trait.ae2_me_interface.slot_size": "Slot Size",
+
     "config.definition.trait.botania_mana_storage.name": "Botania Mana Storage",
     "config.definition.trait.botania_mana_storage.capacity": "Capacity",
     "config.definition.trait.botania_mana_storage.can_attach_spark": "Can Attach Spark",
@@ -706,6 +709,8 @@
     "recipe.capability.entity.ingredient.values.entity": "entity type",
     "recipe.capability.entity.ingredient.values.tag": "entity tag",
     "ldlib.gui.editor.register.widget.container.entity_preview": "Entity Preview Slot",
+
+    "ldlib.gui.editor.register.widget.container.ae_interface_slot": "ME Interface Slot",
 
     "recipe.capability.forge_energy.name": "Forge Energy Capability",
     "recipe.capability.forge_energy.energy": "Energy",

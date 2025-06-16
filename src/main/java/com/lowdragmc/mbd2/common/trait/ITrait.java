@@ -42,6 +42,11 @@ public interface ITrait {
     default void onMachineLoad() {}
 
     /**
+     * Called when the machine is unloaded.
+     */
+    default void onChunkUnloaded() {}
+
+    /**
      * Called when the machine is being unloaded.
      */
     default void onMachineUnLoad() {}

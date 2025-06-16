@@ -11,6 +11,7 @@ import com.lowdragmc.mbd2.common.trait.entity.EntityHandlerTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.fluid.FluidTankCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.ForgeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.integration.ae2.trait.MEInterfaceTraitDefinition;
 import com.lowdragmc.mbd2.integration.botania.trait.BotaniaManaCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.embers.trait.EmbersEmberCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.gtm.trait.GTMEnergyCapabilityTraitDefinition;
@@ -52,6 +53,9 @@ public class MBDTraitDefinitionTypes {
         }
         if (MBD2.isEmbersLoaded()) {
             register(EmbersEmberCapabilityTraitDefinition.class);
+        }
+        if (MBD2.isAE2Loaded()) {
+            register(MEInterfaceTraitDefinition.class);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.TraitType());
         MBDRegistries.TRAIT_DEFINITION_TYPES.freeze();
