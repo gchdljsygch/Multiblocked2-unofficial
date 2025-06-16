@@ -73,7 +73,8 @@ public class MachineBlockEntity extends BlockEntity implements IMachineBlockEnti
             return MBDCapabilities.CAPABILITY_MACHINE.orEmpty(cap, LazyOptional.of(this::getMetaMachine));
         }
         if (metaMachine instanceof MBDMachine machine) {
-            return machine.getCapability(cap, side);
+            var result = machine.getCapability(cap, side);
+            if (result.isPresent()) return result;
         }
         return super.getCapability(cap, side);
     }
