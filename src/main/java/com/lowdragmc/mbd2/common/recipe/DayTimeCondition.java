@@ -2,7 +2,6 @@ package com.lowdragmc.mbd2.common.recipe;
 
 import com.google.gson.JsonObject;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
-import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.lowdraglib.gui.texture.IGuiTexture;
 import com.lowdragmc.lowdraglib.gui.texture.ItemStackTexture;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
@@ -22,29 +21,29 @@ import javax.annotation.Nonnull;
 @Getter
 @Setter
 @NoArgsConstructor
-public class DayLightCondition extends RecipeCondition {
+public class DayTimeCondition extends RecipeCondition {
 
-    public final static DayLightCondition INSTANCE = new DayLightCondition();
-    @Configurable(name = "config.recipe.condition.day_light.is_day")
+    public final static DayTimeCondition INSTANCE = new DayTimeCondition();
+    @Configurable(name = "config.recipe.condition.day_time.is_day")
     private boolean isDay;
 
-    public DayLightCondition(boolean isDay) {
+    public DayTimeCondition(boolean isDay) {
         this.isDay = isDay;
     }
 
     @Override
     public String getType() {
-        return "day_light";
+        return "day_time";
     }
 
     @Override
     public Component getTooltips() {
-        return isDay ? Component.translatable("recipe.condition.day_light.tooltip.true") : Component.translatable("recipe.condition.day_light.tooltip.false");
+        return isDay ? Component.translatable("recipe.condition.day_time.tooltip.true") : Component.translatable("recipe.condition.day_time.tooltip.false");
     }
 
     @Override
     public IGuiTexture getIcon() {
-        return new ItemStackTexture(Items.DAYLIGHT_DETECTOR);
+        return new ItemStackTexture(Items.CLOCK);
     }
 
     @Override

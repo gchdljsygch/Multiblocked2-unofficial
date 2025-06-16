@@ -492,8 +492,19 @@ public interface MBDRecipeSchema {
             return this;
         }
 
+        @Deprecated(forRemoval = true, since = "1.21.0")
         public MBDRecipeJS dayLight(boolean isDay) {
-            addCondition(new DayLightCondition(isDay));
+            addCondition(new DayTimeCondition(isDay));
+            return this;
+        }
+
+        public MBDRecipeJS dayTime(boolean isDay) {
+            addCondition(new DayTimeCondition(isDay));
+            return this;
+        }
+
+        public MBDRecipeJS light(int minSkyLight, int maxSkyLight, int minBlockLight, int maxBlockLight, boolean canSeeSky) {
+            addCondition(new LightCondition(minSkyLight, maxSkyLight, minBlockLight, maxBlockLight, canSeeSky));
             return this;
         }
 
