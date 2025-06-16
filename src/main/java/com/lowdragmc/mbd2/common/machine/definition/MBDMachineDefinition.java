@@ -52,6 +52,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -404,7 +405,7 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     public ItemStack asStack() {
-        return new ItemStack(item());
+        return item() == null ? new ItemStack(Items.BARRIER) : new ItemStack(item());
     }
 
     public ItemStack asStack(int count) {

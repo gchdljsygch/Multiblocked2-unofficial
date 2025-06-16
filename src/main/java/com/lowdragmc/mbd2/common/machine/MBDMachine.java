@@ -149,6 +149,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     }
 
     @Override
+    public void onChunkUnloaded() {
+        IMachine.super.onChunkUnloaded();
+        for (ITrait additionalTrait : additionalTraits) {
+            additionalTrait.onChunkUnloaded();
+        }
+    }
+
+    @Override
     public void onUnload() {
         IMachine.super.onUnload();
         for (ITrait additionalTrait : additionalTraits) {

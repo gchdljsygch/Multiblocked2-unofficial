@@ -160,6 +160,15 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
+     * on machine chunk unloaded.
+     * <br>
+     * You should call it in yourselves {@link BlockEntity#onChunkUnloaded()}.
+     */
+    default void onChunkUnloaded() {
+        getRecipeLogic().inValid();
+    }
+
+    /**
      * on machine invalid in the chunk.
      * <br>
      * You should call it in yourselves {@link BlockEntity#setRemoved()}.
