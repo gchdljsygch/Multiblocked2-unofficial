@@ -110,6 +110,22 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
     public List<PressureAir> handleRecipeInner(IO io, MBDRecipe recipe, List<PressureAir> left, @Nullable String slotName, boolean simulate) {
         if (!compatibleWith(io)) return left;
         var handler = simulate ? this.handler.copy() : this.handler;
+        // check pressure condition first
+        for (var condition : recipe.conditions) {
+            if (condition instanceof PNCPressureCondition pressureCondition) {
+                if (pressureCondition.isAir()) {
+                    var air = handler.getAir();
+                    if (air < pressureCondition.getMinPressure() || air > pressureCondition.getMaxPressure()) {
+                        return left;
+                    }
+                } else {
+                    var pressure = handler.getPressure();
+                    if (pressure < pressureCondition.getMinPressure() || pressure > pressureCondition.getMaxPressure()) {
+                        return left;
+                    }
+                }
+            }
+        }
         if (io == IO.IN) {
             var iterator = left.iterator();
             while (iterator.hasNext()) {

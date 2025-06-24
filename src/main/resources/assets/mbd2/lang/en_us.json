@@ -87,6 +87,9 @@
     "recipe.condition.mekanism_heat.tooltip": "Mek Temperature range [%d, %d]",
     "recipe.condition.pneumatic_temperature": "PNC Temperature",
     "recipe.condition.pneumatic_temperature.tooltip": "PNC Temperature range [%d°C, %d°C]",
+    "recipe.condition.pneumatic_pressure": "PNC Pressure",
+    "recipe.condition.pneumatic_pressure.air.tooltip": "PNC Air range [%d, %d]",
+    "recipe.condition.pneumatic_pressure.pressure.tooltip": "PNC Pressure range [%d, %d]",
 
     "project.reload": " reloaded!",
     "project.reload.recipe": "§cNOTE:§r You have to execute /reload or re-enter the world to actually reload the built-in recipes.",
@@ -125,6 +128,9 @@
     "config.recipe.condition.light.max_sky_light": "max sky light",
     "config.recipe.condition.light.min_block_light": "min block light",
     "config.recipe.condition.light.max_block_light": "max block light",
+    "config.recipe.condition.pressure.min": "min pressure / air",
+    "config.recipe.condition.pressure.max": "max pressure / air",
+    "config.recipe.condition.is_air": "is air",
     "config.recipe.condition.light.can_see_sky": "can see sky",
     "config.recipe.condition.light.can_see_sky.tooltip": "It is required to open up the open air.",
 

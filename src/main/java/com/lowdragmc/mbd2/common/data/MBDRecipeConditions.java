@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.common.recipe.*;
 import com.lowdragmc.mbd2.integration.create.CreateRotationCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MEKTemperatureCondition;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.heat.PNCTemperatureCondition;
+import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.pressure.PNCPressureCondition;
 import net.minecraftforge.fml.ModLoader;
 
 public final class MBDRecipeConditions {
@@ -34,6 +35,7 @@ public final class MBDRecipeConditions {
         }
         if (MBD2.isPneumaticCraftLoaded()) {
             MBDRegistries.RECIPE_CONDITIONS.register(PNCTemperatureCondition.INSTANCE.getType(), PNCTemperatureCondition.class);
+            MBDRegistries.RECIPE_CONDITIONS.register(PNCPressureCondition.INSTANCE.getType(), PNCPressureCondition.class);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.RecipeCondition());
         MBDRegistries.RECIPE_CONDITIONS.freeze();
