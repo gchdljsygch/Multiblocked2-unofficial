@@ -79,7 +79,7 @@ public class MBDRecipeTypeFuelDisplayCategory extends ModularUIDisplayCategory<M
     public static void registerDisplays(DisplayRegistry registry) {
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
             if (recipeType.isXEIVisible()) {
-                registry.registerRecipeFiller(MBDRecipe.class, rt -> rt == recipeType, recipe -> recipe.isFuel, MBDRecipeDisplay::new);
+                registry.registerRecipeFiller(MBDRecipe.class, rt -> rt == recipeType, recipe -> recipe.isFuel && !recipe.isXEIHidden, MBDRecipeDisplay::new);
             }
         }
     }

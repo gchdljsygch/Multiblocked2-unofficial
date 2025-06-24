@@ -31,8 +31,7 @@ public abstract class RecipeManagerMixin {
     private void mbd2$cloneVanillaRecipes(Map<ResourceLocation, JsonElement> map, ResourceManager resourceManager, ProfilerFiller profiler, CallbackInfo ci) {
         recipes = new HashMap<>(recipes);
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
-            recipeType.clearProxyRecipesCache();
-            recipeType.getBuiltinRecipes().forEach((id, recipe) -> recipes.computeIfAbsent(recipeType, type -> new HashMap<>()).put(id, recipe));
+            recipeType.onRecipeManagerLoaded(recipes);
         }
     }
 }

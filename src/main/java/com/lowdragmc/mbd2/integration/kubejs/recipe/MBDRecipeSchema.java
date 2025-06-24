@@ -67,6 +67,7 @@ public interface MBDRecipeSchema {
         public int duration = 100;
         public int priority;
         public boolean isFuel;
+        public boolean isXEIHidden;
         // runtime
         public boolean perTick;
         @Setter
@@ -103,6 +104,12 @@ public interface MBDRecipeSchema {
 
         public MBDRecipeJS isFuel(boolean fuel) {
             isFuel = fuel;
+            save();
+            return this;
+        }
+
+        public MBDRecipeJS isXEIHidden(boolean xEIHidden) {
+            isXEIHidden = xEIHidden;
             save();
             return this;
         }
@@ -572,12 +579,13 @@ public interface MBDRecipeSchema {
             duration = mbdRecipe.duration;
             priority = mbdRecipe.priority;
             isFuel = mbdRecipe.isFuel;
+            isXEIHidden = mbdRecipe.isXEIHidden;
         }
 
         @Override
         public void serialize() {
             json = MBDRecipeSerializer.SERIALIZER.toJson(
-                    new MBDRecipe(getRecipeType(), getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, priority)
+                    new MBDRecipe(getRecipeType(), getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority)
             );
         }
 
@@ -591,6 +599,7 @@ public interface MBDRecipeSchema {
                     data,
                     duration,
                     isFuel,
+                    isXEIHidden,
                     priority
             );
         }

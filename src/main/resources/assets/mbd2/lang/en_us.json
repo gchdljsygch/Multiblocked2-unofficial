@@ -614,6 +614,8 @@
     "recipe_type.require_fuel.tooltip": "Whether the recipe type requires fuel to work. if true, you should add fuel recipes as well.",
     "recipe_type.is_xei_visible": "is xei visible",
     "recipe_type.is_xei_visible.tooltip": "Whether show the recipe type in the recipe viewer.",
+    "recipe_type.is_proxy_recipe_xei_visible": "is proxy recipe xei visible",
+    "recipe_type.is_proxy_recipe_xei_visible.tooltip": "Whether set the recipe hidden while transferring.",
     "recipe_type.icon": "icon",
     "recipe_type.icon.tooltip": "The icon of the recipe type, which will be displayed in the recipe viewer UI.",
     "recipe_type.fuel_icon": "fuel icon",
@@ -626,6 +628,8 @@
     "recipe.duration.fuel.tooltip": "The duration of burning time. (tick)",
     "recipe.priority": "priority",
     "recipe.priority.tooltip": "recipe priority. If there are several recipes meet requires, the lowest one will be processed first.",
+    "recipe.xei_hidden": "xei hidden",
+    "recipe.xei_hidden.tooltip": "Whether the recipe should be shown in the recipe viewer.",
     "recipe_type.fuel": "%s fuel",
 
     "ldlib.gui.editor.register.editor.machine.sm": "Single Machine Project",

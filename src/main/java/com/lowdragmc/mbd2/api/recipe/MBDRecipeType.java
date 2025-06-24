@@ -93,6 +93,10 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     @Getter
     @Configurable(name = "recipe_type.is_xei_visible", tips = "recipe_type.is_xei_visible.tooltip")
     protected boolean isXEIVisible = true;
+    @Setter
+    @Getter
+    @Configurable(name = "recipe_type.is_proxy_recipe_xei_visible", tips = "recipe_type.is_proxy_recipe_xei_visible.tooltip")
+    protected boolean isProxyRecipeXEIVisible = false;
     private final List<RecipeType<?>> proxyRecipeTypes = new ArrayList<>();
     @Getter
     protected final Map<ResourceLocation, MBDRecipe> builtinRecipes = new LinkedHashMap<>();
@@ -115,8 +119,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     @Getter
     private File projectFile;
     @Getter
-    private boolean isProxyRecipesLoaded = false;
-    @Getter
+    @Deprecated
     protected final Map<RecipeType<?>, List<MBDRecipe>> proxyRecipes = new HashMap<>();
 
     public MBDRecipeType(ResourceLocation registryName, RecipeType<?>... proxyRecipes) {
@@ -128,9 +131,24 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     /**
      * This method is used to clear the proxy recipes cache.
      */
-    public void clearProxyRecipesCache() {
-        isProxyRecipesLoaded = false;
+    public void onRecipeManagerLoaded(Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> rawRecipes) {
+        // append builtin recipes
+        var recipeTypeMap = rawRecipes.computeIfAbsent(this, type -> new HashMap<>());
+        recipeTypeMap.putAll(builtinRecipes);
+
+        // load proxy recipes
         proxyRecipes.clear();
+        for (var type : proxyRecipeTypes) {
+            var recipes = new ArrayList<MBDRecipe>();
+            for (var recipe : rawRecipes.get(type).entrySet()) {
+                var mbdRecipe = toMBDrecipe(type, recipe.getKey(), recipe.getValue());
+                if (mbdRecipe != null) {
+                    recipes.add(mbdRecipe);
+                    recipeTypeMap.put(mbdRecipe.id, mbdRecipe);
+                }
+            }
+            proxyRecipes.put(type, recipes);
+        }
     }
 
     public static MBDRecipeType createDefault() {
@@ -216,21 +234,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return new ResourceLocation(registryName.getNamespace(), registryName.getPath() + ".fuel");
     }
 
-    private void loadProxyRecipes(RecipeManager recipeManager) {
-        isProxyRecipesLoaded = true;
-        proxyRecipes.clear();
-        for (var type : proxyRecipeTypes) {
-            var recipes = new ArrayList<MBDRecipe>();
-            for (var recipe : ((RecipeManagerAccessor)recipeManager).getRawRecipes().get(type).entrySet()) {
-                var mbdRecipe = toMBDrecipe(type, recipe.getKey(), recipe.getValue());
-                if (mbdRecipe != null) recipes.add(mbdRecipe);
-            }
-            proxyRecipes.put(type, recipes);
-        }
-    }
-
     public List<MBDRecipe> searchFuelRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
-        if (!isProxyRecipesLoaded) loadProxyRecipes(recipeManager);
         if (!holder.hasProxies() || !isRequireFuelForWorking()) return Collections.emptyList();
         List<MBDRecipe> matches = new ArrayList<>();
         for (MBDRecipe recipe : recipeManager.getAllRecipesFor(this)) {
@@ -243,17 +247,10 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     }
 
     public List<MBDRecipe> searchRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
-        if (!isProxyRecipesLoaded) loadProxyRecipes(recipeManager);
         if (!holder.hasProxies()) return Collections.emptyList();
         List<MBDRecipe> matches = recipeManager.getAllRecipesFor(this).parallelStream()
                 .filter(recipe -> !recipe.isFuel && recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess())
                 .collect(Collectors.toList());
-        for (List<MBDRecipe> recipes : proxyRecipes.values()) {
-            var found = recipes.parallelStream()
-                    .filter(recipe -> !recipe.isFuel && recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess())
-                    .toList();
-            matches.addAll(found);
-        }
         matches.sort(Comparator.comparingInt(r -> r.priority));
         return matches;
     }
@@ -313,7 +310,8 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
             result = copied;
         } else {
             if (!recipe.getIngredients().isEmpty()) {
-                var builder = recipeBuilder(id).recipeType(this);
+                var newID = new ResourceLocation(registryName.getNamespace(), registryName.getPath() + "/" + id.getPath());
+                var builder = recipeBuilder(newID).recipeType(this);
                 for (var ingredient : recipe.getIngredients()) {
                     builder.inputItems(ingredient);
                 }
@@ -321,7 +319,8 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
                 if (recipe instanceof SmeltingRecipe smeltingRecipe) {
                     builder.duration(smeltingRecipe.getCookingTime());
                 }
-                result =  builder.buildRawRecipe();
+                builder.isXEIHidden(!isProxyRecipeXEIVisible);
+                result = builder.buildRawRecipe();
             }
         }
         var proxyTypeId = ForgeRegistries.RECIPE_TYPES.getKey(recipeType);

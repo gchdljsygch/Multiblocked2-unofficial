@@ -71,7 +71,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
                 registration.addRecipes(MBDRecipeTypeFuelCategory.TYPES.apply(recipeType),
                         Minecraft.getInstance().getConnection().getRecipeManager().getAllRecipesFor(recipeType)
                                 .stream()
-                                .filter(recipe -> recipe.isFuel)
+                                .filter(recipe -> recipe.isFuel && !recipe.isXEIHidden)
                                 .map(RecipeWrapper::new)
                                 .collect(Collectors.toList()));
             }

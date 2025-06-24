@@ -64,6 +64,8 @@ public class MBDRecipeBuilder {
     @Setter
     public boolean isFuel = false;
     @Setter
+    public boolean isXEIHidden = false;
+    @Setter
     public int priority = 0;
     @Setter
     public BiConsumer<MBDRecipeBuilder, Consumer<FinishedRecipe>> onSave;
@@ -82,6 +84,7 @@ public class MBDRecipeBuilder {
         this.data = toCopy.data.copy();
         this.duration = toCopy.duration;
         this.isFuel = toCopy.isFuel;
+        this.isXEIHidden = toCopy.isXEIHidden;
     }
 
     public static MBDRecipeBuilder of(ResourceLocation id, MBDRecipeType recipeType) {
@@ -423,7 +426,7 @@ public class MBDRecipeBuilder {
     }
 
     public MBDRecipe buildRawRecipe() {
-        return new MBDRecipe(recipeType, id, input, output, conditions, data, duration, isFuel, priority);
+        return new MBDRecipe(recipeType, id, input, output, conditions, data, duration, isFuel, isXEIHidden, priority);
     }
 
 }

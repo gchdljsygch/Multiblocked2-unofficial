@@ -51,7 +51,7 @@ public class MBDRecipeTypeEmiCategory extends EmiRecipeCategory {
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
             if (recipeType.isXEIVisible()) {
                 Minecraft.getInstance().getConnection().getRecipeManager().getAllRecipesFor(recipeType).stream()
-                        .filter(recipe -> !recipe.isFuel)
+                        .filter(recipe -> !recipe.isFuel && !recipe.isXEIHidden)
                         .map(recipe -> new MBDEmiRecipe(CATEGORIES.apply(recipeType), recipe))
                         .forEach(registry::addRecipe);
             }

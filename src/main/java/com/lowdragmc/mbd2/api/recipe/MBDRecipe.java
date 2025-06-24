@@ -49,11 +49,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     public CompoundTag data;
     public int duration;
     public int priority;
-    @Getter
     public boolean isFuel;
+    public boolean isXEIHidden;
     private Boolean hasTick;
 
-    public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, int priority) {
+    public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority) {
         this.recipeType = recipeType;
         this.id = id;
         this.inputs = inputs;
@@ -62,6 +62,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         this.data = data;
         this.duration = duration;
         this.isFuel = isFuel;
+        this.isXEIHidden = isXEIHidden;
         this.priority = priority;
     }
 
@@ -86,11 +87,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     }
 
     public MBDRecipe copy(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, priority);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, isXEIHidden, priority);
     }
 
     public MBDRecipe deepCopied(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, priority);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, isXEIHidden, priority);
     }
 
     public MBDRecipe copy() {
@@ -109,7 +110,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         var copied = new MBDRecipe(recipeType, id,
                 (io == IO.BOTH || io == IO.IN) ? copyContents(inputs, false, modifier) : inputs,
                 (io == IO.BOTH || io == IO.OUT) ? copyContents(outputs, false, modifier): outputs,
-                conditions, data, duration, isFuel, priority);
+                conditions, data, duration, isFuel, isXEIHidden, priority);
         if (modifyDuration) {
             copied.duration = modifier.apply(this.duration).intValue();
         }
@@ -122,6 +123,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                 .id(id)
                 .duration(duration)
                 .isFuel(isFuel)
+                .isXEIHidden(isXEIHidden)
                 .priority(priority);
         builder.data = data.copy();
         builder.input.putAll(copyContents(inputs, true, null));
