@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.common.event;
 
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeSerializer;
+import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.CommonProxy;
 import com.lowdragmc.mbd2.common.data.MBDMachineDefinitionTypes;
@@ -15,6 +16,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.DataInputStream;
 import java.io.File;
+import java.util.function.Supplier;
 
 public class MBDRegistryEvent extends Event implements IModBusEvent {
 
@@ -29,8 +31,7 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
         /**
          * Register a machine definition from a file.
          */
-        public void registerFromFile(File file) {
-            var type = file.getName().substring(file.getName().lastIndexOf('.') + 1);
+        public void registerFromFile(String type, File file) {
             var definitionType = MBDRegistries.MACHINE_DEFINITION_TYPES.get(type);
             if (definitionType == null) {
                 LDLib.LOGGER.error("error could not find the definition type {} from file {}", type, file);
@@ -48,8 +49,7 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
         /**
          * Register a machine definition from a resource.
          */
-        public void registerFromResource(Class<?> source, String projectFile) {
-            var type = projectFile.substring(projectFile.lastIndexOf('.') + 1);
+        public void registerFromResource(Class<?> source, String type, String projectFile) {
             var definitionType = MBDRegistries.MACHINE_DEFINITION_TYPES.get(type);
             if (definitionType == null) {
                 LDLib.LOGGER.error("error could not find the definition type {} from resource {}", type, projectFile);
@@ -79,6 +79,36 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
             ForgeRegistries.RECIPE_SERIALIZERS.register(recipeType.getRegistryName(), new MBDRecipeSerializer());
             MBDRegistries.RECIPE_TYPES.register(recipeType.getRegistryName(), recipeType);
         }
+
+        /**
+         * Register a recipe type from a file.
+         */
+        public void registerFromFile(File file) {
+            try {
+                var tag = NbtIo.read(file);
+                if (tag == null) throw new Exception("tag is null");
+                register(com.lowdragmc.mbd2.api.recipe.MBDRecipeType.createDefault().loadProductiveTag(null, tag, CommonProxy.getPostTask()));
+            } catch (Exception e) {
+                LDLib.LOGGER.error("error could not load the project from file {}", file, e);
+            }
+        }
+
+        /**
+         * Register a machine definition from a resource.
+         */
+        public void registerFromResource(Class<?> source, String projectFile) {
+            var inputstream = source.getResourceAsStream(String.format("/assets/%s", projectFile));
+            if (inputstream == null) {
+                LDLib.LOGGER.error("error could not find the project from resource {}", projectFile);
+                return;
+            }
+            try {
+                var tag = NbtIo.read(new DataInputStream(inputstream));
+                register(com.lowdragmc.mbd2.api.recipe.MBDRecipeType.createDefault().loadProductiveTag(null, tag, CommonProxy.getPostTask()));
+            } catch (Exception e) {
+                LDLib.LOGGER.error("error could not load the project from resource {}", projectFile, e);
+            }
+        }
     }
 
     public static class RecipeCondition extends MBDRegistryEvent {
@@ -104,8 +134,8 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
         /**
          * Register a machine definition type.
          */
-        public void register(Class<? extends MBDMachineDefinition> clazz) {
-            MBDMachineDefinitionTypes.register(clazz);
+        public <T extends MBDMachineDefinition> void register(Class<T> clazz, Supplier<T> creator) {
+            MBDMachineDefinitionTypes.register(clazz, creator);
         }
     }
 
