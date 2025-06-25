@@ -546,11 +546,11 @@ public interface MBDRecipeSchema {
             return this;
         }
 
-        public MBDRecipeJS pncPressureCondition(boolean isAir, float minTemperature, float maxTemperature) {
+        public MBDRecipeJS pncPressureCondition(boolean isAir, float minPressure, float maxPressure) {
             if (!MBD2.isPneumaticCraftLoaded()) {
                 throw new IllegalStateException("Try to add a pressure condition while the pneumatic is not loaded!");
             }
-            addCondition(new PNCPressureCondition(isAir, minTemperature, maxTemperature));
+            addCondition(new PNCPressureCondition(isAir, minPressure, maxPressure));
             return this;
         }
 
