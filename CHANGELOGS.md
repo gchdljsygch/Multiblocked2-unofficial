@@ -1,5 +1,8 @@
 # ChangeLog
 
+## v1.0.32
+* Fixed Fuel Recipe Type doesn't show up in the JEI
+
 ## v1.0.31.a
 * Fixed MBD Java Registry System
 
