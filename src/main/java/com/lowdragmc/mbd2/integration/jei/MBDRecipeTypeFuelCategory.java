@@ -67,7 +67,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
 
     public static void registerRecipes(IRecipeRegistration registration) {
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
-            if (recipeType.isXEIVisible()) {
+            if (recipeType.isXEIVisible() && recipeType.isRequireFuelForWorking()) {
                 registration.addRecipes(MBDRecipeTypeFuelCategory.TYPES.apply(recipeType),
                         Minecraft.getInstance().getConnection().getRecipeManager().getAllRecipesFor(recipeType)
                                 .stream()
@@ -80,7 +80,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
 
     public static void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
         for (var mbdRecipeType : MBDRegistries.RECIPE_TYPES) {
-            if (mbdRecipeType.isXEIVisible()) {
+            if (mbdRecipeType.isXEIVisible() && mbdRecipeType.isRequireFuelForWorking()) {
                 for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
                     var recipeType = definition.recipeLogicSettings().getRecipeType();
                     if (recipeType == mbdRecipeType) {

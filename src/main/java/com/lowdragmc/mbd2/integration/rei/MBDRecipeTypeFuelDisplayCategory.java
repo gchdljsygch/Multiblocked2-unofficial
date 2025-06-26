@@ -78,7 +78,7 @@ public class MBDRecipeTypeFuelDisplayCategory extends ModularUIDisplayCategory<M
 
     public static void registerDisplays(DisplayRegistry registry) {
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
-            if (recipeType.isXEIVisible()) {
+            if (recipeType.isXEIVisible() && recipeType.isRequireFuelForWorking()) {
                 registry.registerRecipeFiller(MBDRecipe.class, rt -> rt == recipeType, recipe -> recipe.isFuel && !recipe.isXEIHidden, MBDRecipeDisplay::new);
             }
         }
@@ -86,7 +86,7 @@ public class MBDRecipeTypeFuelDisplayCategory extends ModularUIDisplayCategory<M
 
     public static void registerWorkStations(CategoryRegistry registry) {
         for (var mbdRecipeType : MBDRegistries.RECIPE_TYPES) {
-            if (mbdRecipeType.isXEIVisible()) {
+            if (mbdRecipeType.isXEIVisible() && mbdRecipeType.isRequireFuelForWorking()) {
                 for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
                     var recipeType = definition.recipeLogicSettings().getRecipeType();
                     if (recipeType == mbdRecipeType) {
