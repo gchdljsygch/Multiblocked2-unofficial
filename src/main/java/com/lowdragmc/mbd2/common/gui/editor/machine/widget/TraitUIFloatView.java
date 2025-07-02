@@ -60,7 +60,7 @@ public class TraitUIFloatView extends FloatViewWidget {
             addButton(new ImageWidget(0, 0, 18, 18, new TextTexture("N")),
                     () -> "editor.machine.name", () -> {
                         if (WidgetUtils.getFirstWidgetById(project.getUi(), "^ui:machine_name$") == null) {
-                            var name = new TextTextureWidget(5, 5, 100, 18,"machine name");
+                            var name = new TextTextureWidget(5, 5, 100, 18,"editor.machine.name");
                             name.textureStyle(style -> style.setType(TextTexture.TextType.LEFT));
                             name.setId("ui:machine_name");
                             project.getUi().addWidget(name);
