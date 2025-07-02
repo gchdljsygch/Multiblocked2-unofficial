@@ -21,6 +21,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CreateRotationTrait implements ITrait {
     protected List<Runnable> listeners = new ArrayList<>();
@@ -88,7 +90,8 @@ public class CreateRotationTrait implements ITrait {
     @Getter
     private final float torque;
     @Getter
-    private float available, lastSpeed;
+    private float lastSpeed;
+    private final Map<MBDRecipe, Float> availableCache = new ConcurrentHashMap<>();
     private final StressRecipeHandler stressRecipeHandler = new StressRecipeHandler();
     private final RPMRecipeHandler rpmRecipeHandler = new RPMRecipeHandler();
 
@@ -118,15 +121,20 @@ public class CreateRotationTrait implements ITrait {
         return DEFINITION;
     }
 
-    public void preWorking(IO io) {
+    public void preWorking(IO io, MBDRecipe recipe) {
         if (machine.getHolder() instanceof MBDKineticMachineBlockEntity blockEntity) {
-            if (available > 0 && isGenerator && io == IO.OUT) {
-                blockEntity.scheduleWorking(available, false);
+            if (isGenerator && io == IO.OUT) {
+                var available = availableCache.get(recipe);
+                if (available == null) {
+
+                } else if (available > 0) {
+                    blockEntity.scheduleWorking(available, false);
+                }
             }
         }
     }
 
-    public void postWorking(IO io) {
+    public void postWorking(IO io, MBDRecipe recipe) {
         if (machine.getHolder() instanceof MBDKineticMachineBlockEntity blockEntity) {
             if (isGenerator && io == IO.OUT) {
                 blockEntity.stopWorking();
@@ -167,9 +175,15 @@ public class CreateRotationTrait implements ITrait {
                     }
                 } else if (io == IO.OUT && isGenerator) {
                     if (simulate) {
-                        available = holder.scheduleWorking(sum, true);
+                        var available = holder.scheduleWorking(sum, true);
+                        availableCache.put(recipe, available);
+                        sum = sum - available;
+                    } else {
+                        var available = availableCache.remove(recipe);
+                        if (available != null) {
+                            sum = sum - available;
+                        }
                     }
-                    sum = sum - available;
                 }
                 return sum <= 0 ? null : Collections.singletonList(sum);
             }
@@ -178,12 +192,12 @@ public class CreateRotationTrait implements ITrait {
 
         @Override
         public void preWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
-            CreateRotationTrait.this.preWorking(io);
+            CreateRotationTrait.this.preWorking(io, recipe);
         }
 
         @Override
         public void postWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
-            CreateRotationTrait.this.postWorking(io);
+            CreateRotationTrait.this.postWorking(io, recipe);
         }
 
         @Override
@@ -232,7 +246,10 @@ public class CreateRotationTrait implements ITrait {
                     }
                 } else if (io == IO.OUT && isGenerator) {
                     if (simulate) {
-                        available = holder.scheduleWorkingRPM(sum, true);
+                        var available = holder.scheduleWorkingRPM(sum, true);
+                        availableCache.put(recipe, available);
+                    } else {
+                        availableCache.remove(recipe);
                     }
                     return null;
                 }
@@ -242,12 +259,12 @@ public class CreateRotationTrait implements ITrait {
 
         @Override
         public void preWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
-            CreateRotationTrait.this.preWorking(io);
+            CreateRotationTrait.this.preWorking(io, recipe);
         }
 
         @Override
         public void postWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
-            CreateRotationTrait.this.postWorking(io);
+            CreateRotationTrait.this.postWorking(io, recipe);
         }
 
         @Override
