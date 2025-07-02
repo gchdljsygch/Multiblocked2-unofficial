@@ -9,6 +9,7 @@ import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -360,5 +361,9 @@ public interface IMachine extends IRecipeCapabilityHolder {
     @Override
     default int getChanceTier() {
         return getMachineLevel();
+    }
+
+    default @Nullable Component getCustomName() {
+        return null;
     }
 }

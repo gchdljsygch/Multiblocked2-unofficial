@@ -683,6 +683,7 @@
     "config.predicate.tags": "tags",
     "config.predicate.tags.tooltip": "match any one of block tags.",
 
+    "editor.machine.name": "Machine Name",
     "editor.machine.recipe_type_ui_view.progress": "Progress Bar",
     "editor.machine.recipe_type_ui_view.fuel_progress": "Fuel Bar",
     "editor.machine.recipe_type_ui_view.xei_lookup": "XEI Lookup",

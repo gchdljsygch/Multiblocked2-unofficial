@@ -39,6 +39,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
@@ -71,6 +72,7 @@ import org.joml.Vector3f;
 
 import javax.annotation.Nonnull;
 import java.util.*;
+import java.util.List;
 
 @Getter
 public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder {
@@ -90,6 +92,11 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     private final MBDMachineDefinition definition;
     private final IMachineBlockEntity machineHolder;
 
+    @Getter
+    @Setter
+    @Persisted
+    @DescSynced
+    private Component customName = null;
     @Persisted
     @DescSynced
     @UpdateListener(methodName = "updateCustomData")
@@ -662,6 +669,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * it won't be called when machine added by {@link Level#setBlock(BlockPos, BlockState, int, int)}
      */
     public void onMachinePlaced(LivingEntity player, ItemStack stack) {
+        if (stack.hasCustomHoverName()) {
+            setCustomName(stack.getHoverName());
+        }
         MinecraftForge.EVENT_BUS.post(new MachinePlacedEvent(this, player, stack).postCustomEvent());
     }
 
@@ -765,7 +775,11 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * Get the drop item when the machine is broken.
      */
     public ItemStack getDropItem() {
-        return getDefinition().asStack();
+        var item = getDefinition().asStack();
+        if (customName != null) {
+            item.setHoverName(customName);
+        }
+        return item;
     }
 
     /**

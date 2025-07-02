@@ -11,10 +11,7 @@ import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurableWidget;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.IRendererResource;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.TexturesResource;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
-import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
-import com.lowdragmc.lowdraglib.gui.widget.ProgressWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
+import com.lowdragmc.lowdraglib.gui.widget.*;
 import com.lowdragmc.lowdraglib.jei.JEIPlugin;
 import com.lowdragmc.lowdraglib.syncdata.IPersistedSerializable;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
@@ -281,6 +278,11 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     protected void bindMachineUI(MBDMachine machine, WidgetGroup ui) {
+        WidgetUtils.widgetByIdForEach(ui, "^ui:machine_name$", TextTextureWidget.class,
+                nameWidget -> nameWidget.setText(() -> {
+                    if (machine.getCustomName() == null) return machine.getDefinition().block().getName();
+                    return machine.getCustomName();
+                }));
         WidgetUtils.widgetByIdForEach(ui, "^ui:progress_bar$", ProgressWidget.class,
                 progressWidget -> progressWidget.setProgressSupplier(() -> machine.getRecipeLogic().getProgressPercent()));
         WidgetUtils.widgetByIdForEach(ui, "^ui:fuel_bar$", ProgressWidget.class,

@@ -5,7 +5,6 @@ import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.capability.MBDCapabilities;
 import com.lowdragmc.mbd2.api.machine.IMachine;
-import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,7 +36,6 @@ public class MachineBlockEntity extends BlockEntity implements IMachineBlockEnti
     @Getter
     @Setter
     private boolean isAsyncSyncing = false;
-
 
     public MachineBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState blockState, Function<IMachineBlockEntity, IMachine> machineFactory) {
         super(type, pos, blockState);
