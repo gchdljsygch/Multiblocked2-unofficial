@@ -174,11 +174,12 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
 
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
-        if (io == IO.IN) {
+        if (io.support(IO.IN)) {
             FluidTransferHelper.importToTarget(new FluidTransferList(storages), Integer.MAX_VALUE,
                     getDefinition().getFluidFilterSettings().isEnable() ? getDefinition().getFluidFilterSettings() : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
-        } else if (io == IO.OUT) {
+        }
+        if (io.support(IO.OUT)){
             FluidTransferHelper.exportToTarget(new FluidTransferList(storages), Integer.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }

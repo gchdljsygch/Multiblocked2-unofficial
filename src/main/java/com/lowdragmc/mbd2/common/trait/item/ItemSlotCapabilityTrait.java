@@ -190,11 +190,12 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
 
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
-        if (io == IO.IN) {
+        if (io.support(IO.IN)) {
             ItemTransferHelperImpl.importToTarget(new ItemTransferList(storage), Integer.MAX_VALUE,
                     getDefinition().getItemFilterSettings().isEnable() ? getDefinition().getItemFilterSettings() : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
-        } else if (io == IO.OUT) {
+        }
+        if (io.support(IO.OUT)){
             ItemTransferHelperImpl.exportToTarget(new ItemTransferList(storage), Integer.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
