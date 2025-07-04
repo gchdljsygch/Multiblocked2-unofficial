@@ -7,7 +7,7 @@ public class EnergyFormattingUtil {
     private static final String[] SUFFIXES = {"", "k", "M", "G"};
 
     public static String formatExtended(long number) {
-        return String.format("%,d", number).replace(",", ".");
+        return String.format("%,d", number).replace(".", ",");
     }
 
     public static String formatCompact(long number) {
@@ -22,6 +22,6 @@ public class EnergyFormattingUtil {
 
         var value = number / Math.pow(1000, exp);
 
-        return COMPACT_FORMAT.format(value).replace(",", ".") + SUFFIXES[exp];
+        return COMPACT_FORMAT.format(value).replace(".", ",") + SUFFIXES[exp];
     }
 }
