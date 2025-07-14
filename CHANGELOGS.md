@@ -1,5 +1,10 @@
 # ChangeLog
 
+## v1.0.34
+* Fixed proxy recipes incompatible with kjs recipe inject event.
+* Added support for rendering radius and global renderer.
+* Move trait dropping to the onDrop event.
+
 ## v1.0.33
 * Fixed fly wheel instance doesn't render with embeddium
 * Added searching feature for the biome / dimension condition
