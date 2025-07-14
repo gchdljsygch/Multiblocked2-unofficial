@@ -151,6 +151,30 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         }
     }
 
+    public void onRecipeManagerLoadedKjs(Map<ResourceLocation, Recipe<?>> recipesByName) {
+        recipesByName.putAll(builtinRecipes);
+        // load proxy recipes
+        proxyRecipes.clear();
+        var proxyRecipeTypes = new HashSet<>(this.proxyRecipeTypes);
+
+        if (proxyRecipeTypes.isEmpty()) return;
+        for (var entry : recipesByName.entrySet()) {
+            var key = entry.getKey();
+            var recipe = entry.getValue();
+            if (proxyRecipeTypes.contains(recipe.getType())) {
+                var mbdRecipe = toMBDrecipe(recipe.getType(), key, recipe);
+                if (mbdRecipe != null) {
+                    proxyRecipes.computeIfAbsent(recipe.getType(), type -> new ArrayList<>()).add(mbdRecipe);
+                }
+            }
+        }
+        for (List<MBDRecipe> recipes : proxyRecipes.values()) {
+            for (MBDRecipe recipe : recipes) {
+                recipesByName.put(recipe.getId(), recipe);
+            }
+        }
+    }
+
     public static MBDRecipeType createDefault() {
         return new MBDRecipeType(MBD2.id("recipe_type"));
     }

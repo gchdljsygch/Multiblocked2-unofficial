@@ -1,6 +1,5 @@
 # ChangeLog
 
-## v1.0.33.a
-* Fixed create recipe may be polluted during the thread.
-* Added BOTH support for AutoIO
+## v1.0.34
+* Fixed proxy recipes incompatible with kjs recipe inject event
 

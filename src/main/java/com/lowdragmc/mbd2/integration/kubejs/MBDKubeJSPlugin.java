@@ -63,7 +63,7 @@ public class MBDKubeJSPlugin extends KubeJSPlugin {
     @Override
     public void injectRuntimeRecipes(RecipesEventJS event, RecipeManager manager, Map<ResourceLocation, Recipe<?>> recipesByName) {
         for (var recipeType : MBDRegistries.RECIPE_TYPES) {
-            recipesByName.putAll(recipeType.getBuiltinRecipes());
+            recipeType.onRecipeManagerLoadedKjs(recipesByName);
         }
     }
 
@@ -81,4 +81,6 @@ public class MBDKubeJSPlugin extends KubeJSPlugin {
         event.add("CapabilityIO", CapabilityIO.class);
         event.add("ContentModifier", ContentModifier.class);
     }
+
+
 }
