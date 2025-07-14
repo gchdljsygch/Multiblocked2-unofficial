@@ -96,6 +96,7 @@ public class MBDBlockRenderer implements IRenderer {
     @Override
     public boolean isGlobalRenderer(BlockEntity blockEntity) {
         return getMachine(blockEntity).map(machine ->
+                machine.getMachineState().isGlobalVisible() ||
                 machine.getMachineState().getRealRenderer().isGlobalRenderer(blockEntity) ||
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
@@ -106,7 +107,7 @@ public class MBDBlockRenderer implements IRenderer {
     @Override
     public boolean shouldRender(BlockEntity blockEntity, Vec3 cameraPos) {
         return getMachine(blockEntity).filter(machine -> !machine.isDisableRendering())
-                .map(machine -> machine.getMachineState().getRealRenderer().shouldRender(blockEntity, cameraPos))
+                .map(machine -> Vec3.atCenterOf(blockEntity.getBlockPos()).closerThan(cameraPos, machine.getMachineState().renderingRadius()))
                 .orElseGet(() -> defaultRenderer.get().shouldRender(blockEntity, cameraPos));
     }
 
