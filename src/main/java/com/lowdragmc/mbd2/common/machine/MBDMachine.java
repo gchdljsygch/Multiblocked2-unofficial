@@ -792,6 +792,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 drops.add(drop);
             }
         }
+        for (ITrait trait : getAdditionalTraits()) {
+            trait.onMachineDrop(entity, drops);
+        }
         MinecraftForge.EVENT_BUS.post(new MachineDropsEvent(this, entity, drops).postCustomEvent());
     }
 

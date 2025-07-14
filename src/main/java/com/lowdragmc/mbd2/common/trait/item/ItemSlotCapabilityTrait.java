@@ -16,13 +16,13 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.level.block.Block;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
@@ -50,20 +50,12 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         this.storage.setOnContentsChanged(this::onContentsChanged);
     }
 
-    /**
-     * pop storage to the world.
-     */
     @Override
-    public void onMachineRemoved() {
-        super.onMachineRemoved();
-        var level = getMachine().getLevel();
-        var pos = getMachine().getPos();
+    public void onMachineDrop(Entity entity, List<ItemStack> drops) {
         for (int i = 0; i < storage.getSlots(); i++) {
             ItemStack stackInSlot = storage.getStackInSlot(i);
             if (!stackInSlot.isEmpty()) {
-                storage.setStackInSlot(i, ItemStack.EMPTY);
-                storage.onContentsChanged();
-                Block.popResource(level, pos, stackInSlot);
+                drops.add(stackInSlot);
             }
         }
     }

@@ -35,6 +35,7 @@ import lombok.Setter;
 import net.minecraft.core.Direction;
 import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.block.Block;
@@ -107,22 +108,10 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
         return getMachine().getDropItem();
     }
 
-    /**
-     * pop storage to the world.
-     */
     @Override
-    public void onMachineRemoved() {
-        super.onMachineRemoved();
-        var level = getMachine().getLevel();
-        var pos = getMachine().getPos();
-        var drops = new ArrayList<ItemStack>();
+    public void onMachineDrop(Entity entity, List<ItemStack> drops) {
         this.interfaceLogic.addDrops(drops);
         this.interfaceLogic.clearContent();
-        for (ItemStack drop : drops) {
-            if (!drop.isEmpty()) {
-                Block.popResource(level, pos, drop);
-            }
-        }
     }
 
     @Override
