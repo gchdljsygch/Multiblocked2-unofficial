@@ -57,11 +57,11 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
             {"config.machine_state.rendering_box.tooltip.0", "config.machine_state.rendering_box.tooltip.1",
                     "config.machine_state.rendering_box.tooltip.2"})
     protected final ToggleAABB renderingBox;
-    @Configurable(name = "config.machine_state.is_global_visible", subConfigurable = true, tips =
+    @Configurable(name = "config.machine_state.is_global_visible", tips =
             "config.machine_state.is_global_visible.tooltip")
     @Setter
     protected boolean isGlobalVisible = false;
-    @Configurable(name = "config.machine_state.rendering_radius", subConfigurable = true, tips =
+    @Configurable(name = "config.machine_state.rendering_radius", tips =
             "config.machine_state.rendering_radius.tooltip")
     @NumberRange(range = {1, Integer.MAX_VALUE})
     @Setter
