@@ -1,5 +1,5 @@
 # ChangeLog
 
-## v1.0.34.a
-* Fixed support for rendering radius and global renderer.
+## v1.0.35
+* Fixed crashing while removing fluid ingredient values
 
