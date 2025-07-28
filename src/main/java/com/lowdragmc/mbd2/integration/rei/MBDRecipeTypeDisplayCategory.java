@@ -30,7 +30,7 @@ public class MBDRecipeTypeDisplayCategory extends ModularUIDisplayCategory<MBDRe
         private final MBDRecipe recipe;
 
         public MBDRecipeDisplay(MBDRecipe recipe) {
-            super(() -> recipe.recipeType.getUiCreator().create(recipe).setClientSideWidget(), MBDRecipeTypeDisplayCategory.CATEGORIES.apply(recipe.recipeType));
+            super(() -> recipe.recipeType.createRecipeUI(recipe), MBDRecipeTypeDisplayCategory.CATEGORIES.apply(recipe.recipeType));
             this.recipe = recipe;
         }
 

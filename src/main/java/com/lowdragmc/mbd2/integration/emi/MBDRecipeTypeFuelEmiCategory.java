@@ -23,7 +23,7 @@ public class MBDRecipeTypeFuelEmiCategory extends EmiRecipeCategory {
         final MBDRecipe recipe;
 
         public MBDEmiRecipe(MBDRecipeTypeFuelEmiCategory category, MBDRecipe recipe) {
-            super(() -> recipe.recipeType.getFuelUICreator().create(recipe).setClientSideWidget());
+            super(() -> recipe.recipeType.createFuelUI(recipe));
             this.category = category;
             this.recipe = recipe;
         }

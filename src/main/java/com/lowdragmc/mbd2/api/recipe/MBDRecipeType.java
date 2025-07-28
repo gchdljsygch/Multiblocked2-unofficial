@@ -19,7 +19,10 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeCapabilityHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
+import com.lowdragmc.mbd2.api.recipe.event.FuelRecipeUIEvent;
+import com.lowdragmc.mbd2.api.recipe.event.RecipeUIEvent;
 import com.lowdragmc.mbd2.api.recipe.event.TransferProxyRecipeEvent;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.MachineUIEvent;
 import com.lowdragmc.mbd2.core.mixins.RecipeManagerAccessor;
 import com.lowdragmc.mbd2.integration.kubejs.recipe.MBDRecipeSchema;
 import com.lowdragmc.mbd2.utils.FormattingUtil;
@@ -464,5 +467,19 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
                 }
             }
         });
+    }
+
+    public WidgetGroup createRecipeUI(MBDRecipe recipe) {
+        var ui = uiCreator.create(recipe);
+        var event = new RecipeUIEvent(this, recipe, ui);
+        MinecraftForge.EVENT_BUS.post(event.postKubeJSEvent());
+        return event.getRoot().setClientSideWidget();
+    }
+
+    public WidgetGroup createFuelUI(MBDRecipe recipe) {
+        var ui = fuelUICreator.create(recipe);
+        var event = new FuelRecipeUIEvent(this, recipe, ui);
+        MinecraftForge.EVENT_BUS.post(event.postKubeJSEvent());
+        return event.getRoot().setClientSideWidget();
     }
 }

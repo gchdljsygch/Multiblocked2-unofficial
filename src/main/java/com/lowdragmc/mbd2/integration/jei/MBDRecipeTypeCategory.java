@@ -33,7 +33,7 @@ public class MBDRecipeTypeCategory extends ModularUIRecipeCategory<MBDRecipeType
         public final MBDRecipe recipe;
 
         public RecipeWrapper(MBDRecipe recipe) {
-            super(recipe.recipeType.getUiCreator().create(recipe).setClientSideWidget());
+            super(recipe.recipeType.createRecipeUI(recipe));
             this.recipe = recipe;
         }
     }

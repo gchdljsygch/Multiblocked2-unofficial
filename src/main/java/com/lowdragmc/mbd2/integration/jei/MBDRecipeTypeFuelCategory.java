@@ -34,7 +34,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
         public final MBDRecipe recipe;
 
         public RecipeWrapper(MBDRecipe recipe) {
-            super(recipe.recipeType.getFuelUICreator().create(recipe).setClientSideWidget());
+            super(recipe.recipeType.createFuelUI(recipe));
             this.recipe = recipe;
         }
     }
