@@ -1,5 +1,5 @@
 # ChangeLog
 
-## v1.0.35
-* Fixed crashing while removing fluid ingredient values
+## v1.0.36
+* Fixed cannot open ui while rejoining the world
 

@@ -16,6 +16,7 @@ import com.lowdragmc.lowdraglib.gui.widget.SceneWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.syncdata.IAutoPersistedSerializable;
 import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
+import com.lowdragmc.mbd2.api.block.ProxyPartBlock;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
 import com.lowdragmc.mbd2.api.pattern.TraceabilityPredicate;
@@ -168,15 +169,19 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
         return result;
     }
 
+    private boolean isProxyBlock(MultiblockState blockWorldState) {
+        return blockWorldState.getBlockState().getBlock() == ProxyPartBlock.BLOCK;
+    }
+
     public boolean test(MultiblockState blockWorldState) {
-        if (predicate.test(blockWorldState)) {
+        if (isProxyBlock(blockWorldState) || predicate.test(blockWorldState)) {
             return checkInnerConditions(blockWorldState);
         }
         return false;
     }
 
     public boolean testLimited(MultiblockState blockWorldState) {
-        if (testGlobal(blockWorldState) && testLayer(blockWorldState)) {
+        if (isProxyBlock(blockWorldState) || testGlobal(blockWorldState) && testLayer(blockWorldState)) {
             return checkInnerConditions(blockWorldState);
         }
         return false;
