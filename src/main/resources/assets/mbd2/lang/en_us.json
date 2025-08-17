@@ -134,7 +134,6 @@
     "config.recipe.condition.light.can_see_sky": "can see sky",
     "config.recipe.condition.light.can_see_sky.tooltip": "It is required to open up the open air.",
 
-
     "config.block_properties.render_types": "Render Types",
     "config.block_properties.render_types.tooltip": "The render type of the block.",
     "config.block_properties.render_types.solid": "Render in Solid",
@@ -539,7 +538,7 @@
     "config.definition.trait.mek_heat_container.min_temp_display": "Min Temperature Display",
     "config.definition.trait.mek_heat_container.min_temp_display.tooltip.0": "The minimum temperature of the heat bar.",
     "config.definition.trait.mek_heat_container.min_temp_display.tooltip.1": "It is not actually the minimum temperature of the container, but the minimum temperature of the UI display.",
-     "config.definition.trait.mek_heat_container.max_temp_display": "Max Temperature Display",
+    "config.definition.trait.mek_heat_container.max_temp_display": "Max Temperature Display",
     "config.definition.trait.mek_heat_container.max_temp_display.tooltip.0": "The maximum temperature of the heat bar.",
     "config.definition.trait.mek_heat_container.max_temp_display.tooltip.1": "It is not actually the maximum temperature of the container, but the maximum temperature of the UI display.",
     "config.definition.trait.mek_heat_container.inverse_conduction": "Inverse Conduction",
@@ -904,6 +903,10 @@
     "MachineEvent.Multiblock.MachineUseCatalystEvent.tips": "The event will be triggered while using catalyst to form the stucture. Cancel the event will stop the forming.",
     "MachineEvent.MachineCustomKeyframeEvent.tips": "Triggered by 'Instruction' keyframes in geckolib animations.",
     "MachineEvent.MachineCustomKeyframeEvent": "Instruction Keyframe Event",
+    "MachineEvent.MachineUIEvent": "Machine UI Event",
+    "MachineEvent.MachineUIEvent.tips": "Triggered when the machine creates its UI.",
+    "MachineEvent.MachineOnConsumeInputsAfterWorkingEvent": "Machine Consume Inputs After Working Event",
+    "MachineEvent.MachineOnConsumeInputsAfterWorkingEvent.tips": "Triggered when the machine consumes inputs after working.",
     "graph_processor.node.mbd2.recipe_logic.status.tips": "The status of the recipe logic will be one of the following: §cIDLE§r, §cWORKING§r, §cWAITING§r, §cSUSPENDING§r.",
     "graph_processor.node.mbd2.machine": "Machine",
     "graph_processor.node.mbd2.machine.recipe": "Machine Recipe",
