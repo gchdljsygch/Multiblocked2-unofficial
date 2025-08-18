@@ -629,6 +629,18 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         IMachine.super.afterWorking();
     }
 
+    @Override
+    public void onConsumeInputsAfterWorking() {
+        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
+        IMachine.super.onConsumeInputsAfterWorking();
+    }
+
+    @Override
+    public void onRecipeFinish() {
+        MinecraftForge.EVENT_BUS.post(new MachineOnRecipeFinishEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
+        IMachine.super.onRecipeFinish();
+    }
+
     /**
      * Client tick. will be called on client side per tick.
      */

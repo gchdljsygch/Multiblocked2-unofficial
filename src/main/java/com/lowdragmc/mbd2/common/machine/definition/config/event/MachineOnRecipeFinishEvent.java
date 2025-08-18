@@ -7,12 +7,12 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import lombok.Getter;
 
 @Getter
-@LDLRegister(name = "MachineOnConsumeInputsAfterWorkingEvent", group = "MachineEvent")
-public class MachineOnConsumeInputsAfterWorkingEvent extends MachineEvent {
+@LDLRegister(name = "MachineOnRecipeFinishEvent", group = "MachineEvent")
+public class MachineOnRecipeFinishEvent extends MachineEvent {
     @GraphParameterGet
     public final MBDRecipe recipe;
 
-    public MachineOnConsumeInputsAfterWorkingEvent(MBDMachine machine, MBDRecipe recipe) {
+    public MachineOnRecipeFinishEvent(MBDMachine machine, MBDRecipe recipe) {
         super(machine);
         this.recipe = recipe;
     }

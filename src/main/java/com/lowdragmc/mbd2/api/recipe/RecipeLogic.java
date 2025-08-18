@@ -475,9 +475,11 @@ public class RecipeLogic implements IEnhancedManaged {
             if (consumeInputsAfterWorking) {
                 lastRecipe.handleRecipeIO(IO.IN, this.machine);
                 consumeInputsAfterWorking = false;
+                machine.onConsumeInputsAfterWorking();
             }
             lastRecipe.postWorking(this.machine);
             lastRecipe.handleRecipeIO(IO.OUT, this.machine);
+            machine.onRecipeFinish();
             if (machine.alwaysReSearchRecipe()) {
                 markLastRecipeDirty();
             }

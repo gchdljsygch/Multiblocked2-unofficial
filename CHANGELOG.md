@@ -1,7 +1,5 @@
-# ChangeLog
-
-## v1.0.35
-* Fixed cannot open ui while rejoining the world
-* Fixed liquid bucket consumed while using the multiblock builder
-* Added event to modify recipe/fuel recipe ui
+## v1.0.36
+* Update zh_cn.json (thanks to @FalAut)
+* Added `onRecipeFinish` event, called after output
+* Added `onConsumeInputsAfterWorkingEvent` event, call after input handled
 

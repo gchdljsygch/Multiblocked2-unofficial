@@ -310,6 +310,20 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
+     * Called in {@link RecipeLogic#onRecipeFinish()} when {@code ConsumeInputsAfterWorking} enabled and handled, before outputs are produced
+     */
+    default void onConsumeInputsAfterWorking() {
+
+    }
+
+    /**
+     * Called in {@link RecipeLogic#onRecipeFinish()} after outputs are produced
+     */
+    default void onRecipeFinish() {
+
+    }
+
+    /**
      * Whether progress decrease when machine is waiting for pertick ingredients. (e.g. lack of EU)
      */
     default boolean dampingWhenWaiting() {
@@ -366,4 +380,5 @@ public interface IMachine extends IRecipeCapabilityHolder {
     default @Nullable Component getCustomName() {
         return null;
     }
+
 }
