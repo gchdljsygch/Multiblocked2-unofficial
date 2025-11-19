@@ -1,5 +1,9 @@
 # ChangeLogs
 
+## v1.0.37
+* Fixed RecipeUIEvents doesn't work
+* Added player and hand for CatalystEvent
+
 ## v1.0.36
 * Update zh_cn.json (thanks to @FalAut)
 * Added `onRecipeFinish` event, called after output
