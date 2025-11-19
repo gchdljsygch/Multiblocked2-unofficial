@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.integration.kubejs.events;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.recipe.event.FuelRecipeUIEvent;
 import com.lowdragmc.mbd2.api.recipe.event.RecipeTypeEvent;
+import com.lowdragmc.mbd2.api.recipe.event.RecipeUIEvent;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import dev.latvian.mods.kubejs.event.EventHandler;
 import dev.latvian.mods.kubejs.event.EventResult;
@@ -36,7 +37,7 @@ public interface MBDClientEvents {
 
     // Recipe events
     EventHandler RECIPE_UI = registerRecipeTypeEvent("onRecipeUI",
-            RecipeTypeEvent.class,
+            RecipeUIEvent.class,
             MBDRecipeTypeEvents.RecipeUIEventJS.class,
             MBDRecipeTypeEvents.RecipeUIEventJS::new);
 
@@ -70,7 +71,7 @@ public interface MBDClientEvents {
     static <E extends RecipeTypeEvent> EventHandler registerRecipeTypeEvent(String name, Class<? extends RecipeTypeEvent> eventClass,
                                                                             Class<? extends MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSClass,
                                                                             Function<E, MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSFactory) {
-        var handler = MBDRecipeTypeEvents.MBD_RECIPE_TYPE_EVENTS.server(name, () -> eventJSClass).extra(Extra.ID);
+        var handler = MBDRecipeTypeEvents.MBD_RECIPE_TYPE_EVENTS.client(name, () -> eventJSClass).extra(Extra.ID);
         recipeTypeEventHandlers.put(eventClass, event -> handler.post(eventJSFactory.apply((E) event), event.recipeType.getRegistryName()));
         return handler;
     }
