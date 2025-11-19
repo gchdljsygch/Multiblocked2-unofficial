@@ -18,7 +18,7 @@ QQ: 827533873
 repositories{
     maven {
         name "firstdarkdev"
-        url "https://maven.firstdarkdev.xyz/snapshots"
+        url "https://maven.firstdark.dev/snapshots"
     }
 }
 

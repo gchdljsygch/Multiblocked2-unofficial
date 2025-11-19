@@ -23,7 +23,7 @@ repositories {
     maven { url = "https://maven.quiltmc.org/repository/release" } // Quilt Mappings
     maven { // LDLib Configuration
         name "firstdarkdev"
-        url "https://maven.firstdarkdev.xyz/snapshots"
+        url "https://maven.firstdark.dev/snapshots"
     }
     maven { // blood magic
         url "https://tehnut.info/maven/"
