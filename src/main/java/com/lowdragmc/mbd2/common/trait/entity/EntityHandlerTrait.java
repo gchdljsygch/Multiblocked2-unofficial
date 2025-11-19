@@ -116,9 +116,7 @@ public class EntityHandlerTrait extends RecipeCapabilityTrait {
                             var nbt = ingredient.getNbt();
                             if (nbt != null && !nbt.isEmpty()) {
                                 var held = entity.serializeNBT();
-                                var copied = nbt.copy();
-                                copied.merge(held);
-                                if (!nbt.equals(copied)) {
+                                if (!held.copy().merge(nbt).equals(held)) {
                                     continue;
                                 }
                             }

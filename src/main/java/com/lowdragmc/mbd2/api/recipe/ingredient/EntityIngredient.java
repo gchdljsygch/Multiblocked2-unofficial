@@ -92,9 +92,7 @@ public class EntityIngredient implements Predicate<Collection<Entity>> {
             if (entity.isAlive() && types.contains(entity.getType())) {
                 if (nbt != null && !nbt.isEmpty()) {
                     var held = entity.serializeNBT();
-                    var copied = nbt.copy();
-                    copied.merge(held);
-                    if (!nbt.equals(copied)) {
+                    if (!held.copy().merge(nbt).equals(held)) {
                         continue;
                     }
                 }
