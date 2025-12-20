@@ -32,7 +32,7 @@ public class AnimatableMachine implements GeoAnimatable {
                 var stateName = machine.getMachineState().name();
                 var animation = renderer.getRawAnimation(stateName);
                 if (animation != null) {
-                    state.setAndContinue(animation);
+                    return state.setAndContinue(animation);
                 }
             }
             return PlayState.STOP;
