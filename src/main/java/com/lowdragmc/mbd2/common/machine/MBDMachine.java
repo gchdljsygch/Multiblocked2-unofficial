@@ -847,7 +847,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     public ModularUI createUI(Player entityPlayer) {
         var ui = getDefinition().uiCreator().apply(this);
-        var event = new MachineUIEvent(this, ui);
+        var event = new MachineUIEvent(this, ui, entityPlayer);
         MinecraftForge.EVENT_BUS.post(event.postKubeJSEvent());
         ui = event.getRoot();
         if (ui == null) {
