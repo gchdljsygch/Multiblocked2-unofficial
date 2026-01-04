@@ -64,8 +64,10 @@ public class MBDBlockRenderer implements IRenderer {
     @Override
     public List<BakedQuad> renderModel(@Nullable BlockAndTintGetter level, @Nullable BlockPos pos, @Nullable BlockState state, @Nullable Direction side, RandomSource rand) {
         return getMachine(level, pos)
-                .filter(machine -> !machine.isDisableRendering())
-                .map(machine -> machine.getMachineState().getRealRenderer().renderModel(level, pos, state, side, rand))
+                .map(machine -> {
+                    if (machine.isDisableRendering()) return Collections.<BakedQuad>emptyList();
+                    return machine.getMachineState().getRealRenderer().renderModel(level, pos, state, side, rand);
+                })
                 .orElseGet(() -> defaultRenderer.get().renderModel(level, pos, state, side, rand));
     }
 
@@ -106,8 +108,8 @@ public class MBDBlockRenderer implements IRenderer {
 
     @Override
     public boolean shouldRender(BlockEntity blockEntity, Vec3 cameraPos) {
-        return getMachine(blockEntity).filter(machine -> !machine.isDisableRendering())
-                .map(machine -> Vec3.atCenterOf(blockEntity.getBlockPos()).closerThan(cameraPos, machine.getMachineState().renderingRadius()))
+        return getMachine(blockEntity)
+                .map(machine -> !machine.isDisableRendering() && Vec3.atCenterOf(blockEntity.getBlockPos()).closerThan(cameraPos, machine.getMachineState().renderingRadius()))
                 .orElseGet(() -> defaultRenderer.get().shouldRender(blockEntity, cameraPos));
     }
 
