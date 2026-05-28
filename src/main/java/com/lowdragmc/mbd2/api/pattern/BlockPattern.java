@@ -10,6 +10,12 @@ import com.lowdragmc.mbd2.api.pattern.error.SinglePredicateError;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
 import com.lowdragmc.mbd2.api.pattern.util.PatternMatchContext;
 import com.lowdragmc.mbd2.api.pattern.util.RelativeDirection;
+import com.lowdragmc.mbd2.common.autobuild.AutoBuildPlacementExecutor;
+import com.lowdragmc.mbd2.common.autobuild.SlowAutoBuildScheduler;
+import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
+import com.lowdragmc.mbd2.utils.MultiFluidHandler;
+import com.lowdragmc.mbd2.utils.MultiItemHandler;
+import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
@@ -26,8 +32,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.items.IItemHandler;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.*;
@@ -43,6 +55,7 @@ public class BlockPattern {
     protected final int thumbLength; //y size
     protected final int palmLength; //x size
     protected final int[] centerOffset; // x, y, z, minZ, maxZ
+    private Direction mbd2$baseFacing = Direction.NORTH;
 
     public BlockPattern(TraceabilityPredicate[][][] predicatesIn, RelativeDirection[] structureDir, int[][] aisleRepetitions, int[] centerOffset) {
         this.blockMatches = predicatesIn;
@@ -64,6 +77,18 @@ public class BlockPattern {
         }
 
         this.centerOffset = centerOffset;
+    }
+
+    public Direction mbd2$getBaseFacing() {
+        return mbd2$baseFacing;
+    }
+
+    public void mbd2$setBaseFacing(Direction facing) {
+        if (facing == null || facing.getAxis() == Direction.Axis.Y) {
+            this.mbd2$baseFacing = Direction.NORTH;
+            return;
+        }
+        this.mbd2$baseFacing = facing;
     }
 
     public boolean checkPatternAtWithoutController(MultiblockState worldState, Direction facing) {
@@ -187,160 +212,341 @@ public class BlockPattern {
         int minZ = -centerOffset[4];
         worldState.clean();
         IMultiController controller = worldState.getController();
+        if (controller == null) {
+            return;
+        }
         BlockPos centerPos = controller.getPos();
         Direction facing = controller.getFrontFacing().orElse(Direction.NORTH);
+        Rotation rotation = computeRotation(this, facing);
         Map<SimplePredicate, Integer> cacheGlobal = worldState.getGlobalCount();
         Map<SimplePredicate, Integer> cacheLayer = worldState.getLayerCount();
         Map<BlockPos, Object> blocks = new HashMap<>();
         blocks.put(centerPos, controller);
-        for (int c = 0, z = minZ++, r; c < this.fingerLength; c++) {
-            for (r = 0; r < aisleRepetitions[c][0]; r++) {
+        List<PatternAutoBuildPlacement> nonFluidPlacements = new ArrayList<>();
+        List<PatternAutoBuildPlacement> fluidPlacements = new ArrayList<>();
+        int[] reservedPerSlot = player.isCreative() ? null : new int[player.getInventory().items.size()];
+        IItemHandler boundItemHandler = null;
+        IFluidHandler boundFluidHandler = null;
+        ItemStack builderStack = ItemStack.EMPTY;
+        boolean slowBuild = false;
+        if (!player.isCreative()) {
+            builderStack = BuilderMaterialBindings.findBuilderStack(player);
+            if (!builderStack.isEmpty()) {
+                slowBuild = BuilderMaterialBindings.isSlowBuild(builderStack);
+                var dim = world.dimension().location();
+
+                var itemBound = BuilderMaterialBindings.readBoundItemPos(builderStack);
+                if (itemBound != null && dim != null && dim.equals(itemBound.dimension())) {
+                    BlockEntity be = world.getBlockEntity(itemBound.pos());
+                    if (be != null) {
+                        var handlers = collectItemHandlers(be);
+                        if (handlers.size() == 1) {
+                            boundItemHandler = handlers.get(0);
+                        } else if (handlers.size() > 1) {
+                            MultiItemHandler multi = new MultiItemHandler(handlers);
+                            if (!multi.isEmpty()) {
+                                boundItemHandler = multi;
+                            }
+                        }
+                    }
+                }
+
+                var fluidBound = BuilderMaterialBindings.readBoundFluidPos(builderStack);
+                if (fluidBound != null && dim != null && dim.equals(fluidBound.dimension())) {
+                    BlockEntity be = world.getBlockEntity(fluidBound.pos());
+                    if (be != null) {
+                        var handlers = collectFluidHandlers(be);
+                        if (handlers.size() == 1) {
+                            boundFluidHandler = handlers.get(0);
+                        } else if (handlers.size() > 1) {
+                            MultiFluidHandler multi = new MultiFluidHandler(handlers);
+                            if (!multi.isEmpty()) {
+                                boundFluidHandler = multi;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int c = 0, z = minZ++; c < this.fingerLength; c++) {
+            for (int r = 0; r < aisleRepetitions[c][0]; r++) {
                 cacheLayer.clear();
                 for (int b = 0, y = -centerOffset[1]; b < this.thumbLength; b++, y++) {
                     for (int a = 0, x = -centerOffset[0]; a < this.palmLength; a++, x++) {
                         TraceabilityPredicate predicate = this.blockMatches[c][b][a];
                         BlockPos pos = setActualRelativeOffset(x, y, z, facing).offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
                         worldState.update(pos, predicate);
-                        if (!world.isEmptyBlock(pos)) {
-                            blocks.put(pos, world.getBlockState(pos));
+
+                        BlockState existing = world.getBlockState(pos);
+                        boolean emptyBlock = world.isEmptyBlock(pos);
+                        boolean existingHasFluid = hasAnyFluid(existing);
+                        if (!emptyBlock && !existingHasFluid) {
+                            blocks.put(pos, existing);
                             for (SimplePredicate limit : predicate.limited) {
                                 limit.testLimited(worldState);
                             }
-                        } else {
-                            boolean find = false;
-                            BlockInfo[] infos = new BlockInfo[0];
-                            for (SimplePredicate limit : predicate.limited) {
-                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
-                                if (limit.minLayerCount > 0) {
-                                    if (!cacheLayer.containsKey(limit)) {
-                                        cacheLayer.put(limit, 1);
-                                    } else if (cacheLayer.get(limit) < limit.minLayerCount && (limit.maxLayerCount == -1 || cacheLayer.get(limit) < limit.maxLayerCount)) {
-                                        cacheLayer.put(limit, cacheLayer.get(limit) + 1);
-                                    } else {
-                                        continue;
-                                    }
+                            continue;
+                        }
+
+                        boolean find = false;
+                        BlockInfo[] infos = new BlockInfo[0];
+                        for (SimplePredicate limit : predicate.limited) {
+                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
+                            if (limit.minLayerCount > 0) {
+                                if (!cacheLayer.containsKey(limit)) {
+                                    cacheLayer.put(limit, 1);
+                                } else if (cacheLayer.get(limit) < limit.minLayerCount && (limit.maxLayerCount == -1 || cacheLayer.get(limit) < limit.maxLayerCount)) {
+                                    cacheLayer.put(limit, cacheLayer.get(limit) + 1);
                                 } else {
                                     continue;
                                 }
-                                infos = limit.candidates == null ? null : limit.candidates.get();
-                                find = true;
-                                break;
+                            } else {
+                                continue;
                             }
-                            if (!find) {
+                            infos = limit.candidates == null ? null : limit.candidates.get();
+                            find = true;
+                            break;
+                        }
+                        if (!find) {
+                            for (SimplePredicate limit : predicate.limited) {
+                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
+                                if (limit.maxLayerCount != -1 && cacheLayer.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxLayerCount) continue;
+                                if (limit.maxCount != -1 && cacheGlobal.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxCount) continue;
+
+                                cacheLayer.put(limit, cacheLayer.getOrDefault(limit, 0) + 1);
+                                cacheGlobal.put(limit, cacheGlobal.getOrDefault(limit, 0) + 1);
+
+                                infos = ArrayUtils.addAll(infos, limit.candidates == null ? null : limit.candidates.get());
+                            }
+                            for (SimplePredicate common : predicate.common) {
+                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != facing) continue;
+                                infos = ArrayUtils.addAll(infos, common.candidates == null ? null : common.candidates.get());
+                            }
+                        }
+
+                        List<BlockInfo> candidateInfos = new ArrayList<>();
+                        List<ItemStack> candidates = new ArrayList<>();
+                        if (infos != null) {
+                            for (BlockInfo info : infos) {
+                                if (info == null) continue;
+                                BlockState s = info.getBlockState();
+                                if (s == null || s.getBlock() == Blocks.AIR) continue;
+                                ItemStack asItem = info.getItemStackForm();
+                                if (asItem.isEmpty()) continue;
+                                if (!(asItem.getItem() instanceof BlockItem || asItem.getItem() instanceof BucketItem)) continue;
+                                candidateInfos.add(info);
+                                candidates.add(asItem);
+                            }
+                        }
+
+                        BlockInfo expectedFluidInfo = pickExpectedFluidInfo(candidateInfos);
+                        if (!emptyBlock && existingHasFluid && existing.getBlock() instanceof LiquidBlock && expectedFluidInfo != null) {
+                            BlockState expectedFluidState = expectedFluidInfo.getBlockState();
+                            if (expectedFluidState != null
+                                    && expectedFluidState.getBlock() instanceof LiquidBlock
+                                    && existing.getFluidState().isSource()
+                                    && existing.getFluidState().getType() == expectedFluidState.getFluidState().getType()) {
+                                blocks.put(pos, existing);
                                 for (SimplePredicate limit : predicate.limited) {
-                                    if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
-                                    if (limit.minCount > 0) {
-                                        if (!cacheGlobal.containsKey(limit)) {
-                                            cacheGlobal.put(limit, 1);
-                                        } else if (cacheGlobal.get(limit) < limit.minCount && (limit.maxCount == -1 || cacheGlobal.get(limit) < limit.maxCount)) {
-                                            cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
-                                        } else {
-                                            continue;
-                                        }
-                                    } else {
-                                        continue;
+                                    limit.testLimited(worldState);
+                                }
+                                continue;
+                            }
+                        }
+
+                        ItemStack found = null;
+                        int foundSlot = -1;
+                        PatternAutoBuildPlacement.Source source = PatternAutoBuildPlacement.Source.CREATIVE;
+                        int sourceSlot = -1;
+                        if (!player.isCreative()) {
+                            for (int i = 0; i < player.getInventory().items.size(); i++) {
+                                ItemStack itemStack = player.getInventory().items.get(i);
+                                if (itemStack.isEmpty()) continue;
+                                if (reservedPerSlot != null && reservedPerSlot[i] >= itemStack.getCount()) continue;
+                                if (matchesAny(candidates, itemStack)) {
+                                    found = itemStack.copy();
+                                    foundSlot = i;
+                                    source = PatternAutoBuildPlacement.Source.PLAYER_INVENTORY;
+                                    if (reservedPerSlot != null) {
+                                        reservedPerSlot[i]++;
                                     }
-                                    infos = limit.candidates == null ? null : limit.candidates.get();
-                                    find = true;
                                     break;
                                 }
                             }
-                                if (!find) { // no limited
-                                for (SimplePredicate limit : predicate.limited) {
-                                    if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
-                                    if (limit.maxLayerCount != -1 && cacheLayer.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxLayerCount)
-                                        continue;
-                                    if (limit.maxCount != -1 && cacheGlobal.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxCount)
-                                        continue;
-                                    if (cacheLayer.containsKey(limit)) {
-                                        cacheLayer.put(limit, cacheLayer.get(limit) + 1);
-                                    } else {
-                                        cacheLayer.put(limit, 1);
-                                    }
-                                    if (cacheGlobal.containsKey(limit)) {
-                                        cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
-                                    } else {
-                                        cacheGlobal.put(limit, 1);
-                                    }
-                                    infos = ArrayUtils.addAll(infos, limit.candidates == null ? null : limit.candidates.get());
-                                }
-                                for (SimplePredicate common : predicate.common) {
-                                    if (common.controllerFront.isEnable() && common.controllerFront.getValue() != facing) continue;
-                                    infos = ArrayUtils.addAll(infos, common.candidates == null ? null : common.candidates.get());
-                                }
-                            }
 
-                            List<ItemStack> candidates = new ArrayList<>();
-                            if (infos != null) {
-                                for (BlockInfo info : infos) {
-                                    if (info.getBlockState().getBlock() != Blocks.AIR) {
-                                        candidates.add(info.getItemStackForm());
+                            if (found == null && boundFluidHandler != null) {
+                                FluidStack request = toRequiredFluidStack(expectedFluidInfo);
+                                if (request != null && boundFluidHandler.drain(request, IFluidHandler.FluidAction.SIMULATE).getAmount() >= request.getAmount()) {
+                                    ItemStack bucketCandidate = findBucketCandidate(candidates, request.getFluid());
+                                    if (bucketCandidate != null) {
+                                        found = bucketCandidate.copyWithCount(1);
+                                        source = PatternAutoBuildPlacement.Source.BOUND_FLUID_HANDLER;
                                     }
                                 }
                             }
 
-                            // check inventory
-                            ItemStack found = null;
-                            int foundSlot = -1;
-                            if (!player.isCreative()) {
-                                for (int i = 0; i < player.getInventory().items.size(); i++) {
-                                    ItemStack itemStack = player.getInventory().items.get(i);
-                                    if (candidates.stream().anyMatch(candidate -> ItemStack.isSameItemSameTags(candidate, itemStack)) && !itemStack.isEmpty() && (itemStack.getItem() instanceof BlockItem || itemStack.getItem() instanceof BucketItem)) {
-                                        found = itemStack.copy();
-                                        foundSlot = i;
-                                        break;
-                                    }
-                                }
-                            } else {
-                                for (ItemStack candidate : candidates) {
-                                    found = candidate.copy();
-                                    if (!found.isEmpty() && (found.getItem() instanceof BlockItem || found.getItem() instanceof BucketItem)) {
-                                        break;
-                                    }
-                                    found = null;
+                            if (found == null && boundItemHandler != null) {
+                                ItemStack match = findMatchingStackInHandler(boundItemHandler, candidates);
+                                if (!match.isEmpty()) {
+                                    found = match.copyWithCount(1);
+                                    source = PatternAutoBuildPlacement.Source.BOUND_ITEM_HANDLER;
                                 }
                             }
-                            if (found == null) continue;
-                            if (found.getItem() instanceof BlockItem itemBlock) {
-                                BlockPlaceContext context = new BlockPlaceContext(world, player, InteractionHand.MAIN_HAND, found, BlockHitResult.miss(player.getEyePosition(0), Direction.UP, pos));
-                                InteractionResult interactionResult = itemBlock.place(context);
-                                var placed = interactionResult != InteractionResult.FAIL;
-                                if (placed && foundSlot >= 0) {
-                                    player.getInventory().getItem(foundSlot).shrink(1);
+                        } else {
+                            for (ItemStack candidate : candidates) {
+                                found = candidate.copy();
+                                if (!found.isEmpty() && (found.getItem() instanceof BlockItem || found.getItem() instanceof BucketItem)) {
+                                    source = PatternAutoBuildPlacement.Source.CREATIVE;
+                                    break;
                                 }
-                            } else if (found.getItem() instanceof BucketItem itemBucket) {
-                                if (itemBucket.emptyContents(player, world, pos, null, null)) {
-                                    itemBucket.checkExtraContent(player, world, found, pos);
-                                    if (player instanceof ServerPlayer serverPlayer) {
-                                        CriteriaTriggers.PLACED_BLOCK.trigger(serverPlayer, pos, found);
-                                    }
-                                    player.awardStat(Stats.ITEM_USED.get(itemBucket));
-                                    var emptyBucket = BucketItem.getEmptySuccessItem(found, player);
-                                    player.getInventory().setItem(foundSlot, emptyBucket);
-                                }
+                                found = null;
                             }
+                        }
+                        if (found == null) {
+                            continue;
+                        }
 
-                            var machineOptional = IMachine.ofMachine(world, pos);
-                            if (machineOptional.isPresent()) {
-                                blocks.put(pos, machineOptional.orElseThrow());
-                            } else {
-                                blocks.put(pos, world.getBlockState(pos));
+                        BlockInfo expectedInfo = null;
+                        for (BlockInfo info : candidateInfos) {
+                            if (ItemStack.isSameItemSameTags(info.getItemStackForm(), found)) {
+                                expectedInfo = info;
+                                break;
                             }
+                        }
+
+                        boolean expectsFluid = (found.getItem() instanceof BucketItem)
+                                || (expectedInfo != null && expectedInfo.getBlockState() != null && hasAnyFluid(expectedInfo.getBlockState()));
+                        if (expectsFluid) {
+                            if (!emptyBlock && !existingHasFluid) {
+                                continue;
+                            }
+                            fluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, source, sourceSlot));
+                        } else {
+                            nonFluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, source, sourceSlot));
                         }
                     }
                 }
                 z++;
             }
         }
-        blocks.forEach((pos, block) -> { // adjust facing
-            if (!(block instanceof IMultiController)) {
-                if (block instanceof BlockState state) {
-                    world.setBlock(pos, state, 3);
-                } else if (block instanceof IMachine machine) {
-                    world.setBlock(pos, machine.getBlockState(), 3);
-                }
+
+        if (slowBuild && player instanceof ServerPlayer serverPlayer) {
+            List<PatternAutoBuildPlacement> all = new ArrayList<>(nonFluidPlacements.size() + fluidPlacements.size());
+            all.addAll(nonFluidPlacements);
+            all.addAll(fluidPlacements);
+            SlowAutoBuildScheduler.replace(serverPlayer, world.dimension(), all, boundItemHandler, boundFluidHandler);
+            return;
+        }
+
+        for (PatternAutoBuildPlacement p : nonFluidPlacements) {
+            AutoBuildPlacementExecutor.executePlacement(player, world, p, blocks, boundItemHandler, boundFluidHandler);
+        }
+        for (PatternAutoBuildPlacement p : fluidPlacements) {
+            AutoBuildPlacementExecutor.executePlacement(player, world, p, blocks, boundItemHandler, boundFluidHandler);
+        }
+
+        blocks.forEach((pos, block) -> {
+            if (block instanceof IMultiController) return;
+            if (block instanceof BlockState state) {
+                world.setBlock(pos, state, 3);
+            } else if (block instanceof IMachine machine) {
+                world.setBlock(pos, machine.getBlockState(), 3);
             }
         });
+    }
+
+    private static boolean hasAnyFluid(BlockState state) {
+        return state != null && !state.getFluidState().isEmpty();
+    }
+
+    private static boolean matchesAny(List<ItemStack> candidates, ItemStack stack) {
+        ItemStack s = Objects.requireNonNull(stack);
+        for (ItemStack candidate : candidates) {
+            if (ItemStack.isSameItemSameTags(Objects.requireNonNull(candidate), s)) return true;
+        }
+        return false;
+    }
+
+    private static BlockInfo pickExpectedFluidInfo(List<BlockInfo> infos) {
+        for (BlockInfo info : infos) {
+            if (info == null) continue;
+            BlockState state = info.getBlockState();
+            if (state == null) continue;
+            if (state.getBlock() instanceof LiquidBlock) return info;
+        }
+        return null;
+    }
+
+    private static FluidStack toRequiredFluidStack(BlockInfo expected) {
+        if (expected == null) return null;
+        BlockState state = expected.getBlockState();
+        if (state == null) return null;
+        if (!hasAnyFluid(state)) return null;
+        var fluid = state.getFluidState().getType();
+        if (fluid == null) return null;
+        return new FluidStack(fluid, 1000);
+    }
+
+    private static ItemStack findBucketCandidate(List<ItemStack> candidates, net.minecraft.world.level.material.Fluid fluid) {
+        for (ItemStack c : candidates) {
+            if (c == null || c.isEmpty()) continue;
+            if (c.getItem() instanceof BucketItem b && b.getFluid() == fluid) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    private static ItemStack findMatchingStackInHandler(IItemHandler handler, List<ItemStack> candidates) {
+        int slots = handler.getSlots();
+        for (int i = 0; i < slots; i++) {
+            ItemStack inSlot = handler.getStackInSlot(i);
+            if (inSlot.isEmpty()) continue;
+            if (inSlot.getItem() instanceof BucketItem) continue;
+            if (matchesAny(candidates, inSlot)) {
+                return inSlot.copyWithCount(1);
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static List<IItemHandler> collectItemHandlers(BlockEntity be) {
+        return AutoBuildPlacementExecutor.collectItemHandlers(be);
+    }
+
+    private static List<IFluidHandler> collectFluidHandlers(BlockEntity be) {
+        return AutoBuildPlacementExecutor.collectFluidHandlers(be);
+    }
+
+    private static Rotation computeRotation(BlockPattern pattern, Direction currentFacing) {
+        Direction base = pattern.mbd2$getBaseFacing();
+        if (base == null) return Rotation.NONE;
+        return horizontalRotation(base, currentFacing);
+    }
+
+    private static Rotation horizontalRotation(Direction from, Direction to) {
+        if (from == null || to == null) return Rotation.NONE;
+        if (from.getAxis() == Direction.Axis.Y || to.getAxis() == Direction.Axis.Y) return Rotation.NONE;
+        int fromIndex = horizontalIndex(from);
+        int toIndex = horizontalIndex(to);
+        int steps = (toIndex - fromIndex + 4) & 3;
+        return switch (steps) {
+            case 1 -> Rotation.CLOCKWISE_90;
+            case 2 -> Rotation.CLOCKWISE_180;
+            case 3 -> Rotation.COUNTERCLOCKWISE_90;
+            default -> Rotation.NONE;
+        };
+    }
+
+    private static int horizontalIndex(Direction dir) {
+        return switch (dir) {
+            case NORTH -> 0;
+            case EAST -> 1;
+            case SOUTH -> 2;
+            case WEST -> 3;
+            default -> 0;
+        };
     }
 
     public BlockInfo[][][] getPreview(int[] repetition) {

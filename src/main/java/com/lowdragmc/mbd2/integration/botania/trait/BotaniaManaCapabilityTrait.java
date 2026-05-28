@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
@@ -105,6 +106,9 @@ public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements
             if (io == IO.IN) {
                 var cost = Math.min(required, capability.getCurrentMana());
                 capability.receiveMana(-cost);
+                if (!simulate && cost > 0) {
+                    RecipeConsumptionTracker.record(BotaniaManaRecipeCapability.CAP, cost, slotName);
+                }
                 required -= cost;
             } else {
                 if (capability.isFull() || !capability.canReceiveManaFromBursts()) return left;

@@ -434,6 +434,22 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         protected Builder() {
         }
 
+        public Builder setMaxParallel(int maxParallel) {
+            getOrCreateRecipeLogicSettings().recipeModifiers().setMaxParallel(maxParallel);
+            return this;
+        }
+
+        public Builder maxParallel(int maxParallel) {
+            return setMaxParallel(maxParallel);
+        }
+
+        protected ConfigRecipeLogicSettings getOrCreateRecipeLogicSettings() {
+            if (recipeLogicSettings == null) {
+                recipeLogicSettings = ConfigRecipeLogicSettings.builder().build();
+            }
+            return recipeLogicSettings;
+        }
+
         public MBDMachineDefinition build() {
             return new MBDMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, partSettings);
         }

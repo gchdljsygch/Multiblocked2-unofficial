@@ -203,7 +203,9 @@ public class MultiblockMachineProject extends MachineProject {
         structureDir[0] = RelativeDirection.getSliceYDirection(layerAxis, controllerFace);
         structureDir[1] = RelativeDirection.getSliceXDirection(layerAxis, controllerFace);
         structureDir[2] = RelativeDirection.getAisleDirection(layerAxis, controllerFace);
-        return new BlockPattern(predicate, structureDir, aisleRepetitions, centerOffset);
+        var pattern = new BlockPattern(predicate, structureDir, aisleRepetitions, centerOffset);
+        pattern.mbd2$setBaseFacing(controllerFace);
+        return pattern;
     }
 
     @Override

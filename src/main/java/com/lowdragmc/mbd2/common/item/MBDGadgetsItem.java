@@ -16,8 +16,11 @@ import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
 import com.lowdragmc.mbd2.common.network.MBD2Network;
 import com.lowdragmc.mbd2.common.network.packets.SPatternErrorPosPacket;
+import com.lowdragmc.mbd2.config.ConfigHolder;
+import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -32,6 +35,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -73,6 +79,11 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
 
     @Override
     public String getDescriptionId(ItemStack pStack) {
+        if (BuilderMaterialBindings.isBuilder(pStack)) {
+            return BuilderMaterialBindings.isSlowBuild(pStack)
+                    ? "item.mbd2.mbd_gadgets.multiblock_builder.slow"
+                    : "item.mbd2.mbd_gadgets.multiblock_builder.instant";
+        }
         var id = super.getDescriptionId(pStack);
         if (isMultiblockBuilder(pStack)) {
             return id + ".multiblock_builder";
@@ -87,7 +98,7 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> components, TooltipFlag isAdvanced) {
         super.appendHoverText(stack, level, components, isAdvanced);
-        components.add(Component.translatable(getDescriptionId() + ".tooltip"));
+        components.add(Component.translatable("tooltip.mbd2.open_wheel", Component.translatable("key.mbd2.open_gadget_wheel")).withStyle(ChatFormatting.GREEN));
         var id = getDescriptionId(stack);
         if (isMultiblockBuilder(stack))
             components.add(Component.translatable(id + ".tooltip"));
@@ -101,6 +112,19 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
         } else if (isMultiblockDebugger(stack)) {
             components.add(Component.translatable(id + ".tooltip"));
         }
+        if (BuilderMaterialBindings.isBuilder(stack)) {
+            var item = BuilderMaterialBindings.readBoundItemPos(stack);
+            if (item != null) {
+                var p = item.pos();
+                components.add(Component.translatable("mbd2.builder.bind.item.tooltip", p.getX(), p.getY(), p.getZ()));
+            }
+
+            var fluid = BuilderMaterialBindings.readBoundFluidPos(stack);
+            if (fluid != null) {
+                var p = fluid.pos();
+                components.add(Component.translatable("mbd2.builder.bind.fluid.tooltip", p.getX(), p.getY(), p.getZ()));
+            }
+        }
     }
 
     private boolean isUsed;
@@ -113,16 +137,7 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             return InteractionResultHolder.success(stack);
         }
         if (pPlayer.isCrouching()) {
-            if (isMultiblockBuilder(stack)) {
-                stack.setDamageValue(1);
-                return InteractionResultHolder.success(stack);
-            } else if (isRecipeDebugger(stack)) {
-                stack.setDamageValue(2);
-                return InteractionResultHolder.success(stack);
-            } else if (isMultiblockDebugger(stack)) {
-                stack.setDamageValue(0);
-                return InteractionResultHolder.success(stack);
-            }
+            return InteractionResultHolder.pass(stack);
         } else if (pPlayer instanceof ServerPlayer serverPlayer && isRecipeDebugger(stack)) {
             HeldItemUIFactory.INSTANCE.openUI(serverPlayer, pUsedHand);
             return InteractionResultHolder.success(stack);
@@ -133,6 +148,42 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
     @Override
     public InteractionResult onItemUseFirst(ItemStack stack, UseOnContext context) {
         var player = context.getPlayer();
+        if (player instanceof ServerPlayer serverPlayer && serverPlayer.isCrouching() && BuilderMaterialBindings.isBuilder(stack)) {
+            Level level = serverPlayer.level();
+            BlockPos pos = context.getClickedPos();
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be == null) {
+                serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.failure.no_capability"), true);
+                return InteractionResult.SUCCESS;
+            }
+
+            boolean boundAny = false;
+            if (BuilderMaterialBindings.hasItemHandler(be)) {
+                BuilderMaterialBindings.bindItemPos(stack, level, pos);
+                serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.item.success", pos.getX(), pos.getY(), pos.getZ()), true);
+                boundAny = true;
+            }
+            if (BuilderMaterialBindings.hasFluidHandler(be)) {
+                BuilderMaterialBindings.bindFluidPos(stack, level, pos);
+                serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.fluid.success", pos.getX(), pos.getY(), pos.getZ()), true);
+                boundAny = true;
+            }
+
+            if (!boundAny) {
+                serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.failure.no_capability"), true);
+            }
+            return InteractionResult.SUCCESS;
+        }
+        if (player != null && player.isCrouching() && isMultiblockDebugger(stack)) {
+            Level level = context.getLevel();
+            var controllerPos = context.getClickedPos();
+            IMultiController controller = IMultiController.ofController(level, controllerPos).orElse(null);
+            int durationTicks = ConfigHolder.multiblockPreviewDuration * 20;
+            if (level.isClientSide && controller instanceof MBDMultiblockMachine multiblock) {
+                DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> showOccupiedMismatchPreview(multiblock, controllerPos, durationTicks));
+                return InteractionResult.SUCCESS;
+            }
+        }
         if (player instanceof ServerPlayer serverPlayer && !serverPlayer.isCrouching()) {
             if (isMultiblockBuilder(stack)) {
                 var controller = IMultiController.ofController(player.level(), context.getClickedPos()).orElse(null);
@@ -260,6 +311,10 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             }
         }
         return InteractionResult.PASS;
+    }
+
+    private static void showOccupiedMismatchPreview(MBDMultiblockMachine multiblock, BlockPos controllerPos, int durationTicks) {
+        com.lowdragmc.mbd2.client.MultiblockDebuggerClient.showPreviewWithOccupiedMismatch(multiblock, controllerPos, durationTicks);
     }
 
     @Override

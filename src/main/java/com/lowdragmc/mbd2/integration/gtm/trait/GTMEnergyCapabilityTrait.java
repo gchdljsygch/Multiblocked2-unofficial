@@ -9,6 +9,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
@@ -108,8 +109,12 @@ public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements I
             var capability = simulate ? container.copy() : container;
             if (io == IO.IN) {
                 var canOutput = capability.getEnergyStored();
+                var extracted = Math.min(canOutput, required);
                 if (!simulate) {
-                    capability.addEnergy(-Math.min(canOutput, required));
+                    capability.addEnergy(-extracted);
+                    if (extracted > 0) {
+                        RecipeConsumptionTracker.record(GTMEnergyRecipeCapability.CAP, extracted, slotName);
+                    }
                 }
                 required -= canOutput;
             } else if (io == IO.OUT) {

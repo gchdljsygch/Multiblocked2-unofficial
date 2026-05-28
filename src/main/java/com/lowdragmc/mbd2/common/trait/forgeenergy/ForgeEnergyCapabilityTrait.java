@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.*;
@@ -99,6 +100,9 @@ public class ForgeEnergyCapabilityTrait extends SimpleCapabilityTrait implements
             var capability = simulate ? storage.copy() : storage;
             if (io == IO.IN) {
                 var extracted = capability.extractEnergy(required, simulate);
+                if (!simulate && extracted > 0) {
+                    RecipeConsumptionTracker.record(ForgeEnergyRecipeCapability.CAP, extracted, slotName);
+                }
                 required -= extracted;
             } else {
                 var received = capability.receiveEnergy(required, simulate);

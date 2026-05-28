@@ -132,6 +132,11 @@ public interface MBDServerEvents {
             MBDMachineEvents.MachineOnConsumeInputsAfterWorkingEventJS.class,
             MBDMachineEvents.MachineOnConsumeInputsAfterWorkingEventJS::new);
 
+    EventHandler MACHINE_RECIPE_INPUTS_CONSUMED = registerMachineEvent("onRecipeInputsConsumed",
+            MachineRecipeInputsConsumedEvent.class,
+            MBDMachineEvents.MachineRecipeInputsConsumedEventJS.class,
+            MBDMachineEvents.MachineRecipeInputsConsumedEventJS::new);
+
     EventHandler MACHINE_ON_RECIPE_FINISH = registerMachineEvent("onRecipeFinish",
             MachineOnRecipeFinishEvent.class,
             MBDMachineEvents.MachineOnRecipeFinishEventJS.class,

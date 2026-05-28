@@ -292,6 +292,16 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         return handleRecipe(false, io, holder, io == IO.IN ? inputs : outputs);
     }
 
+    public HandleResult handleRecipeIOWithResult(IO io, IRecipeCapabilityHolder holder) {
+        if (!holder.hasProxies() || io == IO.BOTH) {
+            return new HandleResult(false, RecipeConsumption.EMPTY);
+        }
+        try (var recorder = RecipeConsumptionTracker.start()) {
+            var success = handleRecipe(false, io, holder, io == IO.IN ? inputs : outputs);
+            return new HandleResult(success, recorder.snapshot());
+        }
+    }
+
     public boolean handleRecipe(boolean perTick, IO io, IRecipeCapabilityHolder holder, Map<RecipeCapability<?>, List<Content>> contents) {
         Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies = holder.getRecipeCapabilitiesProxy();
         for (Map.Entry<RecipeCapability<?>, List<Content>> entry : contents.entrySet()) {
@@ -507,6 +517,9 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         public static ActionResult fail(@Nullable Supplier<Component> component, float expectingRate) {
             return new ActionResult(false, component, expectingRate);
         }
+    }
+
+    public static record HandleResult(boolean success, RecipeConsumption consumption) {
     }
 
     /**

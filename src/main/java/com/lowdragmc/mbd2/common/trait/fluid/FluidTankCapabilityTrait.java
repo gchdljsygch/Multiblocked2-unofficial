@@ -11,6 +11,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.api.recipe.ingredient.FluidIngredient;
 import com.lowdragmc.mbd2.common.capability.recipe.FluidRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
@@ -215,6 +216,9 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
                         }
                         if (!found) continue;
                         FluidStack drained = capability.drain(foundStack.copy(fluidStack.getAmount()), false);
+                        if (!simulate && !drained.isEmpty()) {
+                            RecipeConsumptionTracker.record(FluidRecipeCapability.CAP, drained.copy(), slotName);
+                        }
 
                         fluidStack.setAmount(fluidStack.getAmount() - drained.getAmount());
                         if (fluidStack.getAmount() <= 0) {

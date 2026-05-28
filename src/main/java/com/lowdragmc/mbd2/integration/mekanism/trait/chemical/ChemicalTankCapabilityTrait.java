@@ -8,6 +8,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.AutoIO;
 import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
@@ -211,6 +212,9 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
                     var copied = foundStack.copy();
                     copied.setAmount(chemicalStack.getAmount());
                     var drained = capability.extractChemical(copied, Action.EXECUTE);
+                    if (!simulate && !drained.isEmpty()) {
+                        RecipeConsumptionTracker.record(getRecipeCapability(), drained.copy(), slotName);
+                    }
 
                     chemicalStack.setAmount(chemicalStack.getAmount() - drained.getAmount());
                     if (chemicalStack.getAmount() <= 0) {

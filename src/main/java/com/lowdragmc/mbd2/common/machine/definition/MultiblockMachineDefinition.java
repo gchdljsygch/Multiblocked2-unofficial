@@ -203,6 +203,18 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
         protected Builder() {
         }
 
+        @Override
+        public Builder setMaxParallel(int maxParallel) {
+            super.setMaxParallel(maxParallel);
+            return this;
+        }
+
+        @Override
+        public Builder maxParallel(int maxParallel) {
+            super.maxParallel(maxParallel);
+            return this;
+        }
+
         public MultiblockMachineDefinition build() {
             return new MultiblockMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, multiblockSettings);
         }

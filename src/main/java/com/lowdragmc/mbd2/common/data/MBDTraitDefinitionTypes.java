@@ -11,6 +11,7 @@ import com.lowdragmc.mbd2.common.trait.entity.EntityHandlerTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.fluid.FluidTankCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.ForgeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.ae2.trait.MEInterfaceTraitDefinition;
 import com.lowdragmc.mbd2.integration.botania.trait.BotaniaManaCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.embers.trait.EmbersEmberCapabilityTraitDefinition;
@@ -20,6 +21,7 @@ import com.lowdragmc.mbd2.integration.mekanism.trait.heat.MekHeatCapabilityTrait
 import com.lowdragmc.mbd2.integration.naturesaura.trait.AuraHandlerTraitDefinition;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.pressure.PNCPressureAirHandlerTraitDefinition;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.heat.PNCHeatExchangerTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTraitDefinition;
 import net.minecraftforge.fml.ModLoader;
 
 public class MBDTraitDefinitionTypes {
@@ -29,7 +31,9 @@ public class MBDTraitDefinitionTypes {
         register(ItemSlotCapabilityTraitDefinition.class);
         register(FluidTankCapabilityTraitDefinition.class);
         register(ForgeEnergyCapabilityTraitDefinition.class);
+        register(LongFeEnergyCapabilityTraitDefinition.class);
         register(EntityHandlerTraitDefinition.class);
+        register(RecipeThreadTraitDefinition.class);
         // Register the mod capabilities
         if (MBD2.isBotaniaLoaded()) {
             register(BotaniaManaCapabilityTraitDefinition.class);

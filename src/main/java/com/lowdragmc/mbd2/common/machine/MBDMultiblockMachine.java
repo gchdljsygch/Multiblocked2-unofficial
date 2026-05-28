@@ -25,6 +25,7 @@ import com.lowdragmc.mbd2.client.renderer.MultiblockInWorldPreviewRenderer;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import com.lowdragmc.mbd2.config.ConfigHolder;
+import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -159,7 +160,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     @Override
     public ContentModifier getMaxParallel(@Nonnull MBDRecipe recipe) {
         var maxParallel = getDefinition().recipeLogicSettings().recipeModifiers().getMaxParallel(getRecipeLogic(), recipe);
-        return maxParallel.merge(IMultiController.super.getMaxParallel(recipe));
+        return maxParallel.merge(IMultiController.super.getMaxParallel(recipe)).merge(getDynamicMaxParallelModifier());
     }
 
     @Override
@@ -297,6 +298,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                 }
             }
         }
+        RecipeCapabilitiesProxyCompat.apply(getRecipeCapabilitiesProxy());
     }
 
     /**

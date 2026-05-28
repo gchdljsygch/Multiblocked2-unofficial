@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.api.capability;
 
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import com.lowdragmc.mbd2.api.capability.energy.ILongFeEnergyContainer;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityManager;
 import net.minecraftforge.common.capabilities.CapabilityToken;
@@ -11,5 +12,6 @@ public class MBDCapabilities {
 
     public static void register(RegisterCapabilitiesEvent event) {
         event.register(IMachine.class);
+        event.register(ILongFeEnergyContainer.class);
     }
 }

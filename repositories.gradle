@@ -1,9 +1,52 @@
 repositories {
     mavenLocal()
-    maven { url = "https://api.modrinth.com/maven" } // LazyDFU, Jade
-    maven { url = "https://maven.terraformersmc.com/releases/" } // Mod Menu, EMI
-    maven { url = "https://maven.shedaniel.me/" } // Cloth Config, REI
-    maven { url "https://maven.architectury.dev/" } // architectury
+    maven {
+        name = "Forge"
+        url = "https://maven.minecraftforge.net"
+        content {
+            includeGroup "cpw.mods"
+            includeGroup "net.minecraftforge"
+            includeGroup "net.minecraftforge.gradle"
+        }
+    }
+    maven {
+        name = "Sponge"
+        url = "https://repo.spongepowered.org/repository/maven-public"
+        content {
+            includeGroup "org.spongepowered"
+            includeGroup "org.parchmentmc.feather"
+        }
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    } // LazyDFU, Jade
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/releases/"
+        content {
+            includeGroup "com.terraformersmc"
+            includeGroup "dev.emi"
+        }
+    } // Mod Menu, EMI
+    maven {
+        name = "Shedaniel"
+        url = "https://maven.shedaniel.me/"
+        content {
+            includeGroup "me.shedaniel"
+            includeGroup "me.shedaniel.cloth"
+        }
+    } // Cloth Config, REI
+    maven {
+        name = "Architectury"
+        url "https://maven.architectury.dev/"
+        content {
+            includeGroup "dev.architectury"
+        }
+    } // architectury
     maven {
         url "https://cursemaven.com"
         content {
@@ -13,22 +56,69 @@ repositories {
     maven {
         name = "Jared's maven"
         url = "https://maven.blamejared.com/"
+        content {
+            includeGroup "com.hollingsworth.ars_nouveau"
+            includeGroup "com.wayoftime.bloodmagic"
+            includeGroup "me.desht.pneumaticcraft"
+            includeGroup "mekanism"
+            includeGroup "mezz.jei"
+            includeGroup "vazkii.botania"
+            includeGroup "vazkii.patchouli"
+        }
     } // JEI
     maven {
         // location of a maven mirror for JEI files, as a fallback
         name = "ModMaven"
         url = "https://modmaven.dev"
+        content {
+            includeGroup "appeng"
+            includeGroup "me.desht.pneumaticcraft"
+            includeGroup "mekanism"
+            includeGroup "mezz.jei"
+            includeGroup "org.appliedenergistics"
+            includeGroup "vazkii.botania"
+            includeGroup "vazkii.patchouli"
+        }
     } // JEI mirror, AE2
-    maven { url = "https://maven.parchmentmc.org" } // Parchment mappings
-    maven { url = "https://maven.quiltmc.org/repository/release" } // Quilt Mappings
+    maven {
+        name = "ParchmentMC"
+        url = "https://maven.parchmentmc.org"
+        content {
+            includeGroup "org.parchmentmc"
+        }
+    } // Parchment mappings
+    maven {
+        name = "QuiltMC"
+        url = "https://maven.quiltmc.org/repository/release"
+        content {
+            includeGroup "org.quiltmc"
+        }
+    } // Quilt Mappings
     maven { // LDLib Configuration
         name "firstdarkdev"
         url "https://maven.firstdark.dev/snapshots"
+        content {
+            includeGroup "com.lowdragmc.ldlib"
+            includeGroup "com.lowdragmc.multiblocked2"
+            includeGroup "com.lowdragmc.photon"
+        }
     }
     maven { // blood magic
         url "https://tehnut.info/maven/"
+        content {
+            includeGroup "com.wayoftime.bloodmagic"
+        }
     }
-    maven { url = "https://maven.createmod.net" } // Ponder, Flywheel
+    maven {
+        name = "Create"
+        url = "https://maven.createmod.net"
+        content {
+            includeGroup "com.jozufozu.flywheel"
+            includeGroup "com.simibubi.create"
+            includeGroup "dev.engine-room.flywheel"
+            includeGroup "net.createmod.ponder"
+        }
+    } // Ponder, Flywheel
     maven { // Flywheel
         url = "https://maven.tterrag.com/"
         content {
@@ -38,9 +128,18 @@ repositories {
             includeGroup("com.simibubi.create")
         }
     }
-    maven { url = "https://maven.theillusivec4.top/" } // Curios
+    maven {
+        name = "TheIllusiveC4"
+        url = "https://maven.theillusivec4.top/"
+        content {
+            includeGroup "top.theillusivec4.curios"
+        }
+    } // Curios
     maven { // TOP
         url "https://maven.k-4u.nl"
+        content {
+            includeGroup "mcjty.theoneprobe"
+        }
     }
     maven {
         // saps.dev Maven (KubeJS and Rhino)
@@ -49,8 +148,21 @@ repositories {
             includeGroup "dev.latvian.mods"
         }
     }
-    maven { url = "https://maven.jamieswhiteshirt.com/libs-release" } // Reach Entity Attributes
-    maven { url 'https://jitpack.io' } // Mixin Extras, Fabric ASM
+    maven {
+        name = "JamiesWhiteShirt"
+        url = "https://maven.jamieswhiteshirt.com/libs-release"
+        content {
+            includeGroup "com.jamieswhiteshirt"
+        }
+    } // Reach Entity Attributes
+    maven {
+        name = "JitPack"
+        url 'https://jitpack.io'
+        content {
+            includeGroupByRegex "com\\.github\\..*"
+            includeGroupByRegex "io\\.github\\..*"
+        }
+    } // Mixin Extras, Fabric ASM
     maven {
         name = 'GeckoLib'
         url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'

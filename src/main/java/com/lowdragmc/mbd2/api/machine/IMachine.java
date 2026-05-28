@@ -4,6 +4,7 @@ import com.lowdragmc.mbd2.api.capability.MBDCapabilities;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeCapabilityHolder;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumption;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import net.minecraft.core.BlockPos;
@@ -314,6 +315,22 @@ public interface IMachine extends IRecipeCapabilityHolder {
      */
     default void onConsumeInputsAfterWorking() {
 
+    }
+
+    /**
+     * Called after recipe inputs are actually consumed.
+     *
+     * @param afterWorking true when inputs were consumed by {@code ConsumeInputsAfterWorking}; false for normal pre-working consumption.
+     */
+    default void onRecipeInputsConsumed(MBDRecipe recipe, RecipeConsumption consumedInputs, boolean afterWorking) {
+
+    }
+
+    /**
+     * Called in {@link RecipeLogic#onRecipeFinish()} when {@code ConsumeInputsAfterWorking} enabled and handled, before outputs are produced.
+     */
+    default void onConsumeInputsAfterWorking(RecipeConsumption consumedInputs) {
+        onConsumeInputsAfterWorking();
     }
 
     /**

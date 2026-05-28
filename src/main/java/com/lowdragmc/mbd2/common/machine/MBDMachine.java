@@ -19,6 +19,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.*;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumption;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.client.MachineSound;
@@ -30,6 +31,7 @@ import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
+import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import com.lowdragmc.mbd2.integration.photon.MachineFX;
 import com.lowdragmc.photon.client.fx.FXHelper;
@@ -121,6 +123,10 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @DescSynced
     @Getter
     private int dynamicMachineLevel = -1;
+    @Persisted
+    @DescSynced
+    @Getter
+    private int dynamicMaxParallel = -1;
     // redstone signal
     @Getter
     @Persisted
@@ -301,6 +307,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 recipeCapabilitiesProxy.get(recipeHandlerTrait.getHandlerIO(), recipeHandlerTrait.getRecipeCapability()).add(recipeHandlerTrait);
             }
         }
+        RecipeCapabilitiesProxyCompat.apply(recipeCapabilitiesProxy);
     }
 
     /**
@@ -417,6 +424,24 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     public void setMachineLevel(int level) {
         dynamicMachineLevel = level;
+    }
+
+    /**
+     * Set the max recipe parallel dynamically.
+     */
+    public void setMaxParallel(int maxParallel) {
+        dynamicMaxParallel = Math.max(1, maxParallel);
+        recipeLogic.markLastRecipeDirty();
+        markDirty();
+    }
+
+    /**
+     * Clear the dynamic max recipe parallel and use definition settings again.
+     */
+    public void clearMaxParallel() {
+        dynamicMaxParallel = -1;
+        recipeLogic.markLastRecipeDirty();
+        markDirty();
     }
 
     /**
@@ -556,7 +581,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public ContentModifier getMaxParallel(@Nonnull MBDRecipe recipe) {
-        return getDefinition().recipeLogicSettings().recipeModifiers().getMaxParallel(getRecipeLogic(), recipe);
+        return getDefinition().recipeLogicSettings().recipeModifiers().getMaxParallel(getRecipeLogic(), recipe)
+                .merge(getDynamicMaxParallelModifier());
+    }
+
+    protected ContentModifier getDynamicMaxParallelModifier() {
+        return dynamicMaxParallel > 0 ? ContentModifier.multiplier(dynamicMaxParallel) : ContentModifier.IDENTITY;
     }
 
     /**
@@ -631,8 +661,19 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public void onConsumeInputsAfterWorking() {
-        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
-        IMachine.super.onConsumeInputsAfterWorking();
+        onConsumeInputsAfterWorking(RecipeConsumption.EMPTY);
+    }
+
+    @Override
+    public void onConsumeInputsAfterWorking(RecipeConsumption consumedInputs) {
+        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, recipeLogic.getLastRecipe(), consumedInputs).postCustomEvent());
+        IMachine.super.onConsumeInputsAfterWorking(consumedInputs);
+    }
+
+    @Override
+    public void onRecipeInputsConsumed(MBDRecipe recipe, RecipeConsumption consumedInputs, boolean afterWorking) {
+        MinecraftForge.EVENT_BUS.post(new MachineRecipeInputsConsumedEvent(this, recipe, consumedInputs, afterWorking).postCustomEvent());
+        IMachine.super.onRecipeInputsConsumed(recipe, consumedInputs, afterWorking);
     }
 
     @Override

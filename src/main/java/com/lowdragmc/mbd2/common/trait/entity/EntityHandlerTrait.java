@@ -4,6 +4,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.api.recipe.ingredient.EntityIngredient;
 import com.lowdragmc.mbd2.common.capability.recipe.EntityRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
@@ -20,11 +21,14 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class EntityHandlerTrait extends RecipeCapabilityTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EntityHandlerTrait.class);
@@ -129,6 +133,10 @@ public class EntityHandlerTrait extends RecipeCapabilityTrait {
                         iterator.remove();
                     }
                     if (!simulate) {
+                        Map<EntityType<?>, Integer> consumed = new HashMap<>();
+                        toKilled.forEach(entity -> consumed.merge(entity.getType(), 1, Integer::sum));
+                        consumed.forEach((type, count) -> RecipeConsumptionTracker.record(EntityRecipeCapability.CAP,
+                                EntityIngredient.of(Stream.of(type), count, null), slotName));
                         toKilled.forEach(entity -> entity.remove(Entity.RemovalReason.DISCARDED));
                     }
                     entityList.removeAll(toKilled);

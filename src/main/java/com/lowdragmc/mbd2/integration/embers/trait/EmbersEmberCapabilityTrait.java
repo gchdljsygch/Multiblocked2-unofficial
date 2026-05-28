@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.*;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
@@ -99,6 +100,9 @@ public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements
             var capability = simulate ? storage.copy() : storage;
             if (io == IO.IN) {
                 var extracted = capability.removeAmount(required, !simulate);
+                if (!simulate && extracted > 0) {
+                    RecipeConsumptionTracker.record(EmbersEmberRecipeCapability.CAP, extracted, slotName);
+                }
                 required -= extracted;
             } else {
                 var received = capability.addAmount(required, !simulate);

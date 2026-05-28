@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
@@ -140,6 +141,9 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
             }
             if (io == IO.IN) {
                 capability.handleHeat(-required);
+                if (!simulate && required > 0) {
+                    RecipeConsumptionTracker.record(MekanismHeatRecipeCapability.CAP, required, slotName);
+                }
             } else if (io == IO.OUT) {
                 capability.handleHeat(required);
             }

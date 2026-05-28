@@ -5,6 +5,7 @@ import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.capability.recipe.*;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
 import com.lowdragmc.mbd2.common.event.MBDRegistryEvent;
+import com.lowdragmc.mbd2.common.capability.recipe.LongFeRecipeCapability;
 import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
 import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
@@ -25,6 +26,7 @@ public class MBDRecipeCapabilities {
         MBDRegistries.RECIPE_CAPABILITIES.register(FluidRecipeCapability.CAP.name, FluidRecipeCapability.CAP);
         MBDRegistries.RECIPE_CAPABILITIES.register(EntityRecipeCapability.CAP.name, EntityRecipeCapability.CAP);
         MBDRegistries.RECIPE_CAPABILITIES.register(ForgeEnergyRecipeCapability.CAP.name, ForgeEnergyRecipeCapability.CAP);
+        MBDRegistries.RECIPE_CAPABILITIES.register(LongFeRecipeCapability.CAP.name, LongFeRecipeCapability.CAP);
         // Register the mod capabilities
         if (MBD2.isBotaniaLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(BotaniaManaRecipeCapability.CAP.name, BotaniaManaRecipeCapability.CAP);

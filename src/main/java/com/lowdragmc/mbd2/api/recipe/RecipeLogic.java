@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.api.recipe;
 
 import com.lowdragmc.lowdraglib.Platform;
+import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
 import com.lowdragmc.lowdraglib.syncdata.IEnhancedManaged;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
@@ -9,12 +10,20 @@ import com.lowdragmc.lowdraglib.syncdata.field.FieldManagedStorage;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTrait;
 import com.lowdragmc.mbd2.config.ConfigHolder;
+import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTraitDefinition;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.Util;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraftforge.common.ForgeHooks;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import javax.annotation.Nullable;
@@ -118,7 +127,68 @@ public class RecipeLogic implements IEnhancedManaged {
         if (machine.getRecipeType().isRequireFuelForWorking()){
             return true;
         }
+        return handleVanillaFuelFallback();
+    }
+
+    private boolean handleVanillaFuelFallback() {
+        if (fuelTime > 0) return true;
+        if (!(machine instanceof MBDMachine mbdMachine)) return false;
+        RecipeThreadTraitDefinition cfg = null;
+        for (var def : mbdMachine.getDefinition().machineSettings().traitDefinitions()) {
+            if (def instanceof RecipeThreadTraitDefinition d) {
+                cfg = d;
+                break;
+            }
+        }
+        if (cfg == null || !cfg.enableVanillaFuelLineA) return false;
+        String traitName = cfg.vanillaFuelItemTraitName;
+        if (traitName == null || traitName.isBlank()) return false;
+        ItemSlotCapabilityTrait trait = mbdMachine.getTraitByName(ItemSlotCapabilityTrait.class, traitName);
+        if (trait == null) return false;
+        ItemStackTransfer storage = trait.storage;
+        if (storage == null) return false;
+        if (!tryBurnOneFuel(storage, mbdMachine)) return false;
+        lastFuelRecipe = null;
+        return true;
+    }
+
+    private boolean tryBurnOneFuel(ItemStackTransfer storage, MBDMachine machine) {
+        for (int slot = 0; slot < storage.getSlots(); slot++) {
+            ItemStack stack = storage.getStackInSlot(slot);
+            if (stack.isEmpty()) continue;
+            int burn = ForgeHooks.getBurnTime(stack, null);
+            if (burn <= 0) continue;
+            ItemStack extracted = storage.extractItem(slot, 1, false);
+            if (extracted.isEmpty()) continue;
+            int finalBurn = ForgeHooks.getBurnTime(extracted, null);
+            if (finalBurn <= 0) {
+                ItemStack back = storage.insertItem(slot, extracted, false);
+                if (!back.isEmpty()) dropItem(machine, back);
+                continue;
+            }
+            ItemStack remain = extracted.getCraftingRemainingItem();
+            if (!remain.isEmpty()) {
+                ItemStack left = storage.insertItem(slot, remain, false);
+                if (!left.isEmpty()) dropItem(machine, left);
+            }
+            fuelMaxTime = finalBurn;
+            fuelTime = finalBurn;
+            return true;
+        }
         return false;
+    }
+
+    private void dropItem(MBDMachine machine, ItemStack stack) {
+        if (stack.isEmpty()) return;
+        var level = machine.getLevel();
+        if (!(level instanceof ServerLevel serverLevel)) return;
+        BlockPos pos = machine.getPos();
+        double x = pos.getX() + 0.5;
+        double y = pos.getY() + 0.6;
+        double z = pos.getZ() + 0.5;
+        ItemEntity entity = new ItemEntity(serverLevel, x, y, z, stack);
+        entity.setDefaultPickUpDelay();
+        serverLevel.addFreshEntity(entity);
     }
 
     /**
@@ -347,10 +417,15 @@ public class RecipeLogic implements IEnhancedManaged {
         lastFuelRecipe = null;
         for (MBDRecipe recipe : machine.getRecipeType().searchFuelRecipe(getRecipeManager(), machine)) {
             recipe = getMachine().modifyFuelRecipe(recipe);
-            if (recipe.checkConditions(this).isSuccess() && recipe.handleRecipeIO(IO.IN, this.machine)) {
+            if (recipe.checkConditions(this).isSuccess()) {
+                var inputResult = recipe.handleRecipeIOWithResult(IO.IN, this.machine);
+                if (!inputResult.success()) {
+                    continue;
+                }
                 fuelMaxTime = recipe.duration;
                 fuelTime = fuelMaxTime;
                 lastFuelRecipe = recipe;
+                machine.onRecipeInputsConsumed(recipe, inputResult.consumption(), false);
             }
             if (fuelTime > 0) return true;
         }
@@ -384,7 +459,14 @@ public class RecipeLogic implements IEnhancedManaged {
             }
             recipe.preWorking(this.machine);
             consumeInputsAfterWorking = machine.consumeInputsAfterWorking(recipe);
-            if (consumeInputsAfterWorking || recipe.handleRecipeIO(IO.IN, this.machine)) {
+            MBDRecipe.HandleResult inputResult = null;
+            if (!consumeInputsAfterWorking) {
+                inputResult = recipe.handleRecipeIOWithResult(IO.IN, this.machine);
+            }
+            if (consumeInputsAfterWorking || inputResult.success()) {
+                if (inputResult != null) {
+                    machine.onRecipeInputsConsumed(recipe, inputResult.consumption(), false);
+                }
                 recipeDirty = false;
                 lastRecipe = recipe;
                 setStatus(Status.WORKING);
@@ -473,9 +555,10 @@ public class RecipeLogic implements IEnhancedManaged {
         if (lastRecipe != null) {
             machine.afterWorking();
             if (consumeInputsAfterWorking) {
-                lastRecipe.handleRecipeIO(IO.IN, this.machine);
+                var inputResult = lastRecipe.handleRecipeIOWithResult(IO.IN, this.machine);
                 consumeInputsAfterWorking = false;
-                machine.onConsumeInputsAfterWorking();
+                machine.onRecipeInputsConsumed(lastRecipe, inputResult.consumption(), true);
+                machine.onConsumeInputsAfterWorking(inputResult.consumption());
             }
             lastRecipe.postWorking(this.machine);
             lastRecipe.handleRecipeIO(IO.OUT, this.machine);

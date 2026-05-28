@@ -9,6 +9,8 @@ import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
 import com.lowdragmc.mbd2.api.block.RotationState;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
+import com.lowdragmc.mbd2.client.MultiblockDebugOverlay;
+import com.lowdragmc.mbd2.client.renderer.OverlayRenderUtil;
 import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
@@ -291,9 +293,26 @@ public class MultiblockInWorldPreviewRenderer {
                 clearPatternError();
             }
         }
+        MultiblockDebugOverlay.tick();
     }
 
     public static void renderInWorldPreview(PoseStack poseStack, Camera camera, float partialTicks) {
+        Set<BlockPos> positions = MultiblockDebugOverlay.getPositions();
+        if (positions != null) {
+            poseStack.pushPose();
+            Vec3 projectedView = camera.getPosition();
+            poseStack.translate(-projectedView.x, -projectedView.y, -projectedView.z);
+
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+            for (BlockPos pos : positions) {
+                OverlayRenderUtil.renderSolidBlockOverlay(poseStack, pos, 1.0f, 0.0f, 0.0f, 0.35f, 1.01f);
+            }
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+
+            poseStack.popPose();
+        }
         if (PATTERN_ERROR_POS != null) {
             poseStack.pushPose();
             Vec3 projectedView = camera.getPosition();

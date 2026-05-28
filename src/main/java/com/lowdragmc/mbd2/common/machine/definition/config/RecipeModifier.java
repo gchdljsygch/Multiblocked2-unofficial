@@ -39,6 +39,15 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
     @NumberRange(range = {1, Integer.MAX_VALUE})
     private ContentModifier maxParallel = ContentModifier.identity();
 
+    public RecipeModifier setMaxParallel(int maxParallel) {
+        return setMaxParallel(ContentModifier.multiplier(Math.max(1, maxParallel)));
+    }
+
+    public RecipeModifier setMaxParallel(ContentModifier maxParallel) {
+        this.maxParallel = maxParallel == null ? ContentModifier.identity() : maxParallel;
+        return this;
+    }
+
     @Override
     public CompoundTag serializeNBT() {
         var tag = IPersistedSerializable.super.serializeNBT();
@@ -135,6 +144,34 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
                 recipeModifiers.addAll(list);
             });
             father.addConfigurators(modifiers);
+        }
+
+        public RecipeModifiers setMaxParallel(int maxParallel) {
+            getOrCreateGlobalMaxParallelModifier().setMaxParallel(maxParallel);
+            return this;
+        }
+
+        public RecipeModifiers setMaxParallel(ContentModifier maxParallel) {
+            getOrCreateGlobalMaxParallelModifier().setMaxParallel(maxParallel);
+            return this;
+        }
+
+        private RecipeModifier getOrCreateGlobalMaxParallelModifier() {
+            for (var modifier : recipeModifiers) {
+                if (isGlobalMaxParallelOnly(modifier)) {
+                    return modifier;
+                }
+            }
+            var modifier = new RecipeModifier();
+            recipeModifiers.add(modifier);
+            return modifier;
+        }
+
+        private boolean isGlobalMaxParallelOnly(RecipeModifier modifier) {
+            return modifier.recipeConditions.isEmpty() &&
+                    modifier.contentModifier.isIdentity() &&
+                    modifier.durationModifier.isIdentity() &&
+                    modifier.targetContent == IO.BOTH;
         }
 
         /**

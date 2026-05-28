@@ -10,6 +10,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemDurabilityRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
@@ -216,6 +217,9 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
                             for (ItemStack ingredientStack : ingredientStacks) {
                                 if (ingredientStack.is(itemStack.getItem())) {
                                     ItemStack extracted = capability.extractItem(i, ingredientStack.getCount(), false);
+                                    if (!simulate && !extracted.isEmpty()) {
+                                        RecipeConsumptionTracker.record(ItemRecipeCapability.CAP, extracted.copy(), slotName);
+                                    }
                                     ingredientStack.setCount(ingredientStack.getCount() - extracted.getCount());
                                     if (ingredientStack.isEmpty()) {
                                         iterator.remove();
@@ -313,6 +317,9 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
                                     itemStack.setDamageValue(damage + availableDamage);
                                     capability.setStackInSlot(i, itemStack);
                                     capability.onContentsChanged(i);
+                                    if (!simulate) {
+                                        RecipeConsumptionTracker.record(ItemDurabilityRecipeCapability.CAP, itemStack.copyWithCount(availableDamage), slotName);
+                                    }
                                     ingredientStack.setCount(ingredientStack.getCount() - availableDamage);
                                     if (ingredientStack.isEmpty()) {
                                         iterator.remove();

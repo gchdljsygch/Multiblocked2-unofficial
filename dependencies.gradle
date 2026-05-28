@@ -66,6 +66,7 @@ dependencies {
     implementation fg.deobf("dev.latvian.mods:rhino-forge:${rhino_version}")
     implementation fg.deobf("dev.architectury:architectury-forge:${architectury_version}")
 
+    implementation fg.deobf("curse.maven:probejs-585406:5227399")
     // Nature's Aura
     implementation fg.deobf("maven.modrinth:natures-aura:${natures_aura_version}")
 
@@ -92,7 +93,6 @@ dependencies {
 //    implementation fg.deobf("com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_nouveau_version}")
 
     //oculus
-    minecraftLibrary(runtimeOnly("org.anarres:jcpp:1.4.14"))
     runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}") {transitive  = false}
     runtimeOnly fg.deobf("maven.modrinth:oculus:${oculus_version}") {transitive = true}
 }

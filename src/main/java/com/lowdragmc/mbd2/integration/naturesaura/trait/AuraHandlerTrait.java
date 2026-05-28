@@ -5,6 +5,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.integration.naturesaura.NaturesAuraRecipeCapability;
@@ -38,6 +39,9 @@ public class AuraHandlerTrait extends RecipeCapabilityTrait implements IRecipeHa
         if (io == IO.IN) {
             var spot = IAuraChunk.getHighestSpot(world, pos, getDefinition().getRadius(), pos);
             var drained = IAuraChunk.getAuraChunk(world, spot).drainAura(spot, sum);
+            if (drained > 0) {
+                RecipeConsumptionTracker.record(NaturesAuraRecipeCapability.CAP, drained, slotName);
+            }
             sum -= drained;
         } else if (io == IO.OUT) {
             BlockPos spot = IAuraChunk.getLowestSpot(world, pos, getDefinition().getRadius(), pos);

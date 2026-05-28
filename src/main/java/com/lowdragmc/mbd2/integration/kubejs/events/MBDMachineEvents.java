@@ -89,6 +89,12 @@ public class MBDMachineEvents {
         }
     }
 
+    public static class MachineRecipeInputsConsumedEventJS extends MachineEventJS<MachineRecipeInputsConsumedEvent> {
+        public MachineRecipeInputsConsumedEventJS(MachineRecipeInputsConsumedEvent event) {
+            super(event);
+        }
+    }
+
     public static class MachineOnRecipeFinishEventJS extends MachineEventJS<MachineOnRecipeFinishEvent> {
         public MachineOnRecipeFinishEventJS(MachineOnRecipeFinishEvent event) {
             super(event);

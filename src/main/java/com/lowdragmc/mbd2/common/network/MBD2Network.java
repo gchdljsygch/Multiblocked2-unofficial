@@ -3,6 +3,8 @@ package com.lowdragmc.mbd2.common.network;
 import com.lowdragmc.lowdraglib.networking.INetworking;
 import com.lowdragmc.lowdraglib.networking.forge.LDLNetworkingImpl;
 import com.lowdragmc.mbd2.MBD2;
+import com.lowdragmc.mbd2.common.network.packets.C2SSetBuilderBuildModePacket;
+import com.lowdragmc.mbd2.common.network.packets.C2SSetGadgetModePacket;
 import com.lowdragmc.mbd2.common.network.packets.SPatternErrorPosPacket;
 
 public class MBD2Network {
@@ -10,5 +12,7 @@ public class MBD2Network {
 
     public static void init() {
         NETWORK.registerS2C(SPatternErrorPosPacket.class);
+        NETWORK.registerC2S(C2SSetGadgetModePacket.class);
+        NETWORK.registerC2S(C2SSetBuilderBuildModePacket.class);
     }
 }

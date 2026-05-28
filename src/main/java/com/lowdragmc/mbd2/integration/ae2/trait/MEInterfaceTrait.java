@@ -23,6 +23,7 @@ import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.api.recipe.ingredient.FluidIngredient;
 import com.lowdragmc.mbd2.common.capability.recipe.FluidRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
@@ -247,6 +248,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
                             for (ItemStack ingredientStack : ingredientStacks) {
                                 if (ingredientStack.is(itemStack.getItem())) {
                                     ItemStack extracted = capability.extractItem(i, ingredientStack.getCount(), false);
+                                    if (!simulate && !extracted.isEmpty()) {
+                                        RecipeConsumptionTracker.record(ItemRecipeCapability.CAP, extracted.copy(), slotName);
+                                    }
                                     ingredientStack.setCount(ingredientStack.getCount() - extracted.getCount());
                                     if (ingredientStack.isEmpty()) {
                                         iterator.remove();
@@ -367,6 +371,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
                         }
                         if (!found) continue;
                         FluidStack drained = capability.drain(foundStack.copy(fluidStack.getAmount()), false);
+                        if (!simulate && !drained.isEmpty()) {
+                            RecipeConsumptionTracker.record(FluidRecipeCapability.CAP, drained.copy(), slotName);
+                        }
 
                         fluidStack.setAmount(fluidStack.getAmount() - drained.getAmount());
                         if (fluidStack.getAmount() <= 0) {

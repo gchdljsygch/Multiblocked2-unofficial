@@ -5,7 +5,17 @@
   "compatibilityLevel": "JAVA_17",
   "plugin": "com.lowdragmc.mbd2.core.mixins.MBDMixinPlugin",
   "client": [
-    "LevelRendererAccessor"
+    "LevelRendererAccessor",
+    "client.LDLibBaseNodeI18nMixin",
+    "client.LDLibExposedParameterI18nMixin",
+    "client.LDLibFileNodeNoI18nMixin",
+    "client.LDLibNodePanelNodeNameI18nMixin",
+    "client.LDLibNodePanelSearchI18nMixin",
+    "client.LDLibNodePortWidgetI18nMixin",
+    "client.LDLibParameterPanelWidgetTypeI18nMixin",
+    "client.LDLibSelectorConfiguratorI18nMixin",
+    "client.LDLibTipsI18nFallbackMixin",
+    "lowdraglib.DrawerHelperMixin"
   ],
   "mixins": [
     "ChunkMixin",
@@ -16,7 +26,18 @@
     "RecipeManagerMixin",
     "ServerChunkProviderMixin",
     "StrictNBTIngredientAccessor",
-    "TagValueAccessor"
+    "TagValueAccessor",
+    "lowdraglib.AbstractContainerMenuMixin",
+    "lowdraglib.ItemStackTransferMixin",
+    "lowdraglib.ModularUIContainerMixin",
+    "lowdraglib.NumberAccessorMixin",
+    "lowdraglib.PhantomFluidWidgetMixin",
+    "lowdraglib.PhantomSlotWidgetMixin",
+    "lowdraglib.PhantomTankWidgetMixin",
+    "lowdraglib.SceneWidgetRenderedCoreMixin",
+    "lowdraglib.SlotWidgetMixin",
+    "lowdraglib.TextFormattingUtilMixin",
+    "lowdraglib.WidgetSlotItemTransferMixin"
   ],
   "injectors": {
     "defaultRequire": 1,

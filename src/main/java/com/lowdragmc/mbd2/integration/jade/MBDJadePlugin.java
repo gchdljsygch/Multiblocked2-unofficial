@@ -12,11 +12,15 @@ public class MBDJadePlugin implements IWailaPlugin {
     @Override
     public void register(IWailaCommonRegistration registration) {
         registration.registerBlockDataProvider(new RecipeLogicProvider(), BlockEntity.class);
+        registration.registerBlockDataProvider(new RecipeThreadRecipeLogicDataProvider(), BlockEntity.class);
+        registration.registerBlockDataProvider(new LongFeEnergyDataProvider(), BlockEntity.class);
     }
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {
         registration.registerBlockComponent(new RecipeLogicProvider(), Block.class);
         registration.registerBlockComponent(new MultiblockProvider(), Block.class);
+        registration.registerBlockComponent(new RecipeThreadRecipeLogicDataProvider(), Block.class);
+        registration.registerBlockComponent(new LongFeEnergyDataProvider(), Block.class);
     }
 }

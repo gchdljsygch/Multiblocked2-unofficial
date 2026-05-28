@@ -23,6 +23,7 @@ import com.lowdragmc.lowdraglib.utils.Size;
 import com.lowdragmc.mbd2.api.pattern.MultiblockShapeInfo;
 import com.lowdragmc.mbd2.api.pattern.predicates.PredicateBlocks;
 import com.lowdragmc.mbd2.api.pattern.predicates.PredicateFluids;
+import com.lowdragmc.mbd2.api.pattern.predicates.PredicateStates;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import com.lowdragmc.mbd2.common.gui.editor.MultiblockMachineProject;
 import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
@@ -34,14 +35,19 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Vector3i;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Optional;
 
@@ -139,6 +145,7 @@ public class MultiblockAreaPanel extends WidgetGroup {
                                 "editor.machine.multiblock.area_panel.generatePattern.button.0.info");
                         generatePattern();
                     })
+                    .setHoverTooltips(Component.translatable("mbd2.multiblock_area.generate_pattern.tooltip"))
                     .setHoverTexture(
                             ColorPattern.WHITE.borderTexture(1).setRadius(5),
                             new TextTexture("editor.machine.multiblock.area_panel.generatePattern.button.0")));
@@ -152,6 +159,7 @@ public class MultiblockAreaPanel extends WidgetGroup {
                                 "editor.machine.multiblock.area_panel.generatePattern.button.1.info");
                         generateShapeInfo();
                     })
+                    .setHoverTooltips(Component.translatable("mbd2.multiblock_area.generate_shape_info.tooltip"))
                     .setHoverTexture(
                             ColorPattern.WHITE.borderTexture(1).setRadius(5),
                             new TextTexture("editor.machine.multiblock.area_panel.generatePattern.button.1")));
@@ -259,7 +267,8 @@ public class MultiblockAreaPanel extends WidgetGroup {
                     if (blockPos.equals(controllerPos)) {
                         holder = BlockPlaceholder.controller(predicateResource).setFacing(controllerFace);
                     } else {
-                        var block = level.getBlockState(blockPos).getBlock();
+                        BlockState state = level.getBlockState(blockPos);
+                        var block = state.getBlock();
                         String id;
                         if (block instanceof LiquidBlock liquidBlock) {
                             var fluid = liquidBlock.getFluid().getSource();
@@ -268,10 +277,15 @@ public class MultiblockAreaPanel extends WidgetGroup {
                                 predicateResource.addBuiltinResource(id, new PredicateFluids(fluid));
                                 addNewResource = true;
                             }
+                        } else if (block == Blocks.AIR) {
+                            id = "any";
                         } else {
-                            id = block == Blocks.AIR ? "any" : Optional.ofNullable(ForgeRegistries.BLOCKS.getKey(block)).map(ResourceLocation::toString).orElse("any");
+                            boolean isDefault = state.equals(block.defaultBlockState());
+                            id = isDefault
+                                    ? Optional.ofNullable(ForgeRegistries.BLOCKS.getKey(block)).map(ResourceLocation::toString).orElse("any")
+                                    : toStateKey(state);
                             if (!predicateResource.hasBuiltinResource(id)) {
-                                predicateResource.addBuiltinResource(id, new PredicateBlocks(block));
+                                predicateResource.addBuiltinResource(id, isDefault ? new PredicateBlocks(block) : new PredicateStates(state));
                                 addNewResource = true;
                             }
                         }
@@ -287,6 +301,30 @@ public class MultiblockAreaPanel extends WidgetGroup {
         }
         project.setBlockPlaceholders(blockPlaceholders);
         patternPanel.onBlockPlaceholdersChanged();
+    }
+
+    private static String toStateKey(BlockState state) {
+        ResourceLocation id = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (id == null) return "any";
+        var values = state.getValues();
+        if (values.isEmpty()) return id.toString();
+        var props = new ArrayList<Property<?>>(values.keySet());
+        props.sort(Comparator.comparing(Property::getName));
+        StringBuilder sb = new StringBuilder(64);
+        sb.append(id).append('[');
+        for (int i = 0; i < props.size(); i++) {
+            Property<?> p = props.get(i);
+            sb.append(p.getName()).append('=').append(getValueName(state, p));
+            if (i + 1 < props.size()) sb.append(',');
+        }
+        sb.append(']');
+        return "state:" + sb;
+    }
+
+    private static <T extends Comparable<T>> String getValueName(BlockState state, Property<T> property) {
+        property = java.util.Objects.requireNonNull(property);
+        T v = state.getValue(property);
+        return property.getName(java.util.Objects.requireNonNull(v));
     }
 
     /**

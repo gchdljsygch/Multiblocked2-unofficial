@@ -129,6 +129,18 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
         protected Builder() {
         }
 
+        @Override
+        public Builder setMaxParallel(int maxParallel) {
+            super.setMaxParallel(maxParallel);
+            return this;
+        }
+
+        @Override
+        public Builder maxParallel(int maxParallel) {
+            super.maxParallel(maxParallel);
+            return this;
+        }
+
         public CreateKineticMachineDefinition build() {
             return new CreateKineticMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, partSettings, kineticMachineSettings);
         }

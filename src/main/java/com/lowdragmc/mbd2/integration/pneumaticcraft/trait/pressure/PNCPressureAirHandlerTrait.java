@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.IProxyAutoIOTrait;
@@ -140,6 +141,9 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
                     continue;
                 }
                 handler.addAir((int) -air);
+                if (!simulate) {
+                    RecipeConsumptionTracker.record(PNCPressureAirRecipeCapability.CAP, new PressureAir(true, air), slotName);
+                }
                 iterator.remove();
             }
         } else if (io == IO.OUT) {

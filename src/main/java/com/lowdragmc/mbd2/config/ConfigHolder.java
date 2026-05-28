@@ -33,6 +33,10 @@ public class ConfigHolder {
             .comment("Duration of the multiblock in-world pattern error position (s)")
             .defineInRange("multiblockPatternErrorPosDuration", 10, 1, 999);
 
+    private static final ForgeConfigSpec.IntValue SLOW_BUILD_BLOCKS_PER_TICK = BUILDER
+            .comment("Blocks placed per tick when using slow multiblock auto-build.")
+            .defineInRange("slowBuildBlocksPerTick", 5, 1, Integer.MAX_VALUE);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static boolean asyncRecipeSearching;
@@ -41,6 +45,7 @@ public class ConfigHolder {
 
     public static int multiblockPreviewDuration;
     public static int multiblockPatternErrorPosDuration;
+    public static int slowBuildBlocksPerTick;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
@@ -48,5 +53,6 @@ public class ConfigHolder {
         useVBO = USE_VBO.get();
         multiblockPreviewDuration = MULTIBLOCK_PREVIEW_DURATION.get();
         multiblockPatternErrorPosDuration = MULTIBLOCK_PATTERN_ERROR_DURATION.get();
+        slowBuildBlocksPerTick = SLOW_BUILD_BLOCKS_PER_TICK.get();
     }
 }
