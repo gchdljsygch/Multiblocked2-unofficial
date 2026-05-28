@@ -2,7 +2,9 @@ package com.lowdragmc.mbd2.common.machine.definition.config;
 
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.ConfiguratorGroup;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.WrapperConfigurator;
@@ -31,6 +33,11 @@ import java.util.Optional;
 
 @Getter
 public class ConfigMachineEvents implements IConfigurable, IPersistedSerializable {
+
+    @Getter
+    @Configurable(name = "config.machine_event.fixed_tick_interval", tips = "config.machine_event.fixed_tick_interval.tooltip")
+    @NumberRange(range = {1, Integer.MAX_VALUE})
+    private int fixedTickInterval = 20;
 
     public final Map<String, Class<? extends MachineEvent>> machineEvents = new HashMap<>();
 

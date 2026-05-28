@@ -173,6 +173,12 @@ public class MBDMachineEvents {
         }
     }
 
+    public static class MachineFixedTickEventJS extends MachineEventJS<MachineFixedTickEvent> {
+        public MachineFixedTickEventJS(MachineFixedTickEvent event) {
+            super(event);
+        }
+    }
+
     public static class MachineUseCatalystEventJS extends MachineEventJS<MachineUseCatalystEvent> {
         public MachineUseCatalystEventJS(MachineUseCatalystEvent event) {
             super(event);

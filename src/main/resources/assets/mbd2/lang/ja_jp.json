@@ -221,6 +221,8 @@
     "config.machine_event.graph.add": "グラフ追加",
     "config.machine_event.graph.remove": "グラフ削除",
     "config.machine_event.graph.editing": "編集中",
+    "config.machine_event.fixed_tick_interval": "固定ティック間隔",
+    "config.machine_event.fixed_tick_interval.tooltip": "固定ティックイベントが発火する間隔（ティック）。",
 
 
     "config.definition.multiblock_settings": "マルチブロックコントローラー設定",
@@ -667,6 +669,8 @@
     "MachineEvent.MachineCustomDataUpdateEvent.tips": "サーバー側からカスタムデータが更新されたときにトリガーされるイベント。",
     "MachineEvent.MachineTickEvent": "マシンティックイベント",
     "MachineEvent.MachineTickEvent.tips": "毎サーバーティックでトリガーされるイベント。",
+    "MachineEvent.MachineFixedTickEvent": "マシン固定ティックイベント",
+    "MachineEvent.MachineFixedTickEvent.tips": "設定された固定ティック間隔でサーバー側に発火するイベント。",
     "MachineEvent.MachineClientTickEvent": "マシンクライアントティックイベント",
     "MachineEvent.MachineClientTickEvent.tips": "毎クライアントティックでトリガーされるイベント。",
     "MachineEvent.Multiblock.MachineUseCatalystEvent": "マルチブロック触媒使用イベント",

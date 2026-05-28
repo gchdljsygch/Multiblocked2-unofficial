@@ -1,5 +1,16 @@
-Multiblocked 2
+Multiblocked2-unofficial
 ==================
+
+关于本项目
+------------------
+Multiblocked2-unofficial fork 自 Multiblocked 2 的 1.20.1 版本，继承了原模组的所有功能，合并了 mbd2thread，修复了部分 bug，并添加了一些更有利于魔改的方法和事件。后续预计会兼容更多模组。
+
+原项目内容（上游 README）
+------------------
+> 以下内容来自原 Multiblocked 2 项目 README，仅作为上游项目介绍与链接保留。
+
+Multiblocked 2
+------------------
 Multiblocked2 (mbd2) is the more powerful visual custom machine/multi-block structure mod after mbd1(multiblocked). Mbd2 is an extremely flexible yet vanilla-esque multiblock mod, that embraces aspects of MultiblockTweaker and Modular Machinery.
 
 Original project can be found here: [**Multiblocked**](https://www.curseforge.com/minecraft/mc-mods/multiblocked "multiblocked")

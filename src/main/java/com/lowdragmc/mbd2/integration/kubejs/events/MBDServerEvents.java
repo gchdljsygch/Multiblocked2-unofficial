@@ -117,6 +117,11 @@ public interface MBDServerEvents {
             MBDMachineEvents.MachineTickEventJS.class,
             MBDMachineEvents.MachineTickEventJS::new);
 
+    EventHandler FIXED_TICK = registerMachineEvent("onFixedTick",
+            MachineFixedTickEvent.class,
+            MBDMachineEvents.MachineFixedTickEventJS.class,
+            MBDMachineEvents.MachineFixedTickEventJS::new);
+
     EventHandler USE_CATALYST = registerMachineEvent("onUseCatalyst",
             MachineUseCatalystEvent.class,
             MBDMachineEvents.MachineUseCatalystEventJS.class,

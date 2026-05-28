@@ -517,7 +517,16 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         var event = new MachineTickEvent(this).postCustomEvent();
         MinecraftForge.EVENT_BUS.post(event);
         if (!event.isCanceled()) {
+            postFixedTickEvent();
             internalServerTick();
+        }
+    }
+
+    protected void postFixedTickEvent() {
+        var timer = getOffsetTimer();
+        var interval = Math.max(1, definition.machineEvents().getFixedTickInterval());
+        if (timer % interval == 0) {
+            MinecraftForge.EVENT_BUS.post(new MachineFixedTickEvent(this, interval, timer).postCustomEvent());
         }
     }
 

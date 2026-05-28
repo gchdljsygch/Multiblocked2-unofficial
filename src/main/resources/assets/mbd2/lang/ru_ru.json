@@ -304,6 +304,8 @@
     "config.machine_event.graph.add": "добавить график",
     "config.machine_event.graph.remove": "удалить график",
     "config.machine_event.graph.editing": "редактирование",
+    "config.machine_event.fixed_tick_interval": "Интервал фиксированного тика",
+    "config.machine_event.fixed_tick_interval.tooltip": "Интервал в тиках между срабатываниями события фиксированного тика.",
 
     "config.definition.multiblock_settings": "Настройки контроллера мультиблока",
     "config.definition.multiblock_settings.tooltip": "Поведение контроллера мультиблока",
@@ -864,6 +866,8 @@
     "MachineEvent.MachineCustomDataUpdateEvent.tips": "Событие будет срабатывать при обновлении пользовательских данных со стороны сервера.",
     "MachineEvent.MachineTickEvent": "Событие тика машины",
     "MachineEvent.MachineTickEvent.tips": "Событие будет срабатывать каждый тик сервера.",
+    "MachineEvent.MachineFixedTickEvent": "Событие фиксированного тика машины",
+    "MachineEvent.MachineFixedTickEvent.tips": "Событие срабатывает на сервере через настроенный фиксированный интервал тиков.",
     "MachineEvent.MachineClientTickEvent": "Событие тика клиента машины",
     "MachineEvent.MachineClientTickEvent.tips": "Событие будет вызвано каждый тик клиента.",
     "MachineEvent.Multiblock.MachineUseCatalystEvent": "Событие многоблочного использования Catalyst",

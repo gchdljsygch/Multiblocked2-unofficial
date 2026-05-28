@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 
 public interface IMachine extends IRecipeCapabilityHolder {
@@ -54,6 +55,41 @@ public interface IMachine extends IRecipeCapabilityHolder {
      */
     default BlockState getBlockState() {
         return getHolder().getBlockState();
+    }
+
+    /**
+     * Convert a machine-relative position to an absolute world position.
+     * <br>
+     * Relative axes are {@code +X = right}, {@code +Y = up}, and {@code +Z = front}.
+     */
+    default BlockPos getAbsolutePos(@Nonnull BlockPos relativePos) {
+        Objects.requireNonNull(relativePos, "relativePos");
+        var front = getFrontFacing().orElse(Direction.NORTH);
+        return getPos()
+                .relative(getRelativeRight(front), relativePos.getX())
+                .relative(getRelativeUp(front), relativePos.getY())
+                .relative(front, relativePos.getZ());
+    }
+
+    /**
+     * Convert machine-relative coordinates to an absolute world position.
+     * <br>
+     * Relative axes are {@code +X = right}, {@code +Y = up}, and {@code +Z = front}.
+     */
+    default BlockPos getAbsolutePos(int x, int y, int z) {
+        return getAbsolutePos(new BlockPos(x, y, z));
+    }
+
+    private static Direction getRelativeRight(Direction front) {
+        return front.getAxis() == Direction.Axis.Y ? Direction.EAST : front.getClockWise();
+    }
+
+    private static Direction getRelativeUp(Direction front) {
+        return switch (front) {
+            case UP -> Direction.SOUTH;
+            case DOWN -> Direction.NORTH;
+            default -> Direction.UP;
+        };
     }
 
     /**

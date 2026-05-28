@@ -336,13 +336,25 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
             copied.recipeType = this;
             result = copied;
         } else {
-            if (!recipe.getIngredients().isEmpty()) {
-                var newID = new ResourceLocation(registryName.getNamespace(), registryName.getPath() + "/" + id.getPath());
-                var builder = recipeBuilder(newID).recipeType(this);
+            var newID = new ResourceLocation(registryName.getNamespace(), registryName.getPath() + "/" + id.getPath());
+            var builder = recipeBuilder(newID).recipeType(this);
+            try {
                 for (var ingredient : recipe.getIngredients()) {
+                    if (ingredient.isEmpty()) continue;
                     builder.inputItems(ingredient);
                 }
-                builder.outputItems(recipe.getResultItem(RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY)));
+            } catch (RuntimeException e) {
+                MBD2.LOGGER.warn("Failed to transfer item inputs while adapting proxy recipe {}", id, e);
+            }
+            try {
+                var resultItem = recipe.getResultItem(RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+                if (!resultItem.isEmpty()) {
+                    builder.outputItems(resultItem);
+                }
+            } catch (RuntimeException e) {
+                MBD2.LOGGER.warn("Failed to transfer item outputs while adapting proxy recipe {}", id, e);
+            }
+            if (hasRecipeContent(builder.input) || hasRecipeContent(builder.output)) {
                 if (recipe instanceof SmeltingRecipe smeltingRecipe) {
                     builder.duration(smeltingRecipe.getCookingTime());
                 }
@@ -360,6 +372,10 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
             return event.mbdRecipe;
         }
         return result;
+    }
+
+    private static boolean hasRecipeContent(Map<RecipeCapability<?>, List<Content>> contents) {
+        return contents.values().stream().anyMatch(content -> content != null && !content.isEmpty());
     }
 
     @Override
