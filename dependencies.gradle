@@ -94,5 +94,5 @@ dependencies {
 
     //oculus
     runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}") {transitive  = false}
-    runtimeOnly fg.deobf("maven.modrinth:oculus:${oculus_version}") {transitive = true}
+//    runtimeOnly fg.deobf("maven.modrinth:oculus:${oculus_version}") {transitive = true}
 }

@@ -267,6 +267,12 @@ public class MultiblockPatternPanel extends WidgetGroup {
         reloadScene(false, true);
     }
 
+    public void onPatternSwitched() {
+        visibleLayer = -1;
+        reloadScene(true, false);
+        editor.getConfigPanel().clearAllConfigurators(MachineEditor.BASIC);
+    }
+
     public boolean isBlockSelected(Vector3i pos) {
         return selectedBlocks.contains(pos);
     }

@@ -48,6 +48,15 @@ public class MultiblockState {
     private boolean isInternalStructureForming;
     @Getter
     private boolean isInternalStructureInvaliding;
+    @Getter
+    private Direction patternFacing = Direction.NORTH;
+    @Getter
+    private Direction patternBaseFacing = Direction.NORTH;
+    @Getter
+    @Nullable
+    private BlockPattern matchedPattern;
+    @Getter
+    private int matchedPatternIndex = -1;
 
     // persist
     public LongOpenHashSet cache;
@@ -64,6 +73,20 @@ public class MultiblockState {
         this.globalCount = new HashMap<>();
         this.layerCount = new HashMap<>();
         cache = new LongOpenHashSet();
+    }
+
+    protected void setPatternContext(Direction facing, Direction baseFacing) {
+        this.patternFacing = facing == null ? Direction.NORTH : facing;
+        this.patternBaseFacing = baseFacing == null ? Direction.NORTH : baseFacing;
+    }
+
+    public void setMatchedPattern(@Nullable BlockPattern matchedPattern) {
+        setMatchedPattern(matchedPattern, matchedPattern == null ? -1 : 0);
+    }
+
+    public void setMatchedPattern(@Nullable BlockPattern matchedPattern, int matchedPatternIndex) {
+        this.matchedPattern = matchedPattern;
+        this.matchedPatternIndex = matchedPattern == null ? -1 : matchedPatternIndex;
     }
 
     protected boolean update(BlockPos posIn, TraceabilityPredicate predicate) {

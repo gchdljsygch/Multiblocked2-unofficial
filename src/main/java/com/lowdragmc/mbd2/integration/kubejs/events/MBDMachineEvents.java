@@ -177,6 +177,18 @@ public class MBDMachineEvents {
         public MachineFixedTickEventJS(MachineFixedTickEvent event) {
             super(event);
         }
+
+        public int getInterval() {
+            return event.getInterval();
+        }
+
+        public long getTimer() {
+            return event.getTimer();
+        }
+
+        public boolean every(int interval) {
+            return event.every(interval);
+        }
     }
 
     public static class MachineUseCatalystEventJS extends MachineEventJS<MachineUseCatalystEvent> {

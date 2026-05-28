@@ -88,6 +88,8 @@ public class MultiblockInWorldPreviewRenderer {
     @Nullable
     private static BlockPos LAST_POS = null;
     private static int LAST_LAYER = -1;
+    private static int LAST_PATTERN = -1;
+    private static int NEXT_PATTERN = -1;
 
     public static void cleanPreview() {
         CACHE_STATE.set(CacheState.UNUSED);
@@ -96,6 +98,8 @@ public class MultiblockInWorldPreviewRenderer {
         PREVIEW_LEFT_TICK.set(-1);
         LAST_POS = null;
         LAST_LAYER = -1;
+        LAST_PATTERN = -1;
+        NEXT_PATTERN = -1;
     }
 
     public static void removePreview(BlockPos pos) {
@@ -123,9 +127,11 @@ public class MultiblockInWorldPreviewRenderer {
      */
     public static void showPreview(BlockPos pos, MBDMultiblockMachine controller, int duration) {
         var front = controller.getFrontFacing().orElse(Direction.NORTH);
-        var shapeInfos = controller.getDefinition().shapeInfoFactory().apply(controller.getDefinition());
+        int patternIndex = getPreviewPatternIndex(pos, controller);
+        var shapeInfos = controller.getDefinition().getPatternShapeInfos(controller, patternIndex);
         if (shapeInfos.length == 0) return;
         var shapeInfo = shapeInfos[0];
+        LAST_PATTERN = patternIndex;
 
         Map<BlockPos, BlockInfo> blockMap = new HashMap<>();
         IMultiController controllerBase = null;
@@ -169,9 +175,11 @@ public class MultiblockInWorldPreviewRenderer {
             LAST_LAYER++;
             if (LAST_LAYER >= maxY) {
                 LAST_LAYER = -1;
+                NEXT_PATTERN = getNextPatternIndex(controller, patternIndex);
             }
         } else {
             LAST_LAYER = -1;
+            NEXT_PATTERN = patternIndex;
         }
         LAST_POS = pos;
 
@@ -242,6 +250,39 @@ public class MultiblockInWorldPreviewRenderer {
         }
 
         prepareBuffers(LEVEL, blockMap.keySet(), duration);
+    }
+
+    public static int getPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
+        int patternCount = controller.getDefinition().getPatterns(controller).length;
+        if (patternCount <= 1) return 0;
+        int matched = controller.getMultiblockState().getMatchedPatternIndex();
+        if (matched >= 0 && matched < patternCount) return matched;
+        if (LAST_POS != null && LAST_POS.equals(pos) && NEXT_PATTERN >= 0 && NEXT_PATTERN < patternCount) {
+            return NEXT_PATTERN;
+        }
+        if (LAST_POS != null && LAST_POS.equals(pos) && LAST_PATTERN >= 0 && LAST_PATTERN < patternCount) {
+            return LAST_PATTERN;
+        }
+        return 0;
+    }
+
+    public static int getCurrentPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
+        int patternCount = controller.getDefinition().getPatterns(controller).length;
+        if (patternCount <= 1) return 0;
+        int matched = controller.getMultiblockState().getMatchedPatternIndex();
+        if (matched >= 0 && matched < patternCount) return matched;
+        if (LAST_POS != null && LAST_POS.equals(pos) && LAST_PATTERN >= 0 && LAST_PATTERN < patternCount) {
+            return LAST_PATTERN;
+        }
+        return getPreviewPatternIndex(pos, controller);
+    }
+
+    private static int getNextPatternIndex(MBDMultiblockMachine controller, int current) {
+        int patternCount = controller.getDefinition().getPatterns(controller).length;
+        if (patternCount <= 1) return 0;
+        int matched = controller.getMultiblockState().getMatchedPatternIndex();
+        if (matched >= 0 && matched < patternCount) return matched;
+        return (current + 1) % patternCount;
     }
 
     private static BlockPos rotateByFrontAxis(BlockPos pos, Direction front, Rotation rotation) {

@@ -162,7 +162,7 @@ public final class AutoBuildPlacementExecutor {
         if (placement.expectedInfo == null) return;
         BlockState expectedState = placement.expectedInfo.getBlockState();
         if (expectedState == null) return;
-        Rotation rotation = placement.rotation == null ? Rotation.NONE : placement.rotation;
+        Rotation rotation = placement.rotateExpectedState && placement.rotation != null ? placement.rotation : Rotation.NONE;
         BlockState rotatedState = rotation == Rotation.NONE ? expectedState : expectedState.rotate(rotation);
         BlockState currentState = world.getBlockState(pos);
         if (currentState.getBlock() != rotatedState.getBlock()) return;

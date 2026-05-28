@@ -97,6 +97,7 @@ public class BlockPattern {
     }
 
     public boolean checkPatternAt(MultiblockState worldState, boolean savePredicate) {
+        worldState.setMatchedPattern(null);
         IMultiController controller = worldState.getController();
         if (controller == null) {
             worldState.setError(new PatternStringError("no controller found"));
@@ -118,6 +119,8 @@ public class BlockPattern {
         boolean findFirstAisle = false;
         int minZ = -centerOffset[4];
         worldState.clean();
+        worldState.setMatchedPattern(null);
+        worldState.setPatternContext(facing, mbd2$getBaseFacing());
         PatternMatchContext matchContext = worldState.getMatchContext();
         Map<SimplePredicate, Integer> globalCount = worldState.getGlobalCount();
         Map<SimplePredicate, Integer> layerCount = worldState.getLayerCount();
@@ -204,6 +207,7 @@ public class BlockPattern {
         }
 
         worldState.setError(null);
+        worldState.setMatchedPattern(this);
         return true;
     }
 
@@ -217,6 +221,7 @@ public class BlockPattern {
         }
         BlockPos centerPos = controller.getPos();
         Direction facing = controller.getFrontFacing().orElse(Direction.NORTH);
+        worldState.setPatternContext(facing, mbd2$getBaseFacing());
         Rotation rotation = computeRotation(this, facing);
         Map<SimplePredicate, Integer> cacheGlobal = worldState.getGlobalCount();
         Map<SimplePredicate, Integer> cacheLayer = worldState.getLayerCount();
@@ -290,6 +295,7 @@ public class BlockPattern {
                         }
 
                         boolean find = false;
+                        Map<BlockInfo, Boolean> candidateRotation = new IdentityHashMap<>();
                         BlockInfo[] infos = new BlockInfo[0];
                         for (SimplePredicate limit : predicate.limited) {
                             if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
@@ -305,6 +311,7 @@ public class BlockPattern {
                                 continue;
                             }
                             infos = limit.candidates == null ? null : limit.candidates.get();
+                            recordCandidateRotation(candidateRotation, infos, !limit.controllerFront.isEnable());
                             find = true;
                             break;
                         }
@@ -317,11 +324,15 @@ public class BlockPattern {
                                 cacheLayer.put(limit, cacheLayer.getOrDefault(limit, 0) + 1);
                                 cacheGlobal.put(limit, cacheGlobal.getOrDefault(limit, 0) + 1);
 
-                                infos = ArrayUtils.addAll(infos, limit.candidates == null ? null : limit.candidates.get());
+                                BlockInfo[] candidates = limit.candidates == null ? null : limit.candidates.get();
+                                infos = ArrayUtils.addAll(infos, candidates);
+                                recordCandidateRotation(candidateRotation, candidates, !limit.controllerFront.isEnable());
                             }
                             for (SimplePredicate common : predicate.common) {
                                 if (common.controllerFront.isEnable() && common.controllerFront.getValue() != facing) continue;
-                                infos = ArrayUtils.addAll(infos, common.candidates == null ? null : common.candidates.get());
+                                BlockInfo[] candidates = common.candidates == null ? null : common.candidates.get();
+                                infos = ArrayUtils.addAll(infos, candidates);
+                                recordCandidateRotation(candidateRotation, candidates, !common.controllerFront.isEnable());
                             }
                         }
 
@@ -408,9 +419,11 @@ public class BlockPattern {
                         }
 
                         BlockInfo expectedInfo = null;
+                        boolean rotatePlacementState = true;
                         for (BlockInfo info : candidateInfos) {
                             if (ItemStack.isSameItemSameTags(info.getItemStackForm(), found)) {
                                 expectedInfo = info;
+                                rotatePlacementState = candidateRotation.getOrDefault(info, true);
                                 break;
                             }
                         }
@@ -421,9 +434,9 @@ public class BlockPattern {
                             if (!emptyBlock && !existingHasFluid) {
                                 continue;
                             }
-                            fluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, source, sourceSlot));
+                            fluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, rotatePlacementState, source, sourceSlot));
                         } else {
-                            nonFluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, source, sourceSlot));
+                            nonFluidPlacements.add(new PatternAutoBuildPlacement(pos, found, foundSlot, expectedInfo, rotation, rotatePlacementState, source, sourceSlot));
                         }
                     }
                 }
@@ -466,6 +479,15 @@ public class BlockPattern {
             if (ItemStack.isSameItemSameTags(Objects.requireNonNull(candidate), s)) return true;
         }
         return false;
+    }
+
+    private static void recordCandidateRotation(Map<BlockInfo, Boolean> rotations, BlockInfo[] infos, boolean rotateExpectedState) {
+        if (infos == null) return;
+        for (BlockInfo info : infos) {
+            if (info != null) {
+                rotations.putIfAbsent(info, rotateExpectedState);
+            }
+        }
     }
 
     private static BlockInfo pickExpectedFluidInfo(List<BlockInfo> infos) {

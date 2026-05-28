@@ -2,7 +2,6 @@ package com.lowdragmc.mbd2.api.pattern;
 
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
-import com.lowdragmc.lowdraglib.gui.editor.Icons;
 import com.lowdragmc.lowdraglib.gui.texture.*;
 import com.lowdragmc.lowdraglib.gui.widget.*;
 import com.lowdragmc.lowdraglib.jei.IngredientIO;
@@ -55,10 +54,9 @@ public class PatternPreviewWidget extends WidgetGroup {
     public final MBPattern[] patterns;
     private int index;
     public int layer;
-    public int candidatePage;
     private final CycleItemStackHandler predicatesItemHandler;
-    private final CycleItemStackHandler candidatesItemHandler;
     private final SlotWidget[] predicates;
+    private final DraggableScrollableWidgetGroup candidatesGroup;
 
     protected PatternPreviewWidget(MultiblockMachineDefinition controllerDefinition) {
         super(0, 0, 160, 160);
@@ -182,41 +180,12 @@ public class PatternPreviewWidget extends WidgetGroup {
                 IGuiTexture.EMPTY));
 
         // candidates
-        var items = new ArrayList<List<ItemStack>>();
-        for (int i = 0; i < 14; i++) {
-            items.add(Collections.emptyList());
-        }
-        candidatesItemHandler = new CycleItemStackHandler(items);
-        for (int x = 0; x < 7; x++) {
-            for (int y = 0; y < 2; y++) {
-                var slot = new SlotWidget(candidatesItemHandler, x + y * 7,
-                        6 + x * 18, 117 + y * 18, false, false)
-                        .setIngredientIO(IngredientIO.INPUT);
-                addWidget(slot);
-            }
-        }
-
-        // switch candidates page button
-        var buttonBackground = ResourceBorderTexture.BUTTON_COMMON;
-        var upButton = new ButtonWidget(136 + 1, 117 + 1, 16, 16,
-                new GuiTextureGroup(buttonBackground, Icons.UP.copy().scale(0.8f)),cd -> updateCandidatePage(candidatePage - 1))
-                .setHoverBorderTexture(-1, ColorPattern.GRAY.color);
-        var downButton = new ButtonWidget(136 + 1, 135 + 1, 16, 16,
-                new GuiTextureGroup(buttonBackground, Icons.DOWN.copy().scale(0.8f)), cd -> updateCandidatePage(candidatePage + 1))
-                .setHoverBorderTexture(-1, ColorPattern.GRAY.color);
-        addWidget(upButton);
-        addWidget(downButton);
+        addWidget(candidatesGroup = new DraggableScrollableWidgetGroup(6, 117, 148, 36));
+        candidatesGroup.setYScrollBarWidth(4)
+                .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
 
         // set initial page
         setPage(0);
-    }
-
-    private void updateCandidatePage(int page) {
-        if (this.candidatePage == page) return;
-        var maxPage = Math.max(0, (patterns[index].parts.size() - 1) / 14);
-        if (page > maxPage || page < 0) return;
-        this.candidatePage = page;
-        setupPatternCandidates(patterns[index]);
     }
 
     private void updateLayer() {
@@ -268,7 +237,6 @@ public class PatternPreviewWidget extends WidgetGroup {
         if (index >= patterns.length || index < 0) return;
         this.index = index;
         this.layer = -1;
-        this.candidatePage = 0;
         MBPattern pattern = patterns[index];
         setupScene(pattern);
         setupPatternCandidates(pattern);
@@ -276,17 +244,14 @@ public class PatternPreviewWidget extends WidgetGroup {
     }
 
     private void setupPatternCandidates(MBPattern pattern) {
-        var parts = pattern.parts;
-        var items = new ArrayList<List<ItemStack>>();
-        for (int i = 0; i < 14; i++) {
-            var index = i + candidatePage * 14;
-            if (pattern.parts.size() > index) {
-                items.add(parts.get(index));
-            } else {
-                items.add(Collections.emptyList());
-            }
+        candidatesGroup.clearAllWidgets();
+        var candidatesItemHandler = new CycleItemStackHandler(pattern.parts);
+        for (int i = 0; i < pattern.parts.size(); i++) {
+            var slot = new SlotWidget(candidatesItemHandler, i,
+                    (i % 7) * 18, (i / 7) * 18, false, false)
+                    .setIngredientIO(IngredientIO.INPUT);
+            candidatesGroup.addWidget(slot);
         }
-        candidatesItemHandler.updateStacks(items);
     }
 
     private void setupDescription(MBPattern pattern) {

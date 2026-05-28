@@ -2,14 +2,20 @@ package com.lowdragmc.mbd2.integration.kubejs.events;
 
 import com.lowdragmc.mbd2.api.recipe.event.RecipeTypeEvent;
 import com.lowdragmc.mbd2.api.recipe.event.TransferProxyRecipeEvent;
+import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import dev.latvian.mods.kubejs.event.EventHandler;
 import dev.latvian.mods.kubejs.event.EventResult;
 import dev.latvian.mods.kubejs.event.Extra;
+import dev.latvian.mods.kubejs.script.ScriptType;
+import dev.latvian.mods.kubejs.util.MapJS;
+import net.minecraft.resources.ResourceLocation;
 
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 public interface MBDServerEvents {
@@ -122,6 +128,9 @@ public interface MBDServerEvents {
             MBDMachineEvents.MachineFixedTickEventJS.class,
             MBDMachineEvents.MachineFixedTickEventJS::new);
 
+    EventHandler FIXED_TICK_EVERY = MBDMachineEvents.MBD_MACHINE_EVENTS.server("onFixedTickEvery",
+            () -> MBDMachineEvents.MachineFixedTickEventJS.class).extra(FixedTickKey.EXTRA);
+
     EventHandler USE_CATALYST = registerMachineEvent("onUseCatalyst",
             MachineUseCatalystEvent.class,
             MBDMachineEvents.MachineUseCatalystEventJS.class,
@@ -178,7 +187,88 @@ public interface MBDServerEvents {
         return Optional.ofNullable(machineEventHandlers.get(machineEvent.getClass())).map(handler -> handler.apply(machineEvent)).orElse(EventResult.PASS);
     }
 
+    static EventResult postMachineFixedTickEvery(MBDMachine machine, long timer) {
+        if (!FIXED_TICK_EVERY.hasListeners()) {
+            return EventResult.PASS;
+        }
+        var machineId = machine.getDefinition().id();
+        var result = EventResult.PASS;
+        for (var object : collectFixedTickKeys()) {
+            if (object instanceof FixedTickKey key && key.machineId.equals(machineId) && timer % key.interval == 0) {
+                var event = new MachineFixedTickEvent(machine, key.interval, timer);
+                var postResult = FIXED_TICK_EVERY.post(new MBDMachineEvents.MachineFixedTickEventJS(event), key);
+                if (postResult != EventResult.PASS) {
+                    result = postResult;
+                }
+            }
+        }
+        return result;
+    }
+
+    static Set<Object> collectFixedTickKeys() {
+        var keys = new LinkedHashSet<>();
+        keys.addAll(FIXED_TICK_EVERY.findUniqueExtraIds(ScriptType.SERVER));
+        keys.addAll(FIXED_TICK_EVERY.findUniqueExtraIds(ScriptType.STARTUP));
+        return keys;
+    }
+
     static EventResult postRecipeTypeEvent(RecipeTypeEvent recipeTypeEvent) {
         return Optional.ofNullable(recipeTypeEventHandlers.get(recipeTypeEvent.getClass())).map(handler -> handler.apply(recipeTypeEvent)).orElse(EventResult.PASS);
+    }
+
+    record FixedTickKey(ResourceLocation machineId, int interval) {
+        static final Extra EXTRA = new Extra()
+                .transformer(FixedTickKey::of)
+                .validator(FixedTickKey.class::isInstance)
+                .toString(value -> value.toString())
+                .required();
+
+        static FixedTickKey of(Object value) {
+            if (value instanceof FixedTickKey key) {
+                return key;
+            }
+            if (value instanceof CharSequence chars) {
+                var raw = chars.toString();
+                var at = raw.lastIndexOf('@');
+                if (at > 0 && at < raw.length() - 1) {
+                    return new FixedTickKey(new ResourceLocation(raw.substring(0, at)), parseInterval(raw.substring(at + 1)));
+                }
+            }
+            var map = MapJS.of(value);
+            if (!map.isEmpty()) {
+                var machineId = Optional.ofNullable(map.get("id"))
+                        .or(() -> Optional.ofNullable(map.get("machine")))
+                        .or(() -> Optional.ofNullable(map.get("machineId")))
+                        .map(FixedTickKey::parseMachineId)
+                        .orElseThrow(() -> new IllegalArgumentException("Missing machine id for fixed tick listener"));
+                var interval = Optional.ofNullable(map.get("interval"))
+                        .or(() -> Optional.ofNullable(map.get("ticks")))
+                        .or(() -> Optional.ofNullable(map.get("step")))
+                        .map(FixedTickKey::parseInterval)
+                        .orElseThrow(() -> new IllegalArgumentException("Missing interval for fixed tick listener"));
+                return new FixedTickKey(machineId, interval);
+            }
+            throw new IllegalArgumentException("Use { id: 'namespace:machine', interval: ticks } or 'namespace:machine@ticks'");
+        }
+
+        static ResourceLocation parseMachineId(Object id) {
+            if (id instanceof ResourceLocation resourceLocation) {
+                return resourceLocation;
+            }
+            return new ResourceLocation(String.valueOf(id));
+        }
+
+        static int parseInterval(Object interval) {
+            var value = interval instanceof Number number ? number.intValue() : Integer.parseInt(String.valueOf(interval));
+            if (value < 1) {
+                throw new IllegalArgumentException("Fixed tick interval must be at least 1");
+            }
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return machineId + "@" + interval;
+        }
     }
 }

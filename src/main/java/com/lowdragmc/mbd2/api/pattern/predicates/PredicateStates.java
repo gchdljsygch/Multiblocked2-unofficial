@@ -5,8 +5,6 @@ import com.lowdragmc.lowdraglib.gui.editor.annotation.ConfigSetter;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
-import com.lowdragmc.mbd2.api.machine.IMultiController;
-import com.lowdragmc.mbd2.api.pattern.BlockPattern;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
 import lombok.NoArgsConstructor;
 import net.minecraft.core.Direction;
@@ -45,11 +43,8 @@ public class PredicateStates extends SimplePredicate {
         if (controllerFront == null || !controllerFront.isEnable()) {
             predicate = state -> {
                 if (state == null) return false;
-                IMultiController controller = state.getController();
-                if (controller == null) return basePredicate.test(state);
-                Direction currentFacing = controller.getFrontFacing().orElse(Direction.NORTH);
-                BlockPattern pattern = controller.getPattern();
-                Direction baseFacing = pattern.mbd2$getBaseFacing();
+                Direction currentFacing = state.getPatternFacing();
+                Direction baseFacing = state.getPatternBaseFacing();
                 Rotation rotation = horizontalRotation(baseFacing, currentFacing);
                 if (rotation == Rotation.NONE) return basePredicate.test(state);
                 BlockState actual = state.getBlockState();

@@ -61,7 +61,8 @@ public final class MultiblockDebuggerClient {
     private static Map<BlockPos, BlockState> collectExpectedStates(MBDMultiblockMachine controller, BlockPos controllerPos) {
         var front = controller.getFrontFacing().orElse(Direction.NORTH);
         MultiblockMachineDefinition definition = controller.getDefinition();
-        var shapeInfos = definition.shapeInfoFactory().apply(definition);
+        int patternIndex = MultiblockInWorldPreviewRenderer.getCurrentPreviewPatternIndex(controllerPos, controller);
+        var shapeInfos = definition.getPatternShapeInfos(controller, patternIndex);
         Map<BlockPos, BlockState> result = new HashMap<>();
         if (shapeInfos.length == 0) return result;
         var shapeInfo = shapeInfos[0];

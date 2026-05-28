@@ -39,6 +39,10 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
     @NumberRange(range = {1, Integer.MAX_VALUE})
     private int fixedTickInterval = 20;
 
+    public void setFixedTickInterval(int fixedTickInterval) {
+        this.fixedTickInterval = Math.max(1, fixedTickInterval);
+    }
+
     public final Map<String, Class<? extends MachineEvent>> machineEvents = new HashMap<>();
 
     // graph

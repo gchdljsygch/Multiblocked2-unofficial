@@ -28,29 +28,59 @@ public class PatternLayerList extends WidgetGroup {
         super(0, 0, size.width, size.height);
         this.panel = panel;
         // init layer container
-        layerContainer = new DraggableScrollableWidgetGroup(0, 14, size.width, size.height - 14);
+        layerContainer = new DraggableScrollableWidgetGroup(0, 34, size.width, size.height - 34);
         layerContainer.setYScrollBarWidth(4).setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
         addWidget(layerContainer);
+        addWidget(new ImageWidget(2, 1, 42, 14,
+                new TextTexture("Pattern").setWidth(42).setType(TextTexture.TextType.LEFT)));
+        addWidget(new ImageWidget(44, 1, size.width - 112, 14,
+                new TextTexture("").setSupplier(() -> (panel.getProject().getSelectedPatternIndex() + 1) + "/" + panel.getProject().getPatternCount())
+                        .setWidth(size.width - 112).setType(TextTexture.TextType.LEFT)));
+        addWidget(new ButtonWidget(size.width - 68, 1, 12, 12, Icons.LEFT.copy().scale(0.8f), cd -> {
+            panel.getProject().selectPattern(panel.getProject().getSelectedPatternIndex() - 1);
+            panel.onPatternSwitched();
+            reloadLayers();
+        }));
+        addWidget(new ButtonWidget(size.width - 55, 1, 12, 12, Icons.RIGHT.copy().scale(0.8f), cd -> {
+            panel.getProject().selectPattern(panel.getProject().getSelectedPatternIndex() + 1);
+            panel.onPatternSwitched();
+            reloadLayers();
+        }));
+        addWidget(new ButtonWidget(size.width - 42, 1, 12, 12, Icons.ADD.copy().scale(0.8f), cd -> {
+            panel.getProject().addPattern(false);
+            panel.onPatternSwitched();
+            reloadLayers();
+        }));
+        addWidget(new ButtonWidget(size.width - 29, 1, 12, 12, Icons.COPY.copy().scale(0.8f), cd -> {
+            panel.getProject().addPattern(true);
+            panel.onPatternSwitched();
+            reloadLayers();
+        }));
+        addWidget(new ButtonWidget(size.width - 16, 1, 12, 12, Icons.REMOVE.copy().scale(0.8f), cd -> {
+            panel.getProject().removeCurrentPattern();
+            panel.onPatternSwitched();
+            reloadLayers();
+        }));
         // init axis buttons
-        addWidget(new ImageWidget(2, 1, size.width - 2 - 40, 14,
+        addWidget(new ImageWidget(2, 21, size.width - 2 - 40, 14,
                 new TextTexture("editor.machine.multiblock.multiblock_pattern.layer_direction")
                         .setWidth(size.width - 2 - 40)
                         .setType(TextTexture.TextType.LEFT)));
-        addWidget(new ImageWidget(size.width - 40, 1, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.X ?
+        addWidget(new ImageWidget(size.width - 40, 21, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.X ?
                 ColorPattern.T_GREEN.rectTexture().setRadius(2) : ColorPattern.T_GRAY.rectTexture().setRadius(2)));
-        addWidget(new ButtonWidget(size.width - 40, 1, 12, 12, new TextTexture("x"), cd -> {
+        addWidget(new ButtonWidget(size.width - 40, 21, 12, 12, new TextTexture("x"), cd -> {
             panel.getProject().setLayerAxis(Direction.Axis.X);
             reloadLayers();
         }));
-        addWidget(new ImageWidget(size.width - 40 + 13, 1, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.Y ?
+        addWidget(new ImageWidget(size.width - 40 + 13, 21, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.Y ?
                 ColorPattern.T_GREEN.rectTexture().setRadius(2) : ColorPattern.T_GRAY.rectTexture().setRadius(2)));
-        addWidget(new ButtonWidget(size.width - 40 + 13, 1, 12, 12, new TextTexture("y"), cd -> {
+        addWidget(new ButtonWidget(size.width - 40 + 13, 21, 12, 12, new TextTexture("y"), cd -> {
             panel.getProject().setLayerAxis(Direction.Axis.Y);
             reloadLayers();
         }));
-        addWidget(new ImageWidget(size.width - 40 + 26, 1, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.Z ?
+        addWidget(new ImageWidget(size.width - 40 + 26, 21, 12, 12, () -> panel.getProject().getLayerAxis() == Direction.Axis.Z ?
                 ColorPattern.T_GREEN.rectTexture().setRadius(2) : ColorPattern.T_GRAY.rectTexture().setRadius(2)));
-        addWidget(new ButtonWidget(size.width - 40 + 26, 1, 12, 12, new TextTexture("z"), cd -> {
+        addWidget(new ButtonWidget(size.width - 40 + 26, 21, 12, 12, new TextTexture("z"), cd -> {
             panel.getProject().setLayerAxis(Direction.Axis.Z);
             reloadLayers();
         }));

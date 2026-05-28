@@ -23,6 +23,10 @@ public class MachineFixedTickEvent extends MachineEvent {
         this.timer = timer;
     }
 
+    public boolean every(int interval) {
+        return timer % Math.max(1, interval) == 0;
+    }
+
     @Override
     public void bindParameters(Map<String, ExposedParameter> exposedParameters) {
         super.bindParameters(exposedParameters);

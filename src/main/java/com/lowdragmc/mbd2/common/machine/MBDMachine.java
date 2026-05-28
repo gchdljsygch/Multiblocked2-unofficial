@@ -33,6 +33,7 @@ import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
+import com.lowdragmc.mbd2.integration.kubejs.events.MBDServerEvents;
 import com.lowdragmc.mbd2.integration.photon.MachineFX;
 import com.lowdragmc.photon.client.fx.FXHelper;
 import lombok.Getter;
@@ -527,6 +528,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         var interval = Math.max(1, definition.machineEvents().getFixedTickInterval());
         if (timer % interval == 0) {
             MinecraftForge.EVENT_BUS.post(new MachineFixedTickEvent(this, interval, timer).postCustomEvent());
+        }
+        if (MBD2.isKubeJSLoaded()) {
+            MBDServerEvents.postMachineFixedTickEvery(this, timer);
         }
     }
 

@@ -207,8 +207,9 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
             }
         }
         if (!controllerNbt.isEmpty() && !blockWorldState.world.isClientSide) {
-            var te = blockWorldState.getController().getHolder();
-            if (te != null) {
+            var controller = blockWorldState.getController();
+            if (controller != null) {
+                var te = controller.getHolder();
                 var tag = te.saveWithFullMetadata();
                 var merged = tag.copy().merge(controllerNbt);
                 if (!tag.equals(merged)) {
@@ -219,12 +220,12 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
         }
         if (controllerFront.isEnable()) {
             var controller = blockWorldState.getController();
-            if (controller != null) {
-                var front = controller.getFrontFacing();
-                if (front.isPresent() && front.get() != controllerFront.getValue()) {
-                    blockWorldState.setError(new PatternStringError("The Controller Front side fails to match"));
-                    return false;
-                }
+            var front = controller == null ?
+                    Optional.of(blockWorldState.getPatternFacing()) :
+                    controller.getFrontFacing().or(() -> Optional.of(blockWorldState.getPatternFacing()));
+            if (front.isPresent() && front.get() != controllerFront.getValue()) {
+                blockWorldState.setError(new PatternStringError("The Controller Front side fails to match"));
+                return false;
             }
         }
         if (slotName != null && !slotName.isEmpty()) {
