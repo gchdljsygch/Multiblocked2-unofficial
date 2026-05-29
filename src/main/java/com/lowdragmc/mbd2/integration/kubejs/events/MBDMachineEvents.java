@@ -29,6 +29,12 @@ public class MBDMachineEvents {
         }
     }
 
+    public static class MachineJadeTooltipEventJS extends MachineEventJS<MachineJadeTooltipEvent> {
+        public MachineJadeTooltipEventJS(MachineJadeTooltipEvent event) {
+            super(event);
+        }
+    }
+
     public static class MachineBeforeRecipeWorkingEventJS extends MachineEventJS<MachineBeforeRecipeWorkingEvent> {
         public MachineBeforeRecipeWorkingEventJS(MachineBeforeRecipeWorkingEvent event) {
             super(event);

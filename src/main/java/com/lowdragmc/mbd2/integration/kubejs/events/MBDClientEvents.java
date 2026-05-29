@@ -33,6 +33,9 @@ public interface MBDClientEvents {
             MBDMachineEvents.MachineCustomDataUpdateEventJS::new);
 
     @Nullable
+    EventHandler JADE_TOOLTIP = createJadeTooltipEvent();
+
+    @Nullable
     EventHandler CUSTOM_KEYFRAME = createCustomKeyframeEvent();
 
     // Recipe events
@@ -52,6 +55,16 @@ public interface MBDClientEvents {
                     MachineCustomKeyframeEvent.class,
                     MBDMachineEvents.MachineCustomKeyframeEventJS.class,
                     MBDMachineEvents.MachineCustomKeyframeEventJS::new);
+        }
+        return null;
+    }
+
+    static EventHandler createJadeTooltipEvent() {
+        if (MBD2.isJadeLoaded()) {
+            return registerMachineEvent("onJadeTooltip",
+                    MachineJadeTooltipEvent.class,
+                    MBDMachineEvents.MachineJadeTooltipEventJS.class,
+                    MBDMachineEvents.MachineJadeTooltipEventJS::new);
         }
         return null;
     }

@@ -86,17 +86,8 @@ public class EntityHandlerTrait extends RecipeCapabilityTrait {
                     area = area.move(getMachine().getPos());
                     for (EntityIngredient entityIngredient : left) {
                         for (EntityType<?> type : entityIngredient.getTypes()) {
-                            var pos = new Vec3((area.minX + Math.random() * area.getXsize()),
-                                    (area.minY + Math.random() * area.getYsize()),
-                                    (area.minZ + Math.random() * area.getZsize()));
-                            var entity = type.spawn(serverLevel, new BlockPos((int) pos.x, (int) pos.y, (int) pos.z), MobSpawnType.SPAWNER);
-                            if (entity != null) {
-                                if (entityIngredient.getNbt() != null) {
-                                    var tag = entity.serializeNBT();
-                                    tag.merge(entityIngredient.getNbt());
-                                    entity.load(tag);
-                                }
-                                entity.moveTo(pos);
+                            for (int i = 0; i < entityIngredient.getCount(); i++) {
+                                spawnEntity(serverLevel, area, entityIngredient, type);
                             }
                         }
                     }
@@ -143,6 +134,21 @@ public class EntityHandlerTrait extends RecipeCapabilityTrait {
                 }
             }
             return left.isEmpty() ? null : left;
+        }
+
+        private void spawnEntity(ServerLevel serverLevel, net.minecraft.world.phys.AABB area, EntityIngredient entityIngredient, EntityType<?> type) {
+            var pos = new Vec3((area.minX + Math.random() * area.getXsize()),
+                    (area.minY + Math.random() * area.getYsize()),
+                    (area.minZ + Math.random() * area.getZsize()));
+            var entity = type.spawn(serverLevel, new BlockPos((int) pos.x, (int) pos.y, (int) pos.z), MobSpawnType.SPAWNER);
+            if (entity != null) {
+                if (entityIngredient.getNbt() != null) {
+                    var tag = entity.serializeNBT();
+                    tag.merge(entityIngredient.getNbt());
+                    entity.load(tag);
+                }
+                entity.moveTo(pos);
+            }
         }
     }
 }

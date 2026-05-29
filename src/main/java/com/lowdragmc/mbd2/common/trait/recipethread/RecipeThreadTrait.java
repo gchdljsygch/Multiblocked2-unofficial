@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.common.trait.recipethread;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
+import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nullable;
 
 public class RecipeThreadTrait implements ITrait {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -198,10 +201,25 @@ public class RecipeThreadTrait implements ITrait {
     }
 
     public List<RecipeLogic> getThreadLogicsForJadeDetail() {
+        return getRecipeLogics();
+    }
+
+    public List<RecipeLogic> getRecipeLogics() {
         List<RecipeLogic> logics = new ArrayList<>(1 + extraThreads.size());
         logics.add(machine.getRecipeLogic());
         logics.addAll(extraThreads);
         return logics;
+    }
+
+    @Nullable
+    public RecipeLogic getRecipeLogic(int threadId) {
+        return getLogicByThreadId(threadId);
+    }
+
+    public RecipeLogic getCurrentRecipeLogic() {
+        Integer threadId = RecipeThreadContext.isCurrentMachine(machine) ? RecipeThreadContext.getThreadId() : null;
+        RecipeLogic logic = threadId == null ? null : getRecipeLogic(threadId);
+        return logic == null ? machine.getRecipeLogic() : logic;
     }
 
     public int getMaxThreads() {
@@ -265,6 +283,16 @@ public class RecipeThreadTrait implements ITrait {
             if (trait instanceof RecipeThreadTrait t) return t;
         }
         return null;
+    }
+
+    @Nullable
+    public static RecipeThreadTrait get(IMachine machine) {
+        return machine instanceof MBDMachine mbdMachine ? get(mbdMachine) : null;
+    }
+
+    public static RecipeLogic getCurrentRecipeLogic(MBDMachine machine) {
+        RecipeThreadTrait trait = get(machine);
+        return trait == null ? machine.getRecipeLogic() : trait.getCurrentRecipeLogic();
     }
 
     public boolean isRecipeAllowedForThread(int threadId, MBDRecipe recipe) {

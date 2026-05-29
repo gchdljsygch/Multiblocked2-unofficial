@@ -199,6 +199,43 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         return outputs.getOrDefault(capability, Collections.emptyList());
     }
 
+    public List<Content> getInputContents() {
+        return flattenContents(inputs);
+    }
+
+    public List<Content> getOutputContents() {
+        return flattenContents(outputs);
+    }
+
+    public List<Object> getInputList() {
+        return getContentList(getInputContents());
+    }
+
+    public List<Object> getOutputList() {
+        return getContentList(getOutputContents());
+    }
+
+    public <T> List<T> getInputList(RecipeCapability<T> capability) {
+        return getContentList(getInputContents(capability));
+    }
+
+    public <T> List<T> getOutputList(RecipeCapability<T> capability) {
+        return getContentList(getOutputContents(capability));
+    }
+
+    private static List<Content> flattenContents(Map<RecipeCapability<?>, List<Content>> contents) {
+        return contents.values().stream()
+                .flatMap(Collection::stream)
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> getContentList(List<Content> contents) {
+        return contents.stream()
+                .map(content -> (T) content.getContent())
+                .toList();
+    }
+
     public ActionResult matchRecipe(IRecipeCapabilityHolder holder) {
         if (!holder.hasProxies()) return ActionResult.FAIL_NO_REASON;
         var result = matchRecipe(false, IO.IN, holder, inputs, false);

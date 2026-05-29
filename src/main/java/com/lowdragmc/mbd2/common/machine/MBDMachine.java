@@ -32,6 +32,7 @@ import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
+import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTrait;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDServerEvents;
 import com.lowdragmc.mbd2.integration.photon.MachineFX;
@@ -432,7 +433,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     public void setMaxParallel(int maxParallel) {
         dynamicMaxParallel = Math.max(1, maxParallel);
-        recipeLogic.markLastRecipeDirty();
+        RecipeThreadTrait trait = RecipeThreadTrait.get(this);
+        if (trait != null) {
+            for (RecipeLogic logic : trait.getRecipeLogics()) {
+                logic.markLastRecipeDirty();
+            }
+        } else {
+            recipeLogic.markLastRecipeDirty();
+        }
         markDirty();
     }
 
@@ -589,13 +597,24 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Nullable
     @Override
     public MBDRecipe getModifiedRecipe(@Nonnull MBDRecipe recipe) {
-        return getDefinition().recipeLogicSettings().recipeModifiers().applyModifiers(getRecipeLogic(), recipe);
+        return getDefinition().recipeLogicSettings().recipeModifiers().applyModifiers(getCurrentRecipeLogic(), recipe);
     }
 
     @Override
     public ContentModifier getMaxParallel(@Nonnull MBDRecipe recipe) {
-        return getDefinition().recipeLogicSettings().recipeModifiers().getMaxParallel(getRecipeLogic(), recipe)
+        return getDefinition().recipeLogicSettings().recipeModifiers().getMaxParallel(getCurrentRecipeLogic(), recipe)
                 .merge(getDynamicMaxParallelModifier());
+    }
+
+    @Nonnull
+    public RecipeLogic getCurrentRecipeLogic() {
+        return RecipeThreadTrait.getCurrentRecipeLogic(this);
+    }
+
+    @Nullable
+    public RecipeLogic getRecipeLogic(int threadId) {
+        RecipeThreadTrait trait = RecipeThreadTrait.get(this);
+        return trait == null ? (threadId == 0 ? getRecipeLogic() : null) : trait.getRecipeLogic(threadId);
     }
 
     protected ContentModifier getDynamicMaxParallelModifier() {
@@ -652,7 +671,8 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public boolean onWorking() {
-        var event = new MachineOnRecipeWorkingEvent(this, recipeLogic.getLastRecipe(), recipeLogic.getProgress());
+        RecipeLogic logic = getCurrentRecipeLogic();
+        var event = new MachineOnRecipeWorkingEvent(this, logic.getLastRecipe(), logic.getProgress());
         MinecraftForge.EVENT_BUS.post(event.postCustomEvent());
         if (event.isCanceled()) {
             return true;
@@ -662,13 +682,13 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public void onWaiting() {
-        MinecraftForge.EVENT_BUS.post(new MachineOnRecipeWaitingEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
+        MinecraftForge.EVENT_BUS.post(new MachineOnRecipeWaitingEvent(this, getCurrentRecipeLogic().getLastRecipe()).postCustomEvent());
         IMachine.super.onWaiting();
     }
 
     @Override
     public void afterWorking() {
-        MinecraftForge.EVENT_BUS.post(new MachineAfterRecipeWorkingEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
+        MinecraftForge.EVENT_BUS.post(new MachineAfterRecipeWorkingEvent(this, getCurrentRecipeLogic().getLastRecipe()).postCustomEvent());
         IMachine.super.afterWorking();
     }
 
@@ -679,7 +699,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public void onConsumeInputsAfterWorking(RecipeConsumption consumedInputs) {
-        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, recipeLogic.getLastRecipe(), consumedInputs).postCustomEvent());
+        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, getCurrentRecipeLogic().getLastRecipe(), consumedInputs).postCustomEvent());
         IMachine.super.onConsumeInputsAfterWorking(consumedInputs);
     }
 
@@ -691,7 +711,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public void onRecipeFinish() {
-        MinecraftForge.EVENT_BUS.post(new MachineOnRecipeFinishEvent(this, recipeLogic.getLastRecipe()).postCustomEvent());
+        MinecraftForge.EVENT_BUS.post(new MachineOnRecipeFinishEvent(this, getCurrentRecipeLogic().getLastRecipe()).postCustomEvent());
         IMachine.super.onRecipeFinish();
     }
 

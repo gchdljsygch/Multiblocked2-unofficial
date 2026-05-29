@@ -3,11 +3,13 @@ package com.lowdragmc.mbd2.integration.jade;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.MachineJadeTooltipEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.common.MinecraftForge;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IBlockComponentProvider;
 import snownee.jade.api.IServerDataProvider;
@@ -21,7 +23,19 @@ public class RecipeLogicProvider implements IBlockComponentProvider, IServerData
 
     @Override
     public void appendTooltip(ITooltip tooltip, BlockAccessor blockAccessor, IPluginConfig config) {
-        if (IMachine.ofMachine(blockAccessor.getBlockEntity()).isEmpty()) return;
+        var optionalMachine = IMachine.ofMachine(blockAccessor.getBlockEntity());
+        if (optionalMachine.isEmpty()) return;
+        var rawMachine = optionalMachine.get();
+        if (rawMachine instanceof MBDMachine machine) {
+            var event = new MachineJadeTooltipEvent(machine, blockAccessor.getPlayer(), getUid());
+            MinecraftForge.EVENT_BUS.post(event.postCustomEvent());
+            for (Component component : event.getTooltips()) {
+                tooltip.add(component);
+            }
+            if (event.isCanceled()) {
+                return;
+            }
+        }
         var data = blockAccessor.getServerData();
         if (data.contains("recipe_logic")) {
             data = data.getCompound("recipe_logic");

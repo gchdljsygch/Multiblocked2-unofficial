@@ -65,7 +65,7 @@ public class MultiblockAreaPanel extends WidgetGroup {
 
     public class Runtime implements IConfigurable {
         @Configurable(name = "editor.machine.multiblock.area_panel.sceneRadius", tips="editor.machine.multiblock.area_panel.sceneRadius.tips")
-        @NumberRange(range={1, 50})
+        @NumberRange(range={1, 100})
         private int sceneRadius = 5;
 
         @Configurable(name = "editor.machine.multiblock.area_panel.area", tips="editor.machine.multiblock.area_panel.area.tips", subConfigurable = true, canCollapse = false, collapse = false)

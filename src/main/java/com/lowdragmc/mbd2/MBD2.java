@@ -84,6 +84,10 @@ public class MBD2 {
         return LDLib.isModLoaded("kubejs");
     }
 
+    public static boolean isJadeLoaded() {
+        return LDLib.isModLoaded("jade");
+    }
+
     public static boolean isAE2Loaded() {
         return LDLib.isModLoaded("ae2");
     }
