@@ -27,6 +27,7 @@
     "ServerChunkProviderMixin",
     "StrictNBTIngredientAccessor",
     "TagValueAccessor",
+    "arsnouveau.RelayTileMixin",
     "lowdraglib.AbstractContainerMenuMixin",
     "lowdraglib.ItemStackTransferMixin",
     "lowdraglib.ModularUIContainerMixin",

@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.core.mixins;
 
 import com.lowdragmc.lowdraglib.core.mixins.MixinPluginShared;
+import net.minecraftforge.fml.loading.LoadingModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -23,6 +24,9 @@ public class MBDMixinPlugin implements IMixinConfigPlugin, MixinPluginShared {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.create")) {
             return MixinPluginShared.isClassFound("com.simibubi.create.compat.Mods");
+        }
+        if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.arsnouveau")) {
+            return LoadingModList.get().getModFileById("ars_nouveau") != null;
         }
 //        if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.kjs") || mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.rhino")) {
 //            return MixinPluginShared.isClassFound("dev.latvian.mods.kubejs.KubeJSPlugin");

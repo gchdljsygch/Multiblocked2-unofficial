@@ -52,6 +52,10 @@ public class MBD2 {
         return LDLib.isModLoaded("botania");
     }
 
+    public static boolean isArsNouveauLoaded() {
+        return LDLib.isModLoaded("ars_nouveau");
+    }
+
     public static boolean isNaturesAuraLoaded() {
         return LDLib.isModLoaded("naturesaura");
     }
@@ -90,6 +94,10 @@ public class MBD2 {
 
     public static boolean isAE2Loaded() {
         return LDLib.isModLoaded("ae2");
+    }
+
+    public static boolean isBloodMagicLoaded() {
+        return LDLib.isModLoaded("bloodmagic");
     }
 
     public static boolean isEmbeddiumLoaded() {

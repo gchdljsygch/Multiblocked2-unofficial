@@ -3,7 +3,10 @@ package com.lowdragmc.mbd2.common.data;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.capability.recipe.*;
+import com.lowdragmc.mbd2.integration.arsnouveau.ArsNouveauSourceRecipeCapability;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
+import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicSoulNetworkRecipeCapability;
+import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicWillRecipeCapability;
 import com.lowdragmc.mbd2.common.event.MBDRegistryEvent;
 import com.lowdragmc.mbd2.common.capability.recipe.LongFeRecipeCapability;
 import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
@@ -31,6 +34,9 @@ public class MBDRecipeCapabilities {
         if (MBD2.isBotaniaLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(BotaniaManaRecipeCapability.CAP.name, BotaniaManaRecipeCapability.CAP);
         }
+        if (MBD2.isArsNouveauLoaded()) {
+            MBDRegistries.RECIPE_CAPABILITIES.register(ArsNouveauSourceRecipeCapability.CAP.name, ArsNouveauSourceRecipeCapability.CAP);
+        }
         if (MBD2.isGTMLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(GTMEnergyRecipeCapability.CAP.name, GTMEnergyRecipeCapability.CAP);
         }
@@ -54,6 +60,10 @@ public class MBDRecipeCapabilities {
         }
         if (MBD2.isEmbersLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(EmbersEmberRecipeCapability.CAP.name, EmbersEmberRecipeCapability.CAP);
+        }
+        if (MBD2.isBloodMagicLoaded()) {
+            MBDRegistries.RECIPE_CAPABILITIES.register(BloodMagicWillRecipeCapability.CAP.name, BloodMagicWillRecipeCapability.CAP);
+            MBDRegistries.RECIPE_CAPABILITIES.register(BloodMagicSoulNetworkRecipeCapability.CAP.name, BloodMagicSoulNetworkRecipeCapability.CAP);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.RecipeCapability());
         MBDRegistries.RECIPE_CAPABILITIES.freeze();

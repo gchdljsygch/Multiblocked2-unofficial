@@ -14,6 +14,10 @@ import com.lowdragmc.mbd2.api.recipe.ingredient.FluidIngredient;
 import com.lowdragmc.mbd2.api.recipe.ingredient.SizedIngredient;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.capability.recipe.*;
+import com.lowdragmc.mbd2.integration.arsnouveau.ArsNouveauSourceRecipeCapability;
+import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicSoulNetworkRecipeCapability;
+import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicWill;
+import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicWillRecipeCapability;
 import com.lowdragmc.mbd2.common.recipe.*;
 import com.lowdragmc.mbd2.integration.botania.BotaniaManaRecipeCapability;
 import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
@@ -271,6 +275,20 @@ public interface MBDRecipeSchema {
             return outputs(BotaniaManaRecipeCapability.CAP, mana);
         }
 
+        public MBDRecipeJS inputSource(int source) {
+            if (!MBD2.isArsNouveauLoaded()) {
+                throw new IllegalStateException("Try to add a source ingredient while the ars nouveau is not loaded!");
+            }
+            return inputs(ArsNouveauSourceRecipeCapability.CAP, source);
+        }
+
+        public MBDRecipeJS outputSource(int source) {
+            if (!MBD2.isArsNouveauLoaded()) {
+                throw new IllegalStateException("Try to add a source ingredient while the ars nouveau is not loaded!");
+            }
+            return outputs(ArsNouveauSourceRecipeCapability.CAP, source);
+        }
+
         public MBDRecipeJS inputAura(int aura) {
             if (!MBD2.isNaturesAuraLoaded()) {
                 throw new IllegalStateException("Try to add a aura ingredient while the nature's aura is not loaded!");
@@ -283,6 +301,60 @@ public interface MBDRecipeSchema {
                 throw new IllegalStateException("Try to add a aura ingredient while the nature's aura is not loaded!");
             }
             return outputs(NaturesAuraRecipeCapability.CAP, aura);
+        }
+
+        public MBDRecipeJS inputWill(double will) {
+            return inputWill("default", will);
+        }
+
+        public MBDRecipeJS inputWill(String type, double will) {
+            if (!MBD2.isBloodMagicLoaded()) {
+                throw new IllegalStateException("Try to add a will ingredient while the blood magic is not loaded!");
+            }
+            return inputs(BloodMagicWillRecipeCapability.CAP,
+                    BloodMagicWill.of(BloodMagicWill.parseType(type), will));
+        }
+
+        public MBDRecipeJS outputWill(double will) {
+            return outputWill("default", will);
+        }
+
+        public MBDRecipeJS outputWill(double will, double maxOutput) {
+            return outputWill("default", will, maxOutput);
+        }
+
+        public MBDRecipeJS outputWill(String type, double will) {
+            return outputWill(type, will, Math.max(will, BloodMagicWill.DEFAULT_MAX_OUTPUT));
+        }
+
+        public MBDRecipeJS outputWill(String type, double will, double maxOutput) {
+            if (!MBD2.isBloodMagicLoaded()) {
+                throw new IllegalStateException("Try to add a will ingredient while the blood magic is not loaded!");
+            }
+            return outputs(BloodMagicWillRecipeCapability.CAP,
+                    new BloodMagicWill(BloodMagicWill.parseType(type), will, maxOutput));
+        }
+
+        public MBDRecipeJS inputSoulNetwork(int lifeEssence) {
+            if (!MBD2.isBloodMagicLoaded()) {
+                throw new IllegalStateException("Try to add a soul network ingredient while the blood magic is not loaded!");
+            }
+            return inputs(BloodMagicSoulNetworkRecipeCapability.CAP, lifeEssence);
+        }
+
+        public MBDRecipeJS outputSoulNetwork(int lifeEssence) {
+            if (!MBD2.isBloodMagicLoaded()) {
+                throw new IllegalStateException("Try to add a soul network ingredient while the blood magic is not loaded!");
+            }
+            return outputs(BloodMagicSoulNetworkRecipeCapability.CAP, lifeEssence);
+        }
+
+        public MBDRecipeJS inputLP(int lifeEssence) {
+            return inputSoulNetwork(lifeEssence);
+        }
+
+        public MBDRecipeJS outputLP(int lifeEssence) {
+            return outputSoulNetwork(lifeEssence);
         }
 
         public MBDRecipeJS inputEmber(double ember) {

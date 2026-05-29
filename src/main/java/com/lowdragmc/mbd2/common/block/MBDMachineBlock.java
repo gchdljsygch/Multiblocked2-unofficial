@@ -5,6 +5,7 @@ import com.lowdragmc.lowdraglib.client.renderer.IBlockRendererProvider;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.mbd2.api.block.RotationState;
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import com.lowdragmc.mbd2.common.MachineInteractionHelper;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import lombok.Getter;
@@ -282,7 +283,7 @@ public class MBDMachineBlock extends Block implements EntityBlock, IBlockRendere
         if (machine == null) return InteractionResult.PASS;
         var result = machine.onUse(state, world, pos, player, hand, hit);
         if (result != InteractionResult.PASS) return result;
-        if (machine.shouldOpenUI(hand, hit)) {
+        if (machine.shouldOpenUI(hand, hit) && !MachineInteractionHelper.shouldBypassMachineUI(player.getItemInHand(hand))) {
             return machine.openUI(player);
         }
         return InteractionResult.PASS;

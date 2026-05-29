@@ -77,20 +77,20 @@ dependencies {
     implementation fg.deobf("appeng:appliedenergistics2-forge:${applied_energistics_version}")
 
     // Blood Magic
-//    implementation fg.deobf("com.wayoftime.bloodmagic:BloodMagic:${blood_magic_version}")
+    implementation fg.deobf("curse.maven:blood-magic-${blood_magic_version}")
 
     // Embers Rekindled
     implementation fg.deobf("maven.modrinth:embers:${embers_rekindled_version}")
 
     // Mana and Artifice
-//    implementation fg.deobf("maven.modrinth:mana-and-artifice:${mana_and_artifice_version}")
+    implementation fg.deobf("maven.modrinth:mana-and-artifice:${mana_and_artifice_version}")
 
     // Jade
     implementation fg.deobf("maven.modrinth:jade:${jade_version}")
 
     // Ars Nouveau
     // TODO 1.21
-//    implementation fg.deobf("com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_nouveau_version}")
+    implementation fg.deobf("com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_nouveau_version}")
 
     //oculus
     runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}") {transitive  = false}

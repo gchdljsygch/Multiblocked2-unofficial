@@ -35,6 +35,11 @@ public class ForgeCommonEventListener {
 
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (MachineInteractionHelper.shouldBypassMachineUI(event.getItemStack())) {
+            event.setUseBlock(Event.Result.DENY);
+            event.setUseItem(Event.Result.ALLOW);
+            return;
+        }
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             var pos = event.getPos();
             if (!event.getEntity().isCrouching() &&

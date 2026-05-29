@@ -13,6 +13,9 @@ import com.lowdragmc.mbd2.common.trait.forgeenergy.ForgeEnergyCapabilityTraitDef
 import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.ae2.trait.MEInterfaceTraitDefinition;
+import com.lowdragmc.mbd2.integration.arsnouveau.trait.ArsNouveauSourceCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicSoulNetworkTraitDefinition;
+import com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicWillTraitDefinition;
 import com.lowdragmc.mbd2.integration.botania.trait.BotaniaManaCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.embers.trait.EmbersEmberCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.gtm.trait.GTMEnergyCapabilityTraitDefinition;
@@ -38,6 +41,9 @@ public class MBDTraitDefinitionTypes {
         if (MBD2.isBotaniaLoaded()) {
             register(BotaniaManaCapabilityTraitDefinition.class);
         }
+        if (MBD2.isArsNouveauLoaded()) {
+            register(ArsNouveauSourceCapabilityTraitDefinition.class);
+        }
         if (MBD2.isGTMLoaded()) {
             register(GTMEnergyCapabilityTraitDefinition.class);
         }
@@ -60,6 +66,10 @@ public class MBDTraitDefinitionTypes {
         }
         if (MBD2.isAE2Loaded()) {
             register(MEInterfaceTraitDefinition.class);
+        }
+        if (MBD2.isBloodMagicLoaded()) {
+            register(BloodMagicWillTraitDefinition.class);
+            register(BloodMagicSoulNetworkTraitDefinition.class);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.TraitType());
         MBDRegistries.TRAIT_DEFINITION_TYPES.freeze();
