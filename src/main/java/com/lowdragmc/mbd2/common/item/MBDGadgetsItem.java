@@ -113,6 +113,8 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             components.add(Component.translatable(id + ".tooltip"));
         }
         if (BuilderMaterialBindings.isBuilder(stack)) {
+            components.add(Component.translatable("mbd2.builder.pattern.tooltip", BuilderMaterialBindings.getPatternIndex(stack) + 1));
+
             var item = BuilderMaterialBindings.readBoundItemPos(stack);
             if (item != null) {
                 var p = item.pos();
@@ -188,8 +190,11 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             if (isMultiblockBuilder(stack)) {
                 var controller = IMultiController.ofController(player.level(), context.getClickedPos()).orElse(null);
                 if (controller != null) {
-                    controller.getPattern().autoBuild(player,
-                            new MultiblockState(player.level(), context.getClickedPos()));
+                    var pattern = controller.getPattern();
+                    if (pattern != null) {
+                        int patternIndex = getSelectedPatternIndex(stack, controller);
+                        pattern.autoBuild(player, new MultiblockState(player.level(), context.getClickedPos()), patternIndex);
+                    }
                     isUsed = true;
                     return InteractionResult.SUCCESS;
                 }
@@ -263,7 +268,7 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
                                             Component.literal("id").withStyle(style ->
                                                     style.withColor(ChatFormatting.YELLOW)
                                                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                                            Component.literal(mbdRecipe.id.toString()))))));
+                                                                    Component.literal(mbdRecipe.id.toString()))))));
                                     var modifiedRecipe = machine.doModifyRecipe(mbdRecipe);
                                     if (modifiedRecipe == mbdRecipe) {
                                         serverPlayer.sendSystemMessage(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.modified.empty"));
@@ -315,6 +320,21 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
 
     private static void showOccupiedMismatchPreview(MBDMultiblockMachine multiblock, BlockPos controllerPos, int durationTicks) {
         com.lowdragmc.mbd2.client.MultiblockDebuggerClient.showPreviewWithOccupiedMismatch(multiblock, controllerPos, durationTicks);
+    }
+
+    private static int getSelectedPatternIndex(ItemStack stack, IMultiController controller) {
+        int patternIndex = BuilderMaterialBindings.getPatternIndex(stack);
+        if (controller instanceof MBDMultiblockMachine multiblock) {
+            int patternCount = multiblock.getDefinition().getPatterns(multiblock).length;
+            if (patternCount > 0) {
+                int clamped = Math.min(patternIndex, patternCount - 1);
+                if (clamped != patternIndex) {
+                    BuilderMaterialBindings.setPatternIndex(stack, clamped);
+                    return clamped;
+                }
+            }
+        }
+        return patternIndex;
     }
 
     @Override

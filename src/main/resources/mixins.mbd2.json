@@ -28,6 +28,8 @@
     "StrictNBTIngredientAccessor",
     "TagValueAccessor",
     "arsnouveau.RelayTileMixin",
+    "manaandartifice.MBDMachineEldrinPlacementMixin",
+    "manaandartifice.MachineBlockEntityEldrinMixin",
     "lowdraglib.AbstractContainerMenuMixin",
     "lowdraglib.ItemStackTransferMixin",
     "lowdraglib.ModularUIContainerMixin",

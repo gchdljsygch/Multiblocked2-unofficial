@@ -23,6 +23,7 @@ public final class BuilderMaterialBindings {
     private static final String KEY_FLUID_DIM = "mbd2_bind_fluid_dim";
     private static final String KEY_FLUID_POS = "mbd2_bind_fluid_pos";
     public static final String KEY_SLOW_BUILD = "mbd2_slow_build";
+    private static final String KEY_PATTERN_INDEX = "mbd2_pattern_index";
 
     private BuilderMaterialBindings() {
     }
@@ -50,6 +51,18 @@ public final class BuilderMaterialBindings {
     public static void setSlowBuild(ItemStack builder, boolean slowBuild) {
         if (!isBuilder(builder)) return;
         builder.getOrCreateTag().putBoolean(KEY_SLOW_BUILD, slowBuild);
+    }
+
+    public static int getPatternIndex(ItemStack builder) {
+        if (!isBuilder(builder)) return 0;
+        var tag = builder.getTag();
+        if (tag == null || !tag.contains(KEY_PATTERN_INDEX)) return 0;
+        return Math.max(0, tag.getInt(KEY_PATTERN_INDEX));
+    }
+
+    public static void setPatternIndex(ItemStack builder, int patternIndex) {
+        if (!isBuilder(builder)) return;
+        builder.getOrCreateTag().putInt(KEY_PATTERN_INDEX, Math.max(0, patternIndex));
     }
 
     public static void bindItemPos(ItemStack builder, Level level, BlockPos pos) {

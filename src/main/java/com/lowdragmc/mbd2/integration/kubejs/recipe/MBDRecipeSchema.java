@@ -25,6 +25,8 @@ import com.lowdragmc.mbd2.integration.create.CreateRotationCondition;
 import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
+import com.lowdragmc.mbd2.integration.manaandartifice.EldrinPower;
+import com.lowdragmc.mbd2.integration.manaandartifice.ManaAndArtificeEldrinRecipeCapability;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismChemicalRecipeCapability;
 import com.lowdragmc.mbd2.integration.mekanism.MEKTemperatureCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
@@ -369,6 +371,30 @@ public interface MBDRecipeSchema {
                 throw new IllegalStateException("Try to add a ember ingredient while the embers is not loaded!");
             }
             return outputs(EmbersEmberRecipeCapability.CAP, ember);
+        }
+
+        public MBDRecipeJS inputEldrin(float amount) {
+            return inputEldrin("arcane", amount);
+        }
+
+        public MBDRecipeJS inputEldrin(String affinity, float amount) {
+            if (!MBD2.isManaAndArtificeLoaded()) {
+                throw new IllegalStateException("Try to add a eldrin power ingredient while the mana and artifice is not loaded!");
+            }
+            return inputs(ManaAndArtificeEldrinRecipeCapability.CAP,
+                    new EldrinPower(EldrinPower.parseAffinity(affinity), amount));
+        }
+
+        public MBDRecipeJS outputEldrin(float amount) {
+            return outputEldrin("arcane", amount);
+        }
+
+        public MBDRecipeJS outputEldrin(String affinity, float amount) {
+            if (!MBD2.isManaAndArtificeLoaded()) {
+                throw new IllegalStateException("Try to add a eldrin power ingredient while the mana and artifice is not loaded!");
+            }
+            return outputs(ManaAndArtificeEldrinRecipeCapability.CAP,
+                    new EldrinPower(EldrinPower.parseAffinity(affinity), amount));
         }
 
         public MBDRecipeJS inputPNCPressure(float pressure) {

@@ -4,6 +4,7 @@ import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.item.MBDGadgetsItem;
 import com.lowdragmc.mbd2.common.network.MBD2Network;
 import com.lowdragmc.mbd2.common.network.packets.C2SSetBuilderBuildModePacket;
+import com.lowdragmc.mbd2.common.network.packets.C2SSetBuilderPatternPacket;
 import com.lowdragmc.mbd2.common.network.packets.C2SSetGadgetModePacket;
 import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
 import net.minecraft.client.Minecraft;
@@ -51,9 +52,20 @@ public class MbdGadgetModeWheelScreen extends Screen {
 
         if (BuilderMaterialBindings.isBuilder(held)) {
             boolean slowBuild = BuilderMaterialBindings.isSlowBuild(held);
+            int patternIndex = BuilderMaterialBindings.getPatternIndex(held);
             entries.add(Entry.builderToggle(
                     Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode"),
                     slowBuild,
+                    held.copyWithCount(1)));
+            entries.add(Entry.builderPattern(
+                    Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_pattern.previous"),
+                    patternIndex,
+                    -1,
+                    held.copyWithCount(1)));
+            entries.add(Entry.builderPattern(
+                    Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_pattern.next"),
+                    patternIndex,
+                    1,
                     held.copyWithCount(1)));
         }
     }
@@ -82,14 +94,16 @@ public class MbdGadgetModeWheelScreen extends Screen {
             if (!e.icon.isEmpty()) {
                 graphics.renderItem(e.icon, ex - 8, y0 + 3);
             }
-            if (e.type == EntryType.BUILDER_TOGGLE) {
+            if (e.type == EntryType.BUILDER_TOGGLE || e.type == EntryType.BUILDER_PATTERN) {
                 graphics.pose().pushPose();
                 graphics.pose().translate(ex, y0 + 22, 0);
                 graphics.pose().scale(0.65f, 0.65f, 1);
                 graphics.drawCenteredString(font, e.label, 0, 0, 0xFFFFFF);
-                Component state = e.builderSlow
-                        ? Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode.slow")
-                        : Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode.instant");
+                Component state = e.type == EntryType.BUILDER_TOGGLE
+                        ? (e.builderSlow
+                           ? Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode.slow")
+                           : Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode.instant"))
+                        : Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_pattern.index", e.patternIndex + 1);
                 graphics.drawCenteredString(font, state, 0, 10, 0xD0D0D0);
                 graphics.pose().popPose();
             } else {
@@ -179,23 +193,36 @@ public class MbdGadgetModeWheelScreen extends Screen {
         if (entry.type == EntryType.BUILDER_TOGGLE) {
             boolean next = !entry.builderSlow;
             MBD2Network.NETWORK.sendToServer(new C2SSetBuilderBuildModePacket(hand == InteractionHand.OFF_HAND ? 1 : 0, next));
+            return;
+        }
+        if (entry.type == EntryType.BUILDER_PATTERN) {
+            long next = (long) entry.patternIndex + entry.patternDelta;
+            int nextPattern = (int) Math.max(0, Math.min(Integer.MAX_VALUE, next));
+            MBD2Network.NETWORK.sendToServer(new C2SSetBuilderPatternPacket(hand == InteractionHand.OFF_HAND ? 1 : 0, nextPattern));
         }
     }
 
     private enum EntryType {
         MODE,
-        BUILDER_TOGGLE
+        BUILDER_TOGGLE,
+        BUILDER_PATTERN
     }
 
-    private record Entry(EntryType type, int modeDamage, boolean builderSlow, Component label, ItemStack icon) {
+    private record Entry(EntryType type, int modeDamage, boolean builderSlow, int patternIndex, int patternDelta,
+                         Component label, ItemStack icon) {
         private static Entry mode(int modeDamage, Component label, ItemStack icon) {
             icon.setDamageValue(modeDamage);
-            return new Entry(EntryType.MODE, modeDamage, false, label, icon);
+            return new Entry(EntryType.MODE, modeDamage, false, 0, 0, label, icon);
         }
 
         private static Entry builderToggle(Component label, boolean slow, ItemStack icon) {
             icon.setDamageValue(0);
-            return new Entry(EntryType.BUILDER_TOGGLE, -1, slow, label, icon);
+            return new Entry(EntryType.BUILDER_TOGGLE, -1, slow, 0, 0, label, icon);
+        }
+
+        private static Entry builderPattern(Component label, int patternIndex, int patternDelta, ItemStack icon) {
+            icon.setDamageValue(0);
+            return new Entry(EntryType.BUILDER_PATTERN, -1, false, patternIndex, patternDelta, label, icon);
         }
     }
 }

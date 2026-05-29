@@ -19,6 +19,7 @@ import com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicWillTraitDefini
 import com.lowdragmc.mbd2.integration.botania.trait.BotaniaManaCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.embers.trait.EmbersEmberCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.gtm.trait.GTMEnergyCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.integration.manaandartifice.trait.ManaAndArtificeEldrinCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.mekanism.trait.chemical.ChemicalTankCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.mekanism.trait.heat.MekHeatCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.naturesaura.trait.AuraHandlerTraitDefinition;
@@ -70,6 +71,9 @@ public class MBDTraitDefinitionTypes {
         if (MBD2.isBloodMagicLoaded()) {
             register(BloodMagicWillTraitDefinition.class);
             register(BloodMagicSoulNetworkTraitDefinition.class);
+        }
+        if (MBD2.isManaAndArtificeLoaded()) {
+            register(ManaAndArtificeEldrinCapabilityTraitDefinition.class);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.TraitType());
         MBDRegistries.TRAIT_DEFINITION_TYPES.freeze();

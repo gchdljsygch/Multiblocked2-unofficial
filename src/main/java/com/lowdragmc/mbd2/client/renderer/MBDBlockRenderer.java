@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -91,6 +92,7 @@ public class MBDBlockRenderer implements IRenderer {
                 machine.getMachineState().getRealRenderer().hasTESR(blockEntity) ||
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
+                                .filter(Objects::nonNull)
                                 .anyMatch(renderer -> renderer.hasTESR(blockEntity))
         ).orElseGet(() -> defaultRenderer.get().hasTESR(blockEntity));
     }
@@ -102,6 +104,7 @@ public class MBDBlockRenderer implements IRenderer {
                 machine.getMachineState().getRealRenderer().isGlobalRenderer(blockEntity) ||
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
+                                .filter(Objects::nonNull)
                                 .anyMatch(renderer -> renderer.isGlobalRenderer(blockEntity))
         ).orElseGet(() -> defaultRenderer.get().isGlobalRenderer(blockEntity));
     }
@@ -119,7 +122,7 @@ public class MBDBlockRenderer implements IRenderer {
             machine.getMachineState().getRealRenderer().render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
             for (var traitDefinition : machine.getDefinition().machineSettings().traitDefinitions()) {
                 var renderer = traitDefinition.getBESRenderer(machine);
-                if (renderer.hasTESR(blockEntity)) {
+                if (renderer != null && renderer.hasTESR(blockEntity)) {
                     renderer.render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
                 }
             }

@@ -100,6 +100,10 @@ public class MBD2 {
         return LDLib.isModLoaded("bloodmagic");
     }
 
+    public static boolean isManaAndArtificeLoaded() {
+        return LDLib.isModLoaded("mna");
+    }
+
     public static boolean isEmbeddiumLoaded() {
         return LDLib.isModLoaded("embeddium");
     }

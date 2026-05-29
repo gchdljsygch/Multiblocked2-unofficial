@@ -298,7 +298,8 @@ public class BlockPattern {
                         Map<BlockInfo, Boolean> candidateRotation = new IdentityHashMap<>();
                         BlockInfo[] infos = new BlockInfo[0];
                         for (SimplePredicate limit : predicate.limited) {
-                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
+                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing)
+                                continue;
                             if (limit.minLayerCount > 0) {
                                 if (!cacheLayer.containsKey(limit)) {
                                     cacheLayer.put(limit, 1);
@@ -317,9 +318,12 @@ public class BlockPattern {
                         }
                         if (!find) {
                             for (SimplePredicate limit : predicate.limited) {
-                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing) continue;
-                                if (limit.maxLayerCount != -1 && cacheLayer.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxLayerCount) continue;
-                                if (limit.maxCount != -1 && cacheGlobal.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxCount) continue;
+                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != facing)
+                                    continue;
+                                if (limit.maxLayerCount != -1 && cacheLayer.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxLayerCount)
+                                    continue;
+                                if (limit.maxCount != -1 && cacheGlobal.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxCount)
+                                    continue;
 
                                 cacheLayer.put(limit, cacheLayer.getOrDefault(limit, 0) + 1);
                                 cacheGlobal.put(limit, cacheGlobal.getOrDefault(limit, 0) + 1);
@@ -329,7 +333,8 @@ public class BlockPattern {
                                 recordCandidateRotation(candidateRotation, candidates, !limit.controllerFront.isEnable());
                             }
                             for (SimplePredicate common : predicate.common) {
-                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != facing) continue;
+                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != facing)
+                                    continue;
                                 BlockInfo[] candidates = common.candidates == null ? null : common.candidates.get();
                                 infos = ArrayUtils.addAll(infos, candidates);
                                 recordCandidateRotation(candidateRotation, candidates, !common.controllerFront.isEnable());
@@ -345,7 +350,8 @@ public class BlockPattern {
                                 if (s == null || s.getBlock() == Blocks.AIR) continue;
                                 ItemStack asItem = info.getItemStackForm();
                                 if (asItem.isEmpty()) continue;
-                                if (!(asItem.getItem() instanceof BlockItem || asItem.getItem() instanceof BucketItem)) continue;
+                                if (!(asItem.getItem() instanceof BlockItem || asItem.getItem() instanceof BucketItem))
+                                    continue;
                                 candidateInfos.add(info);
                                 candidates.add(asItem);
                             }
@@ -469,6 +475,10 @@ public class BlockPattern {
         });
     }
 
+    public void autoBuild(Player player, MultiblockState worldState, int patternIndex) {
+        autoBuild(player, worldState);
+    }
+
     private static boolean hasAnyFluid(BlockState state) {
         return state != null && !state.getFluidState().isEmpty();
     }
@@ -590,7 +600,8 @@ public class BlockPattern {
                         boolean find = false;
                         BlockInfo[] infos = null;
                         for (SimplePredicate limit : predicate.limited) { // check layer and previewCount
-                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH) continue;
+                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
+                                continue;
                             if (limit.minLayerCount > 0) {
                                 if (!cacheLayer.containsKey(limit)) {
                                     cacheLayer.put(limit, 1);
@@ -617,7 +628,8 @@ public class BlockPattern {
                         }
                         if (!find) { // check global and previewCount
                             for (SimplePredicate limit : predicate.limited) {
-                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH) continue;
+                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
+                                    continue;
                                 if (limit.minCount == -1 && limit.previewCount == -1) continue;
                                 if (cacheGlobal.getOrDefault(limit, 0) < limit.previewCount) {
                                     if (!cacheGlobal.containsKey(limit)) {
@@ -645,7 +657,8 @@ public class BlockPattern {
                         }
                         if (!find) { // check common with previewCount
                             for (SimplePredicate common : predicate.common) {
-                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH) continue;
+                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
+                                    continue;
                                 if (common.previewCount > 0) {
                                     if (!cacheGlobal.containsKey(common)) {
                                         cacheGlobal.put(common, 1);
@@ -664,7 +677,8 @@ public class BlockPattern {
                         }
                         if (!find) { // check without previewCount
                             for (SimplePredicate common : predicate.common) {
-                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH) continue;
+                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
+                                    continue;
                                 if (common.previewCount == -1) {
                                     infos = common.candidates == null ? null : common.candidates.get();
                                     find = true;
@@ -674,7 +688,8 @@ public class BlockPattern {
                         }
                         if (!find) { // check max
                             for (SimplePredicate limit : predicate.limited) {
-                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH) continue;
+                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
+                                    continue;
                                 if (limit.previewCount != -1) {
                                     continue;
                                 } else if (limit.maxCount != -1 || limit.maxLayerCount != -1) {

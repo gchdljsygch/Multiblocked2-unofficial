@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 public class CombinedBlockPattern extends BlockPattern {
-    private static final RelativeDirection[] DEFAULT_STRUCTURE_DIR = new RelativeDirection[] {
+    private static final RelativeDirection[] DEFAULT_STRUCTURE_DIR = new RelativeDirection[]{
             RelativeDirection.LEFT, RelativeDirection.UP, RelativeDirection.FRONT
     };
 
@@ -45,7 +45,15 @@ public class CombinedBlockPattern extends BlockPattern {
 
     @Override
     public void autoBuild(Player player, MultiblockState worldState) {
-        int patternIndex = findPatternIndex(worldState.getMatchedPattern());
+        autoBuild(player, worldState, -1);
+    }
+
+    @Override
+    public void autoBuild(Player player, MultiblockState worldState, int selectedPatternIndex) {
+        int patternIndex = normalizeSelectedPatternIndex(selectedPatternIndex);
+        if (patternIndex < 0) {
+            patternIndex = findPatternIndex(worldState.getMatchedPattern());
+        }
         if (patternIndex < 0) {
             IMultiController controller = worldState.getController();
             if (controller != null) {
@@ -91,5 +99,10 @@ public class CombinedBlockPattern extends BlockPattern {
             if (patterns[i] == pattern) return i;
         }
         return -1;
+    }
+
+    private int normalizeSelectedPatternIndex(int selectedPatternIndex) {
+        if (selectedPatternIndex < 0 || patterns.length == 0) return -1;
+        return Math.min(selectedPatternIndex, patterns.length - 1);
     }
 }

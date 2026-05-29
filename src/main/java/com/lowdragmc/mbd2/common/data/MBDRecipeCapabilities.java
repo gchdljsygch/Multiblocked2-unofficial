@@ -13,6 +13,7 @@ import com.lowdragmc.mbd2.integration.create.CreateRPMRecipeCapability;
 import com.lowdragmc.mbd2.integration.create.CreateStressRecipeCapability;
 import com.lowdragmc.mbd2.integration.embers.EmbersEmberRecipeCapability;
 import com.lowdragmc.mbd2.integration.gtm.GTMEnergyRecipeCapability;
+import com.lowdragmc.mbd2.integration.manaandartifice.ManaAndArtificeEldrinRecipeCapability;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismChemicalRecipeCapability;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
 import com.lowdragmc.mbd2.integration.naturesaura.NaturesAuraRecipeCapability;
@@ -64,6 +65,9 @@ public class MBDRecipeCapabilities {
         if (MBD2.isBloodMagicLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(BloodMagicWillRecipeCapability.CAP.name, BloodMagicWillRecipeCapability.CAP);
             MBDRegistries.RECIPE_CAPABILITIES.register(BloodMagicSoulNetworkRecipeCapability.CAP.name, BloodMagicSoulNetworkRecipeCapability.CAP);
+        }
+        if (MBD2.isManaAndArtificeLoaded()) {
+            MBDRegistries.RECIPE_CAPABILITIES.register(ManaAndArtificeEldrinRecipeCapability.CAP.name, ManaAndArtificeEldrinRecipeCapability.CAP);
         }
         ModLoader.get().postEvent(new MBDRegistryEvent.RecipeCapability());
         MBDRegistries.RECIPE_CAPABILITIES.freeze();
