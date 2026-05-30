@@ -9,6 +9,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
 import com.lowdragmc.mbd2.common.item.MBDGadgetsItem;
+import com.lowdragmc.mbd2.common.item.MultiblockSelectionExportToolItem;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigBlockProperties;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigItemProperties;
@@ -25,9 +26,15 @@ public class MBDRegistries {
     private static final MBDGadgetsItem GADGETS_ITEM = createGadgetsItem();
     @Getter(lazy = true)
     @Accessors(fluent = true)
+    private static final MultiblockSelectionExportToolItem SELECTION_EXPORT_TOOL_ITEM = createSelectionExportToolItem();
+    @Getter(lazy = true)
+    @Accessors(fluent = true)
     private static final MBDMachineDefinition FAKE_MACHINE = createFakeMachine();
     private static MBDGadgetsItem createGadgetsItem() {
         return new MBDGadgetsItem();
+    }
+    private static MultiblockSelectionExportToolItem createSelectionExportToolItem() {
+        return new MultiblockSelectionExportToolItem();
     }
     private static MBDMachineDefinition createFakeMachine() {
         return MBDMachineDefinition.builder()

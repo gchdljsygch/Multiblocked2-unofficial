@@ -11,6 +11,7 @@ import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.texture.WidgetTexture;
 import com.lowdragmc.lowdraglib.gui.util.TreeBuilder;
 import com.lowdragmc.lowdraglib.gui.widget.*;
+import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.ContentWidget;
@@ -28,6 +29,7 @@ import java.util.function.Consumer;
 
 public class ContentContainer extends WidgetGroup {
     private final Map<RecipeCapability<?>, List<Content>> contents;
+    private final IO io;
     private final DraggableScrollableWidgetGroup container;
     private final Runnable onContentUpdate;
     @Getter
@@ -38,8 +40,13 @@ public class ContentContainer extends WidgetGroup {
     private Runnable onSelected;
 
     public ContentContainer(int x, int y, int width, int height, Map<RecipeCapability<?>, List<Content>> contents, Runnable onContentUpdate) {
+        this(x, y, width, height, contents, onContentUpdate, IO.BOTH);
+    }
+
+    public ContentContainer(int x, int y, int width, int height, Map<RecipeCapability<?>, List<Content>> contents, Runnable onContentUpdate, IO io) {
         super(x, y, width, height);
         this.contents = contents;
+        this.io = io;
         this.onContentUpdate = onContentUpdate;
         this.container = new DraggableScrollableWidgetGroup(0, 15, width, height - 15);
         this.container.setYScrollBarWidth(4).setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
@@ -101,7 +108,7 @@ public class ContentContainer extends WidgetGroup {
                                 var contentGroup = new ConfiguratorGroup("editor.machine.basic_settings");
                                 ConfiguratorParser.createConfigurators(contentGroup, new HashMap<>(), content.getClass(), content);
                                 father.addConfigurators(contentGroup);
-                                cap.createContentConfigurator(father, () -> cap.of(content.content), c -> content.content = c);
+                                cap.createContentConfigurator(father, () -> cap.of(content.content), c -> content.content = c, io);
                             }
                         });
 
@@ -176,8 +183,8 @@ public class ContentContainer extends WidgetGroup {
             var menu = TreeBuilder.Menu.start()
                     .branch(Icons.ADD_FILE, "editor.machine.recipe_type.add_content", m -> {
                         for (RecipeCapability cap : MBDRegistries.RECIPE_CAPABILITIES.values()) {
-                            m.leaf(new WidgetTexture(cap.createPreviewWidget(cap.createDefaultContent()).setClientSideWidget()), "recipe.capability.%s.name".formatted(cap.name), () -> {
-                                var content = cap.createDefaultContent();
+                            m.leaf(new WidgetTexture(cap.createPreviewWidget(cap.createDefaultContent(io)).setClientSideWidget()), "recipe.capability.%s.name".formatted(cap.name), () -> {
+                                var content = cap.createDefaultContent(io);
                                 contents.computeIfAbsent(cap, c -> new ArrayList<>()).add(
                                         new Content(content, false, 1, 0));
                                 reloadContents();

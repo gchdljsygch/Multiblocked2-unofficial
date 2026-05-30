@@ -168,7 +168,10 @@ public class CommonProxy {
         MBDRegistries.FAKE_MACHINE().onRegistry(event);
         MBDRegistries.MACHINE_DEFINITIONS.forEach((definition) -> definition.onRegistry(event));
         // register items
-        event.register(ForgeRegistries.ITEMS.getRegistryKey(), helper -> helper.register(MBD2.id("mbd_gadgets"), MBDRegistries.GADGETS_ITEM()));
+        event.register(ForgeRegistries.ITEMS.getRegistryKey(), helper -> {
+            helper.register(MBD2.id("mbd_gadgets"), MBDRegistries.GADGETS_ITEM());
+            helper.register(MBD2.id("mbd_selection_export_tool"), MBDRegistries.SELECTION_EXPORT_TOOL_ITEM());
+        });
     }
 
     @SubscribeEvent
@@ -182,6 +185,7 @@ public class CommonProxy {
         }
         if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
             event.accept(MBDRegistries.GADGETS_ITEM());
+            event.accept(MBDRegistries.SELECTION_EXPORT_TOOL_ITEM());
         }
     }
 }

@@ -78,6 +78,13 @@ public abstract class RecipeCapability<T> {
     public abstract T createDefaultContent();
 
     /**
+     * create a default / example content of this capability for the given recipe IO.
+     */
+    public T createDefaultContent(IO io) {
+        return createDefaultContent();
+    }
+
+    /**
      * create a preview widget for the content of this capability.
      * <br>
      * it will be used for ui editor. make sure the widget's size is (18, 18)
@@ -101,6 +108,13 @@ public abstract class RecipeCapability<T> {
      * create a content ui configurator for the content of this capability.
      */
     public abstract void createContentConfigurator(ConfiguratorGroup father, Supplier<T> supplier, Consumer<T> onUpdate);
+
+    /**
+     * create a content ui configurator for the content of this capability for the given recipe IO.
+     */
+    public void createContentConfigurator(ConfiguratorGroup father, Supplier<T> supplier, Consumer<T> onUpdate, IO io) {
+        createContentConfigurator(father, supplier, onUpdate);
+    }
 
     /**
      * Get the error info for the left content.

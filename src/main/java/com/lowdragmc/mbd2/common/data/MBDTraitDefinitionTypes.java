@@ -11,6 +11,7 @@ import com.lowdragmc.mbd2.common.trait.entity.EntityHandlerTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.fluid.FluidTankCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.ForgeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
+import com.lowdragmc.mbd2.common.trait.redstone.RedstoneSignalCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.ae2.trait.MEInterfaceTraitDefinition;
 import com.lowdragmc.mbd2.integration.arsnouveau.trait.ArsNouveauSourceCapabilityTraitDefinition;
@@ -36,6 +37,7 @@ public class MBDTraitDefinitionTypes {
         register(FluidTankCapabilityTraitDefinition.class);
         register(ForgeEnergyCapabilityTraitDefinition.class);
         register(LongFeEnergyCapabilityTraitDefinition.class);
+        register(RedstoneSignalCapabilityTraitDefinition.class);
         register(EntityHandlerTraitDefinition.class);
         register(RecipeThreadTraitDefinition.class);
         // Register the mod capabilities

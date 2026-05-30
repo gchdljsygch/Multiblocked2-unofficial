@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.Block;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -119,6 +120,13 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
                 }
             }
             // setup block patterns
+            if (file != null) {
+                try {
+                    MultiblockMachineProject.expandPatternReferences(file, projectTag);
+                } catch (IOException e) {
+                    MBD2.LOGGER.error("Failed to load multiblock pattern json for {}", file, e);
+                }
+            }
             var predicateResource = new PredicateResource();
             predicateResource.deserializeNBT(projectTag.getCompound("resources").getCompound(PredicateResource.RESOURCE_NAME));
             var patternEntries = loadPatternEntries(projectTag);
@@ -263,17 +271,18 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
 
     private LoadedPattern loadPattern(CompoundTag patternTag, PredicateResource predicateResource) {
         var placeholders = MultiblockMachineProject.deserializeBlockPlaceholders(patternTag.getCompound("placeholders"), predicateResource);
-        var layerAxis = Direction.Axis.valueOf(patternTag.getString("layer_axis"));
+        var layerAxisName = patternTag.getString("layer_axis");
+        var layerAxis = layerAxisName.isBlank() ? Direction.Axis.Y : Direction.Axis.valueOf(layerAxisName);
         var aisleLength = switch (layerAxis) {
             case X -> placeholders.length;
             case Y -> placeholders[0].length;
             case Z -> placeholders[0][0].length;
         };
         var aisleRepetitions = new int[aisleLength][2];
-        var repetitions = patternTag.getIntArray("aisle_repetitions");
+        var repetitions = MultiblockMachineProject.getIntArrayCompat(patternTag, "aisle_repetitions");
         for (int i = 0; i < aisleLength; i++) {
-            aisleRepetitions[i][0] = repetitions[i * 2];
-            aisleRepetitions[i][1] = repetitions[i * 2 + 1];
+            aisleRepetitions[i][0] = i * 2 < repetitions.length ? repetitions[i * 2] : 1;
+            aisleRepetitions[i][1] = i * 2 + 1 < repetitions.length ? repetitions[i * 2 + 1] : aisleRepetitions[i][0];
         }
         return new LoadedPattern(patternTag, createBlockPattern(placeholders, layerAxis, aisleRepetitions, this), aisleRepetitions);
     }

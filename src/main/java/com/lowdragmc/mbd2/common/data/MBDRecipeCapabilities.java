@@ -31,6 +31,7 @@ public class MBDRecipeCapabilities {
         MBDRegistries.RECIPE_CAPABILITIES.register(EntityRecipeCapability.CAP.name, EntityRecipeCapability.CAP);
         MBDRegistries.RECIPE_CAPABILITIES.register(ForgeEnergyRecipeCapability.CAP.name, ForgeEnergyRecipeCapability.CAP);
         MBDRegistries.RECIPE_CAPABILITIES.register(LongFeRecipeCapability.CAP.name, LongFeRecipeCapability.CAP);
+        MBDRegistries.RECIPE_CAPABILITIES.register(RedstoneSignalRecipeCapability.CAP.name, RedstoneSignalRecipeCapability.CAP);
         // Register the mod capabilities
         if (MBD2.isBotaniaLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(BotaniaManaRecipeCapability.CAP.name, BotaniaManaRecipeCapability.CAP);

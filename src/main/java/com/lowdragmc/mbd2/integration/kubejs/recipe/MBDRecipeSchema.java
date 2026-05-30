@@ -263,6 +263,14 @@ public interface MBDRecipeSchema {
             return outputs(ForgeEnergyRecipeCapability.CAP, energy);
         }
 
+        public MBDRecipeJS inputRedstone(int strength) {
+            return inputs(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(strength));
+        }
+
+        public MBDRecipeJS outputRedstone(int strength, int duration) {
+            return outputs(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.output(strength, duration));
+        }
+
         public MBDRecipeJS inputMana(int mana) {
             if (!MBD2.isBotaniaLoaded()) {
                 throw new IllegalStateException("Try to add a mana ingredient while the botania is not loaded!");

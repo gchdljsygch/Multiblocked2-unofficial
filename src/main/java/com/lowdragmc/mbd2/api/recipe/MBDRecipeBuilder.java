@@ -11,6 +11,8 @@ import com.lowdragmc.mbd2.api.recipe.ingredient.FluidIngredient;
 import com.lowdragmc.mbd2.api.recipe.ingredient.SizedIngredient;
 import com.lowdragmc.mbd2.common.capability.recipe.FluidRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
+import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignal;
+import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignalRecipeCapability;
 import com.lowdragmc.mbd2.common.recipe.*;
 import com.lowdragmc.mbd2.utils.TagUtil;
 import lombok.Setter;
@@ -278,6 +280,14 @@ public class MBDRecipeBuilder {
 
     public MBDRecipeBuilder outputFluids(FluidIngredient... outputs) {
         return output(FluidRecipeCapability.CAP, outputs);
+    }
+
+    public MBDRecipeBuilder inputRedstone(int strength) {
+        return input(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(strength));
+    }
+
+    public MBDRecipeBuilder outputRedstone(int strength, int duration) {
+        return output(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.output(strength, duration));
     }
 
     //////////////////////////////////////

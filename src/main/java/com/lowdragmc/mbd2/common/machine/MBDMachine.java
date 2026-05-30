@@ -32,11 +32,13 @@ import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
+import com.lowdragmc.mbd2.common.trait.redstone.RedstoneSignalCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTrait;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDServerEvents;
 import com.lowdragmc.mbd2.integration.photon.MachineFX;
 import com.lowdragmc.photon.client.fx.FXHelper;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.client.Minecraft;
@@ -81,6 +83,8 @@ import java.util.List;
 @Getter
 public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMachine.class);
+    private static final int GAME_DELAY_SYNC_INTERVAL = 20;
+    private static final int GAME_DELAY_AVERAGE_WINDOW_SECONDS = 10;
 
     @Override
     public ManagedFieldHolder getFieldHolder() {
@@ -129,6 +133,20 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @DescSynced
     @Getter
     private int dynamicMaxParallel = -1;
+    @DescSynced
+    @Getter(AccessLevel.NONE)
+    private long gameDelayMicroseconds;
+    @DescSynced
+    @Getter(AccessLevel.NONE)
+    private long tenSecondAverageGameDelayMicroseconds;
+    private final long[] gameDelaySecondAverageBuckets = new long[GAME_DELAY_AVERAGE_WINDOW_SECONDS];
+    private int gameDelaySecondAverageBucketIndex;
+    private int gameDelaySecondAverageBucketCount;
+    private long currentSecondGameDelayMicroseconds;
+    private int currentSecondGameDelaySamples;
+    private long currentGameDelaySecondKey = Long.MIN_VALUE;
+    private long lastGameDelaySampleTick = Long.MIN_VALUE;
+    private long lastGameDelaySampleMicroseconds;
     // redstone signal
     @Getter
     @Persisted
@@ -166,6 +184,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Override
     public void onChunkUnloaded() {
         IMachine.super.onChunkUnloaded();
+        resetGameDelay();
         for (ITrait additionalTrait : additionalTraits) {
             additionalTrait.onChunkUnloaded();
         }
@@ -174,6 +193,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Override
     public void onUnload() {
         IMachine.super.onUnload();
+        resetGameDelay();
         for (ITrait additionalTrait : additionalTraits) {
             additionalTrait.onMachineUnLoad();
         }
@@ -185,6 +205,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Override
     public void onLoad() {
         IMachine.super.onLoad();
+        resetGameDelay();
         for (ITrait additionalTrait : additionalTraits) {
             additionalTrait.onMachineLoad();
         }
@@ -523,12 +544,81 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * Server tick. will be called on server side per tick.
      */
     public void serverTick() {
-        var event = new MachineTickEvent(this).postCustomEvent();
-        MinecraftForge.EVENT_BUS.post(event);
-        if (!event.isCanceled()) {
-            postFixedTickEvent();
-            internalServerTick();
+        long start = System.nanoTime();
+        try {
+            var event = new MachineTickEvent(this).postCustomEvent();
+            MinecraftForge.EVENT_BUS.post(event);
+            if (!event.isCanceled()) {
+                postFixedTickEvent();
+                internalServerTick();
+            }
+        } finally {
+            updateGameDelay(System.nanoTime() - start);
         }
+    }
+
+    protected void updateGameDelay(long elapsedNanos) {
+        var offsetTimer = getOffsetTimer();
+        var sampleMicroseconds = Math.max(0, elapsedNanos / 1_000L);
+        var secondKey = Math.floorDiv(offsetTimer, GAME_DELAY_SYNC_INTERVAL);
+        if (currentGameDelaySecondKey == Long.MIN_VALUE) {
+            currentGameDelaySecondKey = secondKey;
+        } else if (currentGameDelaySecondKey != secondKey) {
+            updateTenSecondAverageGameDelay();
+            currentGameDelaySecondKey = secondKey;
+        }
+        var level = getLevel();
+        var gameTime = level == null ? offsetTimer : level.getGameTime();
+        if (lastGameDelaySampleTick == gameTime) {
+            currentSecondGameDelayMicroseconds += sampleMicroseconds - lastGameDelaySampleMicroseconds;
+        } else {
+            currentSecondGameDelayMicroseconds += sampleMicroseconds;
+            currentSecondGameDelaySamples++;
+            lastGameDelaySampleTick = gameTime;
+        }
+        lastGameDelaySampleMicroseconds = sampleMicroseconds;
+
+        if (offsetTimer % GAME_DELAY_SYNC_INTERVAL != 0) return;
+        gameDelayMicroseconds = sampleMicroseconds;
+    }
+
+    protected void updateTenSecondAverageGameDelay() {
+        if (currentSecondGameDelaySamples <= 0) return;
+        gameDelaySecondAverageBuckets[gameDelaySecondAverageBucketIndex] = currentSecondGameDelayMicroseconds / currentSecondGameDelaySamples;
+        gameDelaySecondAverageBucketIndex = (gameDelaySecondAverageBucketIndex + 1) % GAME_DELAY_AVERAGE_WINDOW_SECONDS;
+        if (gameDelaySecondAverageBucketCount < GAME_DELAY_AVERAGE_WINDOW_SECONDS) {
+            gameDelaySecondAverageBucketCount++;
+        }
+        long total = 0;
+        for (int i = 0; i < gameDelaySecondAverageBucketCount; i++) {
+            total += gameDelaySecondAverageBuckets[i];
+        }
+        tenSecondAverageGameDelayMicroseconds = total / gameDelaySecondAverageBucketCount;
+        currentSecondGameDelayMicroseconds = 0;
+        currentSecondGameDelaySamples = 0;
+    }
+
+    protected void resetGameDelay() {
+        gameDelayMicroseconds = 0;
+        tenSecondAverageGameDelayMicroseconds = 0;
+        Arrays.fill(gameDelaySecondAverageBuckets, 0);
+        gameDelaySecondAverageBucketIndex = 0;
+        gameDelaySecondAverageBucketCount = 0;
+        currentSecondGameDelayMicroseconds = 0;
+        currentSecondGameDelaySamples = 0;
+        currentGameDelaySecondKey = Long.MIN_VALUE;
+        lastGameDelaySampleTick = Long.MIN_VALUE;
+        lastGameDelaySampleMicroseconds = 0;
+    }
+
+    @Override
+    public long getGameDelayMicroseconds() {
+        return gameDelayMicroseconds;
+    }
+
+    @Override
+    public long getTenSecondAverageGameDelayMicroseconds() {
+        return tenSecondAverageGameDelayMicroseconds;
     }
 
     protected void postFixedTickEvent() {
@@ -819,6 +909,11 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      */
     public boolean canConnectRedstone(Direction direction) {
         if (getOutputSignal(direction) > 0) return true;
+        for (ITrait trait : additionalTraits) {
+            if (trait instanceof RedstoneSignalCapabilityTrait redstoneTrait && redstoneTrait.canConnectRedstone(direction)) {
+                return true;
+            }
+        }
         return getDefinition().machineSettings().signalConnection().getConnection(getFrontFacing().orElse(Direction.NORTH), direction);
     }
 

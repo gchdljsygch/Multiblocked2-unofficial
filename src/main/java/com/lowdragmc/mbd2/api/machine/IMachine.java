@@ -106,6 +106,36 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
+     * Get this machine's latest server tick cost in microseconds.
+     * <br>
+     * The value records the time spent by this machine's tick hooks, recipe logic, and trait logic.
+     */
+    default long getGameDelayMicroseconds() {
+        return 0;
+    }
+
+    /**
+     * Get this machine's average server tick cost over the last ten seconds in microseconds.
+     */
+    default long getTenSecondAverageGameDelayMicroseconds() {
+        return 0;
+    }
+
+    /**
+     * Short alias for {@link #getGameDelayMicroseconds()}.
+     */
+    default long getGameDelay() {
+        return getGameDelayMicroseconds();
+    }
+
+    /**
+     * Short alias for {@link #getTenSecondAverageGameDelayMicroseconds()}.
+     */
+    default long getTenSecondAverageGameDelay() {
+        return getTenSecondAverageGameDelayMicroseconds();
+    }
+
+    /**
      * Mark the machine as dirty.
      */
     default void markDirty() {

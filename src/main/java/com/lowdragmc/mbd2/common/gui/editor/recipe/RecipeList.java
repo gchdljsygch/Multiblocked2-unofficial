@@ -87,7 +87,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                         selectableWidgetGroup.removeWidget(inputs.get());
                         inputs.set(createContents(recipe.inputs, 0, 20));
                         selectableWidgetGroup.addWidget(inputs.get());
-                    }));
+                    }, IO.IN));
             var durationWidget = new NumberConfigurator("recipe.duration", () -> recipe.duration, v -> recipe.duration = v.intValue(), 100, true);
             durationWidget.setRange(1, Integer.MAX_VALUE);
             durationWidget.setTips(isFuel ? "recipe.duration.fuel.tooltip" : "recipe.duration.common.tooltip");
@@ -111,7 +111,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                             selectableWidgetGroup.removeWidget(outputs.get());
                             outputs.set(createContents(recipe.outputs, getSizeWidth() - 24, -20));
                             selectableWidgetGroup.addWidget(outputs.get());
-                        }));
+                        }, IO.OUT));
                 inputsContainer.setOnSelected(outputsContainer::clearSelected);
                 outputsContainer.setOnSelected(inputsContainer::clearSelected);
             }

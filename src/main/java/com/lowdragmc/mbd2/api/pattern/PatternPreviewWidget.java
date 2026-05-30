@@ -11,6 +11,7 @@ import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
 import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
+import com.lowdragmc.mbd2.common.blockentity.MachineBlockEntity;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.toggle.ToggleCatalyst;
 import com.lowdragmc.mbd2.config.ConfigHolder;
@@ -95,14 +96,21 @@ public class PatternPreviewWidget extends WidgetGroup {
         this.controllerDefinition = controllerDefinition;
         this.layer = -1;
 
-        this.patterns = CACHE.computeIfAbsent(controllerDefinition, definition -> {
+        var cachedPatterns = CACHE.get(controllerDefinition);
+        if (cachedPatterns == null || cachedPatterns.length == 0) {
             HashSet<ItemStackKey> drops = new HashSet<>();
             drops.add(new ItemStackKey(this.controllerDefinition.asStack()));
-            return Arrays.stream(controllerDefinition.shapeInfoFactory().apply(controllerDefinition))
+            cachedPatterns = Arrays.stream(controllerDefinition.shapeInfoFactory().apply(controllerDefinition))
                     .map(it -> initializePattern(it, drops))
                     .filter(Objects::nonNull)
                     .toArray(MBPattern[]::new);
-        });
+            if (cachedPatterns.length > 0) {
+                CACHE.put(controllerDefinition, cachedPatterns);
+            } else {
+                MBD2.LOGGER.warn("No multiblock preview patterns generated for {}", controllerDefinition.id());
+            }
+        }
+        this.patterns = cachedPatterns;
 
         // id
         addWidget(new ImageWidget(26 + 3, 7 + 3, 106 - 6, 15,
@@ -130,7 +138,7 @@ public class PatternPreviewWidget extends WidgetGroup {
                 .setHoverBorderTexture(-1, -1)
                 .setHoverTooltips("pattern_preview.layer");
         var formedButton = new SwitchWidget(136, 57, 18, 18, (cd, pressed) -> onFormedSwitch(pressed))
-                .setSupplier(() -> patterns[index].controllerBase.isFormed())
+                .setSupplier(() -> patterns.length > 0 && patterns[index].controllerBase.isFormed())
                 .setTexture(new GuiTextureGroup(buttonTexture, new ResourceTexture("mbd2:textures/gui/multiblock_info_page_unformed.png")),
                         new GuiTextureGroup(buttonTexture, new ResourceTexture("mbd2:textures/gui/multiblock_info_page.png")))
                 .setHoverBorderTexture(-1, -1)
@@ -189,6 +197,7 @@ public class PatternPreviewWidget extends WidgetGroup {
     }
 
     private void updateLayer() {
+        if (patterns.length == 0) return;
         MBPattern pattern = patterns[index];
         if (layer + 1 >= -1 && layer + 1 <= pattern.maxY - pattern.minY) {
             layer += 1;
@@ -266,6 +275,7 @@ public class PatternPreviewWidget extends WidgetGroup {
     }
 
     private void onFormedSwitch(boolean isFormed) {
+        if (patterns.length == 0) return;
         MBPattern pattern = patterns[index];
         IMultiController controllerBase = pattern.controllerBase;
         if (isFormed) {
@@ -353,16 +363,23 @@ public class PatternPreviewWidget extends WidgetGroup {
                         if (controllerDefinition.blockProperties().rotationState().property.isPresent()) {
                             state = state.setValue(controllerDefinition.blockProperties().rotationState().property.get(), controllerBlockInfo.getFacing());
                         }
-                        column[z] = new BlockInfo(state, true);
+                        column[z] = new BlockInfo(state, blockEntity -> {
+                            if (blockEntity instanceof MachineBlockEntity machineBlockEntity) {
+                                var controllerMachine = controllerDefinition.createMachine(machineBlockEntity);
+                                machineBlockEntity.setMachine(controllerMachine);
+                                controllerMachine.loadAdditionalTraits();
+                            }
+                        });
                     }
-                    BlockState blockState = column[z].getBlockState();
+                    BlockInfo blockInfo = column[z];
+                    BlockState blockState = blockInfo.getBlockState();
                     BlockPos pos = multiPos.offset(x, y, z);
-                    if (column[z].getBlockEntity(pos) instanceof IMachineBlockEntity holder &&
+                    if (blockInfo.getBlockEntity(pos) instanceof IMachineBlockEntity holder &&
                             holder.getMetaMachine() instanceof IMultiController controller) {
                         holder.getSelf().setLevel(LEVEL);
                         controllerBase = controller;
                     }
-                    blockMap.put(pos, BlockInfo.fromBlockState(blockState));
+                    blockMap.put(pos, blockInfo);
                 }
             }
         }

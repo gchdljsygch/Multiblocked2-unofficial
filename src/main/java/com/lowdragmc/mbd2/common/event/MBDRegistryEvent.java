@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.CommonProxy;
 import com.lowdragmc.mbd2.common.data.MBDMachineDefinitionTypes;
 import com.lowdragmc.mbd2.common.data.MBDTraitDefinitionTypes;
+import com.lowdragmc.mbd2.common.gui.editor.MultiblockMachineProject;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
 import net.minecraft.nbt.NbtIo;
@@ -40,7 +41,7 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
             try {
                 var tag = NbtIo.read(file);
                 if (tag == null) throw new Exception("tag is null");
-                register(definitionType.creator().get().loadProductiveTag(null, tag, CommonProxy.getPostTask()));
+                register(definitionType.creator().get().loadProductiveTag(file, tag, CommonProxy.getPostTask()));
             } catch (Exception e) {
                 LDLib.LOGGER.error("error could not load the project from file {}", file, e);
             }
@@ -63,6 +64,9 @@ public class MBDRegistryEvent extends Event implements IModBusEvent {
             }
             try {
                 var tag = NbtIo.read(new DataInputStream(inputstream));
+                if ("mb".equals(type)) {
+                    MultiblockMachineProject.expandPatternReferences(source, projectFile, tag);
+                }
                 register(definitionType.creator().get().loadProductiveTag(null, tag, CommonProxy.getPostTask()));
             } catch (Exception e) {
                 LDLib.LOGGER.error("error could not load the project from resource {}", projectFile, e);
