@@ -30,7 +30,17 @@ public class CreateMachineState extends MachineState {
                               @Nullable Integer lightLevel,
                               @Nullable AABB renderingBox,
                               @Nullable IRenderer rotationRenderer) {
-        super(name, children, renderer, shape, lightLevel, renderingBox);
+        this(name, children, renderer, null, shape, lightLevel, renderingBox, rotationRenderer);
+    }
+
+    public CreateMachineState(String name, @NonNull List<MachineState> children,
+                              @Nullable IRenderer renderer,
+                              @Nullable IRenderer frontRenderer,
+                              @Nullable VoxelShape shape,
+                              @Nullable Integer lightLevel,
+                              @Nullable AABB renderingBox,
+                              @Nullable IRenderer rotationRenderer) {
+        super(name, children, renderer, frontRenderer, shape, lightLevel, renderingBox);
         this.rotationRenderer = rotationRenderer == null ? new ToggleRenderer() : new ToggleRenderer(rotationRenderer);
     }
 
@@ -48,7 +58,13 @@ public class CreateMachineState extends MachineState {
     @Override
     @OnlyIn(Dist.CLIENT)
     public IRenderer getRealRenderer() {
-        var baseRenderer = getRenderer();
+        return getRealRenderer(Direction.NORTH);
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getRealRenderer(Direction frontFacing) {
+        var baseRenderer = super.getRealRenderer(frontFacing);
         var rotationRenderer = getRotationRenderer();
         while (rotationRenderer instanceof UIResourceRenderer uiResourceRenderer) {
             rotationRenderer = uiResourceRenderer.getRenderer();
@@ -87,7 +103,7 @@ public class CreateMachineState extends MachineState {
 
         @Override
         public CreateMachineState build() {
-            return new CreateMachineState(name, children, renderer, shape, lightLevel, renderingBox, rotationRenderer);
+            return new CreateMachineState(name, children, renderer, frontRenderer, shape, lightLevel, renderingBox, rotationRenderer);
         }
     }
 }

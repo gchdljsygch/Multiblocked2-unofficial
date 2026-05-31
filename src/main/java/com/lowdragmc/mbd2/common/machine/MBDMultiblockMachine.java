@@ -371,6 +371,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         this.isFormedValid = false;
         // reset recipe Logic
         getRecipeLogic().resetRecipeLogic();
+        var invalidParts = List.copyOf(parts);
         // clear parts
         for (IMultiPart part : parts) {
             part.removedFromController(this);
@@ -387,7 +388,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         }
         this.renderingDisabledPositions.clear();
         // post event
-        MinecraftForge.EVENT_BUS.post(new MachineStructureInvalidEvent(this).postCustomEvent());
+        MinecraftForge.EVENT_BUS.post(new MachineStructureInvalidEvent(this, invalidParts).postCustomEvent());
         // back to original block
         if (!isControllerRemoved && originalBlock != null) {
             getLevel().setBlockAndUpdate(getPos(), originalBlock);

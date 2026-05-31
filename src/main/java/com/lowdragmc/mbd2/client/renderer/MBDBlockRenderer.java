@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.mojang.blaze3d.vertex.PoseStack;
 import lombok.AllArgsConstructor;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
@@ -66,8 +67,17 @@ public class MBDBlockRenderer implements IRenderer {
     public List<BakedQuad> renderModel(@Nullable BlockAndTintGetter level, @Nullable BlockPos pos, @Nullable BlockState state, @Nullable Direction side, RandomSource rand) {
         return getMachine(level, pos)
                 .map(machine -> {
-                    if (machine.isDisableRendering()) return Collections.<BakedQuad>emptyList();
-                    return machine.getMachineState().getRealRenderer().renderModel(level, pos, state, side, rand);
+                    if (machine.isDisableRendering() && !machine.hasDynamicRendererOverride()) {
+                        FusionModelDataHelper.debugOnce("mbd-block-renderer-disabled-" + machine.getDefinition(),
+                                "MBDBlockRenderer skipped disabled machine={}, side={}, pos={}",
+                                machine.getDefinition(), side, pos);
+                        return Collections.<BakedQuad>emptyList();
+                    }
+                    var renderer = machine.getRealRenderer(machine.getFrontFacing().orElse(Direction.NORTH));
+                    FusionModelDataHelper.debugOnce("mbd-block-renderer-" + machine.getDefinition() + "-" + renderer.getClass().getName(),
+                            "MBDBlockRenderer rendering machine={}, renderer={}, side={}, pos={}",
+                            machine.getDefinition(), renderer.getClass().getName(), side, pos);
+                    return renderer.renderModel(level, pos, state, side, rand);
                 })
                 .orElseGet(() -> defaultRenderer.get().renderModel(level, pos, state, side, rand));
     }
@@ -80,7 +90,7 @@ public class MBDBlockRenderer implements IRenderer {
             var world = modelData.get(WORLD);
             var pos = modelData.get(POS);
             return getMachine(world, pos)
-                    .map(machine -> machine.getMachineState().getRealRenderer().getParticleTexture())
+                    .map(machine -> machine.getRealRenderer().getParticleTexture())
                     .orElseGet(() -> defaultRenderer.get().getParticleTexture());
         }
         return defaultRenderer.get().getParticleTexture();
@@ -89,7 +99,7 @@ public class MBDBlockRenderer implements IRenderer {
     @Override
     public boolean hasTESR(BlockEntity blockEntity) {
         return getMachine(blockEntity).map(machine ->
-                machine.getMachineState().getRealRenderer().hasTESR(blockEntity) ||
+                machine.getRealRenderer().hasTESR(blockEntity) ||
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
                                 .filter(Objects::nonNull)
@@ -101,7 +111,7 @@ public class MBDBlockRenderer implements IRenderer {
     public boolean isGlobalRenderer(BlockEntity blockEntity) {
         return getMachine(blockEntity).map(machine ->
                 machine.getMachineState().isGlobalVisible() ||
-                machine.getMachineState().getRealRenderer().isGlobalRenderer(blockEntity) ||
+                        machine.getRealRenderer().isGlobalRenderer(blockEntity) ||
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
                                 .filter(Objects::nonNull)
@@ -119,7 +129,10 @@ public class MBDBlockRenderer implements IRenderer {
     @Override
     public void render(BlockEntity blockEntity, float partialTicks, PoseStack stack, MultiBufferSource buffer, int combinedLight, int combinedOverlay) {
         getMachine(blockEntity).ifPresentOrElse(machine -> {
-            machine.getMachineState().getRealRenderer().render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
+            if (machine.hasDynamicRendererOverride()) {
+                renderDynamicModel(machine, blockEntity, stack, buffer, combinedLight, combinedOverlay);
+            }
+            machine.getRealRenderer().render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
             for (var traitDefinition : machine.getDefinition().machineSettings().traitDefinitions()) {
                 var renderer = traitDefinition.getBESRenderer(machine);
                 if (renderer != null && renderer.hasTESR(blockEntity)) {
@@ -127,5 +140,29 @@ public class MBDBlockRenderer implements IRenderer {
                 }
             }
         }, () -> defaultRenderer.get().render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay));
+    }
+
+    private void renderDynamicModel(MBDMachine machine, BlockEntity blockEntity, PoseStack stack, MultiBufferSource buffer, int combinedLight, int combinedOverlay) {
+        var level = blockEntity.getLevel();
+        if (level == null) {
+            return;
+        }
+        var pos = blockEntity.getBlockPos();
+        var state = blockEntity.getBlockState();
+        var renderer = machine.getRealRenderer(machine.getFrontFacing().orElse(Direction.NORTH));
+        FusionModelDataHelper.debugOnce("mbd-block-ber-" + machine.getDefinition() + "-" + renderer.getClass().getName(),
+                "MBDBlockRenderer BE rendering dynamic machine={}, renderer={}, pos={}",
+                machine.getDefinition(), renderer.getClass().getName(), pos);
+        var random = RandomSource.create(machine.getOffset());
+        var consumer = buffer.getBuffer(RenderType.cutout());
+        var pose = stack.last();
+        for (var side : Direction.values()) {
+            for (var quad : renderer.renderModel(level, pos, state, side, random)) {
+                consumer.putBulkData(pose, quad, 1, 1, 1, combinedLight, combinedOverlay);
+            }
+        }
+        for (var quad : renderer.renderModel(level, pos, state, null, random)) {
+            consumer.putBulkData(pose, quad, 1, 1, 1, combinedLight, combinedOverlay);
+        }
     }
 }

@@ -188,7 +188,7 @@ public class PatternPreviewWidget extends WidgetGroup {
                 IGuiTexture.EMPTY));
 
         // candidates
-        addWidget(candidatesGroup = new DraggableScrollableWidgetGroup(6, 117, 148, 36));
+        addWidget(candidatesGroup = new XEIIngredientScrollableWidgetGroup(6, 117, 148, 36));
         candidatesGroup.setYScrollBarWidth(4)
                 .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
 
@@ -254,6 +254,9 @@ public class PatternPreviewWidget extends WidgetGroup {
 
     private void setupPatternCandidates(MBPattern pattern) {
         candidatesGroup.clearAllWidgets();
+        if (candidatesGroup instanceof XEIIngredientScrollableWidgetGroup xeiGroup) {
+            xeiGroup.setStacks(pattern.parts);
+        }
         var candidatesItemHandler = new CycleItemStackHandler(pattern.parts);
         for (int i = 0; i < pattern.parts.size(); i++) {
             var slot = new SlotWidget(candidatesItemHandler, i,
@@ -504,6 +507,61 @@ public class PatternPreviewWidget extends WidgetGroup {
             }
             minY = min;
             maxY = max;
+        }
+    }
+
+    private static class XEIIngredientScrollableWidgetGroup extends DraggableScrollableWidgetGroup {
+
+        private static final int COLUMNS = 7;
+        private static final int ROWS = 2;
+        private static final int VISIBLE_SLOTS = COLUMNS * ROWS;
+        private final List<List<ItemStack>> proxyStacks;
+        private final CycleItemStackHandler proxyHandler;
+        private final List<Widget> xeiSlots;
+        private List<List<ItemStack>> stacks = Collections.emptyList();
+
+        public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height) {
+            super(x, y, width, height);
+            this.proxyStacks = new ArrayList<>(VISIBLE_SLOTS);
+            for (int i = 0; i < VISIBLE_SLOTS; i++) {
+                proxyStacks.add(Collections.emptyList());
+            }
+            this.proxyHandler = new CycleItemStackHandler(proxyStacks);
+            this.xeiSlots = new ArrayList<>(VISIBLE_SLOTS);
+            for (int i = 0; i < VISIBLE_SLOTS; i++) {
+                xeiSlots.add(new SlotWidget(proxyHandler, i,
+                        x + (i % COLUMNS) * 18, y + (i / COLUMNS) * 18, false, false)
+                        .setIngredientIO(IngredientIO.INPUT)
+                        .setDrawHoverOverlay(false)
+                        .setDrawHoverTips(false)
+                        .setBackgroundTexture(null));
+            }
+        }
+
+        public void setStacks(List<List<ItemStack>> stacks) {
+            this.stacks = stacks;
+            updateXEIStacks();
+        }
+
+        @Override
+        public void setScrollYOffset(int scrollYOffset) {
+            super.setScrollYOffset(Math.max(0, Math.round(scrollYOffset / 18f) * 18));
+            updateXEIStacks();
+        }
+
+        @Override
+        public List<Widget> getContainedWidgets(boolean includeHidden) {
+            return xeiSlots;
+        }
+
+        private void updateXEIStacks() {
+            int firstSlot = (getScrollYOffset() / 18) * COLUMNS;
+            for (int i = 0; i < VISIBLE_SLOTS; i++) {
+                int stackIndex = firstSlot + i;
+                proxyStacks.set(i, stackIndex >= 0 && stackIndex < stacks.size() ?
+                        stacks.get(stackIndex) : Collections.emptyList());
+            }
+            proxyHandler.updateStacks(proxyStacks);
         }
     }
 }

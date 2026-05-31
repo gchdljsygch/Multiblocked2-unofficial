@@ -9,6 +9,8 @@ import com.lowdragmc.lowdraglib.syncdata.IPersistedSerializable;
 import com.lowdragmc.lowdraglib.utils.ShapeUtils;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.client.MachineSound;
+import com.lowdragmc.mbd2.client.renderer.FusionModelRenderer;
+import com.lowdragmc.mbd2.client.renderer.MachineStateRenderer;
 import com.lowdragmc.mbd2.common.machine.definition.config.toggle.*;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import dev.latvian.mods.rhino.util.HideFromJS;
@@ -42,6 +44,10 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
     @Configurable(name = "config.machine_state.renderer", subConfigurable = true, tips =
             {"config.machine_state.renderer.tooltip.0", "config.machine_state.renderer.tooltip.1"})
     protected final ToggleRenderer renderer;
+
+    @Configurable(name = "config.machine_state.front_renderer", subConfigurable = true, tips =
+            {"config.machine_state.front_renderer.tooltip.0", "config.machine_state.front_renderer.tooltip.1"})
+    protected final ToggleRenderer frontRenderer;
 
     @Configurable(name = "config.machine_state.shape", subConfigurable = true, tips =
             {"config.machine_state.shape.tooltip.0", "config.machine_state.shape.tooltip.1",
@@ -84,9 +90,19 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
                         @Nullable VoxelShape shape,
                         @Nullable Integer lightLevel,
                         @Nullable AABB renderingBox) {
+        this(name, children, renderer, null, shape, lightLevel, renderingBox);
+    }
+
+    public MachineState(String name, @NonNull List<MachineState> children,
+                        @Nullable IRenderer renderer,
+                        @Nullable IRenderer frontRenderer,
+                        @Nullable VoxelShape shape,
+                        @Nullable Integer lightLevel,
+                        @Nullable AABB renderingBox) {
         this.name = name;
         this.children = children;
         this.renderer = renderer == null ? new ToggleRenderer() : new ToggleRenderer(renderer);
+        this.frontRenderer = frontRenderer == null ? new ToggleRenderer() : new ToggleRenderer(frontRenderer);
         this.shape = shape == null ? new ToggleShape() : new ToggleShape(shape);
         this.lightLevel = lightLevel == null ? new ToggleLightValue() : new ToggleLightValue(lightLevel);
         this.renderingBox = renderingBox == null ? new ToggleAABB() : new ToggleAABB(renderingBox);
@@ -161,7 +177,17 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
 
     @OnlyIn(Dist.CLIENT)
     public IRenderer getRealRenderer() {
-        return getRenderer();
+        return getRealRenderer(Direction.NORTH);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getRealRenderer(Direction frontFacing) {
+        var blockRenderer = getRenderer();
+        var frontRenderer = getFrontRenderer();
+        if (frontRenderer == IRenderer.EMPTY) {
+            return blockRenderer;
+        }
+        return new MachineStateRenderer(blockRenderer, frontRenderer, frontFacing);
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -176,6 +202,18 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
         return renderer.getValue();
     }
 
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getFrontRenderer() {
+        if (!frontRenderer.isEnable() || frontRenderer.getValue() == null) {
+            if (parent != null) {
+                return parent.getFrontRenderer();
+            } else {
+                return IRenderer.EMPTY;
+            }
+        }
+        return frontRenderer.getValue();
+    }
+
     public VoxelShape getShape(@Nullable Direction direction) {
         if (!shape.isEnable() || shape.getValue() == null) {
             if (parent != null) {
@@ -185,7 +223,8 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
             }
         }
         var value = shape.getValue();
-        if (value.isEmpty() || value == Shapes.block() || direction == Direction.NORTH || direction == null) return value;
+        if (value.isEmpty() || value == Shapes.block() || direction == Direction.NORTH || direction == null)
+            return value;
         return this.shapeCache.computeIfAbsent(direction, dir -> ShapeUtils.rotate(value, dir));
     }
 
@@ -261,6 +300,8 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
         @Nullable
         protected IRenderer renderer;
         @Nullable
+        protected IRenderer frontRenderer;
+        @Nullable
         protected VoxelShape shape;
         @Nullable
         protected Integer lightLevel;
@@ -275,8 +316,36 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
             return this;
         }
 
+        @HideFromJS
         public Builder<T> modelRenderer(ResourceLocation modelPath) {
-            return renderer(new IModelRenderer(modelPath));
+            return renderer(createModelRenderer(modelPath));
+        }
+
+        public Builder<T> modelRenderer(String modelPath) {
+            var location = ResourceLocation.tryParse(modelPath);
+            if (location == null) {
+                MBD2.LOGGER.warn("Ignored invalid machine state block model path '{}'", modelPath);
+                return this;
+            }
+            return renderer(createModelRenderer(location));
+        }
+
+        @HideFromJS
+        public Builder<T> frontModelRenderer(ResourceLocation modelPath) {
+            return frontRenderer(createModelRenderer(modelPath));
+        }
+
+        public Builder<T> frontModelRenderer(String modelPath) {
+            var location = ResourceLocation.tryParse(modelPath);
+            if (location == null) {
+                MBD2.LOGGER.warn("Ignored invalid machine state front model path '{}'", modelPath);
+                return this;
+            }
+            return frontRenderer(createModelRenderer(location));
+        }
+
+        protected IModelRenderer createModelRenderer(ResourceLocation modelPath) {
+            return new FusionModelRenderer(modelPath);
         }
 
         @HideFromJS
@@ -288,7 +357,7 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
         }
 
         public T build() {
-            return (T) new MachineState(name, children, renderer, shape, lightLevel, renderingBox);
+            return (T) new MachineState(name, children, renderer, frontRenderer, shape, lightLevel, renderingBox);
         }
     }
 }

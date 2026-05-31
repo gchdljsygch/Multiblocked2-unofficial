@@ -38,7 +38,7 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
 
         @Override
         public void clearSlotWidgetHandler(SlotWidget slotW, int slotIndex) {
-            slotW.setDrawHoverOverlay(false);
+            super.clearSlotWidgetHandler(slotW, slotIndex);
         }
     }
 

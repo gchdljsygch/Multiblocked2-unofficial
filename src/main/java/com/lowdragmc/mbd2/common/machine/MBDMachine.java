@@ -4,6 +4,8 @@ import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
+import com.lowdragmc.lowdraglib.client.renderer.impl.IModelRenderer;
+import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.modular.IUIHolder;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
 import com.lowdragmc.lowdraglib.syncdata.IEnhancedManaged;
@@ -23,6 +25,8 @@ import com.lowdragmc.mbd2.api.recipe.RecipeConsumption;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.client.MachineSound;
+import com.lowdragmc.mbd2.client.renderer.FusionModelRenderer;
+import com.lowdragmc.mbd2.client.renderer.MachineStateRenderer;
 import com.lowdragmc.mbd2.common.gui.factory.MachineUIFactory;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigMachineSettings;
@@ -38,6 +42,7 @@ import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDServerEvents;
 import com.lowdragmc.mbd2.integration.photon.MachineFX;
 import com.lowdragmc.photon.client.fx.FXHelper;
+import dev.latvian.mods.rhino.util.HideFromJS;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -134,6 +139,24 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Getter
     private int dynamicMaxParallel = -1;
     @DescSynced
+    @UpdateListener(methodName = "updateDynamicRenderer")
+    private String dynamicBlockModel = "";
+    @DescSynced
+    @UpdateListener(methodName = "updateDynamicRenderer")
+    private String dynamicFrontModel = "";
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    private transient IRenderer dynamicBlockRenderer;
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    private transient IRenderer dynamicFrontRenderer;
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    private transient String lastDynamicBlockModel;
+    @Nullable
+    @OnlyIn(Dist.CLIENT)
+    private transient String lastDynamicFrontModel;
+    @DescSynced
     @Getter(AccessLevel.NONE)
     private long gameDelayMicroseconds;
     @DescSynced
@@ -173,7 +196,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         } else {
             throw new RuntimeException("Root storage of MBDMachine's holder must be MultiManagedStorage");
         }
-        recipeCapabilitiesProxy = Tables.newCustomTable(new EnumMap<>(IO.class), HashMap::new);;
+        recipeCapabilitiesProxy = Tables.newCustomTable(new EnumMap<>(IO.class), HashMap::new);
         machineState = definition.stateMachine().getRootState().name();
         // trait initialization
         recipeLogic = createRecipeLogic(args);
@@ -243,6 +266,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * Update the machine state from the {@link MBDMachineDefinition#stateMachine()} by the given state name. if no such state found, it will do nothing.
+     *
      * @param newState
      */
     public void setMachineState(String newState) {
@@ -257,6 +281,106 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 updateState(newState, oldState);
             }
         }
+    }
+
+    @HideFromJS
+    public void setMachineBlockModel(ResourceLocation modelPath) {
+        applyMachineBlockModel(modelPath);
+    }
+
+    public void setMachineBlockModel(String modelPath) {
+        var location = ResourceLocation.tryParse(modelPath);
+        if (location == null) {
+            MBD2.LOGGER.warn("[MBD2/Fusion] Ignored invalid machine block model path '{}' for machine={} at {}",
+                    modelPath, definition, getPos());
+            return;
+        }
+        applyMachineBlockModel(location);
+    }
+
+    private void applyMachineBlockModel(ResourceLocation modelPath) {
+        dynamicBlockModel = modelPath.toString();
+        MBD2.LOGGER.info("[MBD2/Fusion] setMachineBlockModel machine={}, pos={}, model={}, remote={}",
+                definition, getPos(), dynamicBlockModel, isRemote());
+        notifyDynamicRendererChanged();
+        updateDynamicRenderer(dynamicBlockModel, "");
+    }
+
+    @HideFromJS
+    public void setMachineFrontModel(ResourceLocation modelPath) {
+        applyMachineFrontModel(modelPath);
+    }
+
+    public void setMachineFrontModel(String modelPath) {
+        var location = ResourceLocation.tryParse(modelPath);
+        if (location == null) {
+            MBD2.LOGGER.warn("[MBD2/Fusion] Ignored invalid machine front model path '{}' for machine={} at {}",
+                    modelPath, definition, getPos());
+            return;
+        }
+        applyMachineFrontModel(location);
+    }
+
+    private void applyMachineFrontModel(ResourceLocation modelPath) {
+        dynamicFrontModel = modelPath.toString();
+        MBD2.LOGGER.info("[MBD2/Fusion] setMachineFrontModel machine={}, pos={}, model={}, remote={}",
+                definition, getPos(), dynamicFrontModel, isRemote());
+        notifyDynamicRendererChanged();
+        updateDynamicRenderer(dynamicFrontModel, "");
+    }
+
+    public void clearMachineBlockModel() {
+        dynamicBlockModel = "";
+        notifyDynamicRendererChanged();
+        updateDynamicRenderer(dynamicBlockModel, "");
+    }
+
+    public void clearMachineFrontModel() {
+        dynamicFrontModel = "";
+        notifyDynamicRendererChanged();
+        updateDynamicRenderer(dynamicFrontModel, "");
+    }
+
+    private void notifyDynamicRendererChanged() {
+        markDirty();
+        notifyBlockUpdate();
+        var level = getLevel();
+        if (level != null) {
+            var pos = getPos();
+            var state = level.getBlockState(pos);
+            level.sendBlockUpdated(pos, state, state, Block.UPDATE_ALL);
+        }
+        syncDynamicRenderer();
+    }
+
+    private void syncDynamicRenderer() {
+        if (!isRemote()) {
+            rpcToTracking("setDynamicRenderer", dynamicBlockModel, dynamicFrontModel);
+        }
+    }
+
+    @RPCMethod
+    public void setDynamicRenderer(String blockModel, String frontModel) {
+        dynamicBlockModel = blockModel == null ? "" : blockModel;
+        dynamicFrontModel = frontModel == null ? "" : frontModel;
+        MBD2.LOGGER.info("[MBD2/Fusion] synced dynamic renderer machine={}, pos={}, blockModel={}, frontModel={}, remote={}",
+                definition, getPos(), dynamicBlockModel, dynamicFrontModel, isRemote());
+        updateDynamicRenderer(dynamicBlockModel, dynamicFrontModel);
+    }
+
+    public void updateDynamicRenderer(String newValue, String oldValue) {
+        if (isRemote()) {
+            clearDynamicRendererCache();
+            scheduleRenderUpdate();
+        }
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    private void clearDynamicRendererCache() {
+        dynamicBlockRenderer = null;
+        dynamicFrontRenderer = null;
+        lastDynamicBlockModel = null;
+        lastDynamicFrontModel = null;
     }
 
     public void updateCustomData(CompoundTag newValue, CompoundTag oldValue) {
@@ -486,6 +610,81 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return definition.getState(machineState);
     }
 
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getRealRenderer() {
+        return getRealRenderer(getFrontFacing().orElse(Direction.NORTH));
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getRealRenderer(Direction frontFacing) {
+        var state = getMachineState();
+        var blockRenderer = getDynamicBlockRenderer();
+        var frontRenderer = getDynamicFrontRenderer();
+        var realBlockRenderer = blockRenderer == null ? state.getRenderer() : blockRenderer;
+        var realFrontRenderer = frontRenderer == null ? state.getFrontRenderer() : frontRenderer;
+        if (realFrontRenderer == IRenderer.EMPTY) {
+            return realBlockRenderer;
+        }
+        return new MachineStateRenderer(realBlockRenderer, realFrontRenderer, frontFacing);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    private IRenderer getDynamicBlockRenderer() {
+        if (Objects.equals(lastDynamicBlockModel, dynamicBlockModel)) {
+            return dynamicBlockRenderer;
+        }
+        lastDynamicBlockModel = dynamicBlockModel;
+        dynamicBlockRenderer = createDynamicModelRenderer(dynamicBlockModel);
+        return dynamicBlockRenderer;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    private IRenderer getDynamicFrontRenderer() {
+        if (Objects.equals(lastDynamicFrontModel, dynamicFrontModel)) {
+            return dynamicFrontRenderer;
+        }
+        lastDynamicFrontModel = dynamicFrontModel;
+        dynamicFrontRenderer = createDynamicModelRenderer(dynamicFrontModel);
+        return dynamicFrontRenderer;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    private IRenderer createDynamicModelRenderer(String modelPath) {
+        if (modelPath == null || modelPath.isBlank()) {
+            return null;
+        }
+        var modelLocation = ResourceLocation.tryParse(modelPath);
+        return modelLocation == null ? null : new FusionModelRenderer(modelLocation);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public Optional<ResourceLocation> getBlockModelLocationForRendering() {
+        var dynamicModel = ResourceLocation.tryParse(dynamicBlockModel);
+        if (dynamicModel != null) {
+            return Optional.of(dynamicModel);
+        }
+        return getModelLocation(getMachineState().getRenderer());
+    }
+
+    public boolean hasDynamicRendererOverride() {
+        return dynamicBlockModel != null && !dynamicBlockModel.isBlank() ||
+                dynamicFrontModel != null && !dynamicFrontModel.isBlank();
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    private Optional<ResourceLocation> getModelLocation(IRenderer renderer) {
+        if (renderer instanceof IModelRenderer modelRenderer) {
+            return Optional.ofNullable(modelRenderer.getModelLocation());
+        }
+        if (renderer instanceof UIResourceRenderer resourceRenderer) {
+            return getModelLocation(resourceRenderer.getRenderer());
+        }
+        return Optional.empty();
+    }
+
     public String getMachineStateName() {
         return machineState;
     }
@@ -513,7 +712,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 for (var trait : additionalTraits) {
                     for (var capabilityProviderTrait : trait.getCapabilityProviderTraits()) {
                         if (capabilityProviderTrait.getCapability() == cap) {
-                            return LazyOptional.of(() -> (T) ((ICapabilityProviderTrait)capabilityProviderTrait).mergeContents(results));
+                            return LazyOptional.of(() -> (T) ((ICapabilityProviderTrait) capabilityProviderTrait).mergeContents(results));
                         }
                     }
                 }
@@ -680,9 +879,10 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * Override it to modify recipe on the fly e.g. applying overclock, change chance, etc
+     *
      * @param recipe recipe from detected from MBDRecipe
      * @return modified recipe.
-     *         null -- this recipe is unavailable
+     * null -- this recipe is unavailable
      */
     @Nullable
     @Override
@@ -713,6 +913,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * Always try {@link #doModifyRecipe(MBDRecipe)} before setting up recipe.
+     *
      * @return true - will map {@link RecipeLogic#getLastOriginRecipe()} to the latest recipe for next round when finishing.
      * false - keep using the {@link RecipeLogic#getLastRecipe()}, which is already modified.
      */
@@ -723,6 +924,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * Always re-search recipe when the recipe is finished.
+     *
      * @return true - will re-search recipe when the last recipe is finished.
      */
     @Override
@@ -732,6 +934,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * if the recipe handling is waiting, damping value is the decreased ticks of the current progress.
+     *
      * @return damping value in tick.
      */
     @Override
@@ -936,7 +1139,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * also see {@link #getOutputSignal(Direction)} and
      * {@link #getOutputDirectSignal(Direction)}
      */
-     public void updateSignal() {
+    public void updateSignal() {
         if (!getLevel().isClientSide) {
             notifyBlockUpdate();
         }
@@ -1043,6 +1246,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     /**
      * It's used to define a visible box for BlockEntityRenderer in the world.
+     *
      * @return null, use the default bounding box based on the shape.
      */
     @Nullable
@@ -1078,7 +1282,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
-    public void triggerGeckolibAnim(String animName, float speed){
+    public void triggerGeckolibAnim(String animName, float speed) {
         triggerGeckolibAnim("", animName, speed);
     }
 
@@ -1088,7 +1292,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * It's safe to call this method on both side.
      */
     @RPCMethod
-    public void triggerGeckolibAnim(String controllerName, String animName, float speed){
+    public void triggerGeckolibAnim(String controllerName, String animName, float speed) {
         if (MBD2.isGeckolibLoaded()) {
             if (isRemote()) {
                 if (controllerName.isEmpty()) {
@@ -1114,7 +1318,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
      * Emit the photon fx.
      */
     @RPCMethod
-    public void emitPhotonFx(String identifier, ResourceLocation fxLocation, Vector3f offset, Vector3f rotation, int delay, boolean forcedDeath, boolean replaceExisting){
+    public void emitPhotonFx(String identifier, ResourceLocation fxLocation, Vector3f offset, Vector3f rotation, int delay, boolean forcedDeath, boolean replaceExisting) {
         if (MBD2.isPhotonLoaded()) {
             if (isRemote()) {
                 var fx = FXHelper.getFX(fxLocation);

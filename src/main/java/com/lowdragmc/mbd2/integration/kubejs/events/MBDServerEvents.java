@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.integration.kubejs.events;
 
 import com.lowdragmc.mbd2.api.recipe.event.RecipeTypeEvent;
 import com.lowdragmc.mbd2.api.recipe.event.TransferProxyRecipeEvent;
+import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import dev.latvian.mods.kubejs.event.EventHandler;
@@ -171,7 +172,15 @@ public interface MBDServerEvents {
                                                                       Class<? extends MBDMachineEvents.MachineEventJS<E>> eventJSClass,
                                                                       Function<E, MBDMachineEvents.MachineEventJS<E>> eventJSFactory) {
         var handler = MBDMachineEvents.MBD_MACHINE_EVENTS.server(name, () -> eventJSClass).extra(Extra.ID);
-        machineEventHandlers.put(eventClass, event -> handler.post(eventJSFactory.apply((E) event), event.machine.getDefinition().id()));
+        machineEventHandlers.put(eventClass, event -> {
+            var machineId = event.machine.getDefinition().id();
+            var result = handler.post(eventJSFactory.apply((E) event), machineId);
+            if (event instanceof MachineStructureFormedEvent) {
+                MBD2.LOGGER.info("[MBD2/Fusion] KubeJS onStructureFormed posted machine={}, pos={}, result={}",
+                        machineId, event.machine.getPos(), result);
+            }
+            return result;
+        });
         return handler;
     }
 
@@ -184,7 +193,13 @@ public interface MBDServerEvents {
     }
     
     static EventResult postMachineEvent(MachineEvent machineEvent) {
-        return Optional.ofNullable(machineEventHandlers.get(machineEvent.getClass())).map(handler -> handler.apply(machineEvent)).orElse(EventResult.PASS);
+        var handler = machineEventHandlers.get(machineEvent.getClass());
+        if (machineEvent instanceof MachineStructureFormedEvent) {
+            MBD2.LOGGER.info("[MBD2/Fusion] KubeJS postMachineEvent event={}, machine={}, pos={}, handler={}",
+                    machineEvent.getClass().getSimpleName(), machineEvent.machine.getDefinition().id(),
+                    machineEvent.machine.getPos(), handler != null);
+        }
+        return Optional.ofNullable(handler).map(eventHandler -> eventHandler.apply(machineEvent)).orElse(EventResult.PASS);
     }
 
     static EventResult postMachineFixedTickEvery(MBDMachine machine, long timer) {

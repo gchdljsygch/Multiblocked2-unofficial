@@ -12,6 +12,7 @@ import com.lowdragmc.mbd2.common.machine.definition.config.toggle.ToggleRenderer
 import com.lowdragmc.mbd2.common.machine.definition.config.toggle.ToggleShape;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraft.world.level.storage.loot.providers.number.NumberProvider;
 
 public class MBDTest {
 

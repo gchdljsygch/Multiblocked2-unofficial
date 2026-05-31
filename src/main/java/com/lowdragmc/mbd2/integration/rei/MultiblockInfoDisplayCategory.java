@@ -38,7 +38,7 @@ public class MultiblockInfoDisplayCategory extends ModularUIDisplayCategory<Mult
 
         @Override
         public void clearSlotWidgetHandler(SlotWidget slotW, int slotIndex) {
-            slotW.setDrawHoverOverlay(false);
+            super.clearSlotWidgetHandler(slotW, slotIndex);
         }
     }
 

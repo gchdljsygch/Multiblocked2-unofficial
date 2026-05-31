@@ -95,4 +95,7 @@ dependencies {
     //oculus
     runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}") {transitive  = false}
 //    runtimeOnly fg.deobf("maven.modrinth:oculus:${oculus_version}") {transitive = true}
+
+    //fusion
+    implementation fg.deobf("curse.maven:fusion-connected-textures-854949:6453794")
 }

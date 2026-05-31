@@ -15,7 +15,10 @@
     "client.LDLibParameterPanelWidgetTypeI18nMixin",
     "client.LDLibSelectorConfiguratorI18nMixin",
     "client.LDLibTipsI18nFallbackMixin",
-    "lowdraglib.DrawerHelperMixin"
+    "client.ModelManagerAccessor",
+    "lowdraglib.DrawerHelperMixin",
+    "lowdraglib.IModelRendererFusionMixin",
+    "fusion.ConnectingBakedModelMixin"
   ],
   "mixins": [
     "ChunkMixin",
