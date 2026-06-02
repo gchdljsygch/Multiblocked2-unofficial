@@ -381,6 +381,8 @@
     "config.definition.trait.distinct.tooltip.1": "Отключено — обработка рецепта, когда любая комбинация неотдельных признаков удовлетворяет рецепту.",
     "config.definition.trait.slot_names": "Имена слотов",
     "config.definition.trait.slot_names.tooltip": "Имена слотов черт. Если ингредиент рецепта указывает имя слота, то ингредиент может быть обработан только чертой с этим именем слота.",
+    "config.definition.trait.recipe_group": "Группа рецептов",
+    "config.definition.trait.recipe_group.tooltip": "ID группы рецептов из четырех цифр или латинских букв. Только рецепты той же группы могут использовать этот признак; 0000 по умолчанию, ZZZZ игнорирует изоляцию групп.",
 
     "config.definition.trait.filter.whitelist": "Режим белого списка",
     "config.definition.trait.filter.match_nbt": "Соответствие NBT",

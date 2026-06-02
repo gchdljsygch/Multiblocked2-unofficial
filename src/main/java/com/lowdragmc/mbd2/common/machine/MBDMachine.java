@@ -164,6 +164,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     private long tenSecondAverageGameDelayMicroseconds;
     private final long[] gameDelaySecondAverageBuckets = new long[GAME_DELAY_AVERAGE_WINDOW_SECONDS];
     private int gameDelaySecondAverageBucketIndex;
+    @DescSynced
     private int gameDelaySecondAverageBucketCount;
     private long currentSecondGameDelayMicroseconds;
     private int currentSecondGameDelaySamples;

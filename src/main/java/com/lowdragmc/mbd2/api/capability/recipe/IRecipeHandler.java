@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.api.capability.recipe;
 
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
+import com.lowdragmc.mbd2.api.recipe.RecipeGroup;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 
 import javax.annotation.Nullable;
@@ -48,6 +49,17 @@ public interface IRecipeHandler<K> {
     }
 
     /**
+     * Recipe group id for isolating recipe matching between handlers.
+     */
+    default String getRecipeGroup() {
+        return RecipeGroup.DEFAULT;
+    }
+
+    default Set<String> getRecipeGroups() {
+        return Set.of(getRecipeGroup());
+    }
+
+    /**
      * Refer to the recipe capability.
      */
     RecipeCapability<K> getRecipeCapability();
@@ -65,6 +77,10 @@ public interface IRecipeHandler<K> {
      */
     default List<K> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate) {
         return handleRecipeInner(io, recipe, left.stream().map(this::copyContent).collect(Collectors.toList()), slotName, simulate);
+    }
+
+    default List<K> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate, @Nullable String recipeGroup) {
+        return handleRecipe(io, recipe, left, slotName, simulate);
     }
 
     /**

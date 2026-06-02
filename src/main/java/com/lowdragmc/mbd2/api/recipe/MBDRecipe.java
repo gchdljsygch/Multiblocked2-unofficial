@@ -51,9 +51,15 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     public int priority;
     public boolean isFuel;
     public boolean isXEIHidden;
+    @Nullable
+    public String recipeGroup;
     private Boolean hasTick;
 
     public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority) {
+        this(recipeType, id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, null);
+    }
+
+    public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority, @Nullable String recipeGroup) {
         this.recipeType = recipeType;
         this.id = id;
         this.inputs = inputs;
@@ -64,6 +70,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         this.isFuel = isFuel;
         this.isXEIHidden = isXEIHidden;
         this.priority = priority;
+        this.recipeGroup = RecipeGroup.normalizeOptional(recipeGroup);
     }
 
     public Map<RecipeCapability<?>, List<Content>> copyContents(Map<RecipeCapability<?>, List<Content>> contents, boolean deep, @Nullable ContentModifier modifier) {
@@ -87,11 +94,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     }
 
     public MBDRecipe copy(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, isXEIHidden, priority);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
     }
 
     public MBDRecipe deepCopied(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, isXEIHidden, priority);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
     }
 
     public MBDRecipe copy() {
@@ -110,7 +117,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         var copied = new MBDRecipe(recipeType, id,
                 (io == IO.BOTH || io == IO.IN) ? copyContents(inputs, false, modifier) : inputs,
                 (io == IO.BOTH || io == IO.OUT) ? copyContents(outputs, false, modifier): outputs,
-                conditions, data, duration, isFuel, isXEIHidden, priority);
+                conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
         if (modifyDuration) {
             copied.duration = modifier.apply(this.duration).intValue();
         }
@@ -258,6 +265,22 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
 
     public ActionResult matchRecipe(boolean perTick, IO io, IRecipeCapabilityHolder holder, Map<RecipeCapability<?>, List<Content>> contents, boolean calculateExpectingRate) {
         Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies = holder.getRecipeCapabilitiesProxy();
+        if (io == IO.IN) {
+            ActionResult result = ActionResult.FAIL_NO_REASON;
+            for (var recipeGroupContext : getInputRecipeGroupContexts(capabilityProxies, contents)) {
+                result = matchRecipe(perTick, io, capabilityProxies, contents, calculateExpectingRate, recipeGroupContext);
+                if (result.isSuccess()) {
+                    return result;
+                }
+            }
+            return result;
+        }
+        return matchRecipe(perTick, io, capabilityProxies, contents, calculateExpectingRate, null);
+    }
+
+    private ActionResult matchRecipe(boolean perTick, IO io, Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
+                                     Map<RecipeCapability<?>, List<Content>> contents, boolean calculateExpectingRate,
+                                     @Nullable RecipeGroupMatchContext recipeGroupContext) {
         for (Map.Entry<RecipeCapability<?>, List<Content>> entry : contents.entrySet()) {
             Set<IRecipeHandler<?>> used = new HashSet<>();
             List content = new ArrayList<>();
@@ -275,9 +298,9 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             if (content.isEmpty() && contentSlot.isEmpty()) continue;
             if (content.isEmpty()) content = null;
 
-            var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, content, contentSlot, true);
+            var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, content, contentSlot, true, recipeGroupContext);
             if (result.getA() == null && result.getB().isEmpty()) continue;
-            result = handlerContentsInternal(IO.BOTH, io, capabilityProxies, capability, used, result.getA(), result.getB(), content, contentSlot, true);
+            result = handlerContentsInternal(IO.BOTH, io, capabilityProxies, capability, used, result.getA(), result.getB(), content, contentSlot, true, recipeGroupContext);
 
             if (result.getA() != null || !result.getB().isEmpty()) {
                 var expectingRate = 0f;
@@ -341,6 +364,20 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
 
     public boolean handleRecipe(boolean perTick, IO io, IRecipeCapabilityHolder holder, Map<RecipeCapability<?>, List<Content>> contents) {
         Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies = holder.getRecipeCapabilitiesProxy();
+        if (io == IO.IN) {
+            for (var recipeGroupContext : getInputRecipeGroupContexts(capabilityProxies, contents)) {
+                if (matchRecipe(perTick, io, capabilityProxies, contents, false, recipeGroupContext).isSuccess()) {
+                    return handleRecipe(perTick, io, holder, capabilityProxies, contents, recipeGroupContext);
+                }
+            }
+            return false;
+        }
+        return handleRecipe(perTick, io, holder, capabilityProxies, contents, null);
+    }
+
+    private boolean handleRecipe(boolean perTick, IO io, IRecipeCapabilityHolder holder,
+                                 Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
+                                 Map<RecipeCapability<?>, List<Content>> contents, @Nullable RecipeGroupMatchContext recipeGroupContext) {
         for (Map.Entry<RecipeCapability<?>, List<Content>> entry : contents.entrySet()) {
             Set<IRecipeHandler<?>> used = new HashSet<>();
             List content = new ArrayList<>();
@@ -367,9 +404,9 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             if (content.isEmpty() && contentSlot.isEmpty()) continue;
             if (content.isEmpty()) content = null;
 
-            var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, contentSearch, contentSlotSearch, false);
+            var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, contentSearch, contentSlotSearch, false, recipeGroupContext);
             if (result.getA() == null && result.getB().isEmpty()) continue;
-            result = handlerContentsInternal(IO.BOTH, io, capabilityProxies, capability, used, result.getA(), result.getB(), contentSearch, contentSlotSearch, false);
+            result = handlerContentsInternal(IO.BOTH, io, capabilityProxies, capability, used, result.getA(), result.getB(), contentSearch, contentSlotSearch, false, recipeGroupContext);
 
             if (result.getA() != null || !result.getB().isEmpty()) {
                 MBD2.LOGGER.warn("io error while handling a recipe {} outputs. holder: {}", id, holder);
@@ -384,20 +421,21 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             RecipeCapability<?> capability, Set<IRecipeHandler<?>> used,
             List content, Map<String, List> contentSlot,
             List contentSearch, Map<String, List> contentSlotSearch,
-            boolean simulate) {
+            boolean simulate, @Nullable RecipeGroupMatchContext recipeGroupContext) {
         if (capabilityProxies.contains(capIO, capability)) {
             var handlers = capabilityProxies.get(capIO, capability);
             // handle distinct first
             for (IRecipeHandler<?> handler : handlers) {
+                if (recipeGroupContext != null && !recipeGroupContext.isCompatible(handler)) continue;
                 if (!handler.isDistinct()) continue;
                 var slotNames = handler.getSlotNames();
-                var result = handler.handleRecipe(io, this, contentSearch, null, true);
+                var result = handleRecipeWithGroup(handler, io, contentSearch, null, true, recipeGroupContext);
                 if (result == null) {
                     // check distinct slot handler
                     if (slotNames.containsAll(contentSlotSearch.keySet())) {
                         boolean success = true;
                         for (var entry : contentSlotSearch.entrySet()) {
-                            List<?> left = handler.handleRecipe(io, this, entry.getValue(), entry.getKey(), true);
+                            List<?> left = handleRecipeWithGroup(handler, io, entry.getValue(), entry.getKey(), true, recipeGroupContext);
                             if (left != null) {
                                 success = false;
                                 break;
@@ -406,7 +444,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                         if (success) {
                             if (!simulate) {
                                 for (var entry : contentSlot.entrySet()) {
-                                    handler.handleRecipe(io, this, entry.getValue(), entry.getKey(), false);
+                                    handleRecipeWithGroup(handler, io, entry.getValue(), entry.getKey(), false, recipeGroupContext);
                                 }
                             }
                             contentSlot.clear();
@@ -414,7 +452,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                     }
                     if (contentSlot.isEmpty()) {
                         if (!simulate) {
-                            handler.handleRecipe(io, this, content, null, false);
+                            handleRecipeWithGroup(handler, io, content, null, false, recipeGroupContext);
                         }
                         content = null;
                     }
@@ -426,10 +464,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             if (content != null || !contentSlot.isEmpty()) {
                 // handle undistinct later
                 for (IRecipeHandler<?> proxy : handlers) {
+                    if (recipeGroupContext != null && !recipeGroupContext.isCompatible(proxy)) continue;
                     if (used.contains(proxy) || proxy.isDistinct()) continue;
                     used.add(proxy);
                     if (content != null) {
-                        content = proxy.handleRecipe(io, this, content, null, simulate);
+                        content = handleRecipeWithGroup(proxy, io, content, null, simulate, recipeGroupContext);
                     }
                     var slotNames = proxy.getSlotNames();
                     if (!slotNames.isEmpty()) {
@@ -437,8 +476,10 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                         while (iterator.hasNext()) {
                             String key = iterator.next();
                             if (slotNames.contains(key)) {
-                                List<?> left = proxy.handleRecipe(io, this, contentSlot.get(key), key, simulate);
-                                if (left == null) iterator.remove();
+                                List<?> left = handleRecipeWithGroup(proxy, io, contentSlot.get(key), key, simulate, recipeGroupContext);
+                                if (left == null) {
+                                    iterator.remove();
+                                }
                             }
                         }
                     }
@@ -447,6 +488,59 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             }
         }
         return new Tuple<>(content, contentSlot);
+    }
+
+    private List handleRecipeWithGroup(IRecipeHandler<?> handler, IO io, List<?> left, @Nullable String slotName,
+                                       boolean simulate, @Nullable RecipeGroupMatchContext recipeGroupContext) {
+        return handler.handleRecipe(io, this, left, slotName, simulate, recipeGroupContext == null ? null : recipeGroupContext.recipeGroup);
+    }
+
+    private List<RecipeGroupMatchContext> getInputRecipeGroupContexts(Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
+                                                                      Map<RecipeCapability<?>, List<Content>> contents) {
+        var normalizedRecipeGroup = RecipeGroup.normalizeOptional(recipeGroup);
+        if (normalizedRecipeGroup != null) {
+            return List.of(new RecipeGroupMatchContext(normalizedRecipeGroup));
+        }
+
+        Set<String> groups = new LinkedHashSet<>();
+        for (RecipeCapability<?> capability : contents.keySet()) {
+            collectRecipeGroups(groups, capabilityProxies, IO.IN, capability);
+            collectRecipeGroups(groups, capabilityProxies, IO.BOTH, capability);
+        }
+        if (groups.isEmpty()) {
+            groups.add(RecipeGroup.DEFAULT);
+        }
+        return groups.stream().map(RecipeGroupMatchContext::new).toList();
+    }
+
+    private void collectRecipeGroups(Set<String> groups, Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
+                                     IO io, RecipeCapability<?> capability) {
+        if (!capabilityProxies.contains(io, capability)) return;
+        for (IRecipeHandler<?> handler : capabilityProxies.get(io, capability)) {
+            for (var handlerGroup : handler.getRecipeGroups()) {
+                handlerGroup = RecipeGroup.normalizeOrDefault(handlerGroup);
+                if (!RecipeGroup.ANY.equals(handlerGroup)) {
+                    groups.add(handlerGroup);
+                }
+            }
+        }
+    }
+
+    private static class RecipeGroupMatchContext {
+        private final String recipeGroup;
+
+        private RecipeGroupMatchContext(String recipeGroup) {
+            this.recipeGroup = RecipeGroup.normalize(recipeGroup);
+        }
+
+        private boolean isCompatible(IRecipeHandler<?> handler) {
+            for (var handlerGroup : handler.getRecipeGroups()) {
+                if (RecipeGroup.matches(recipeGroup, handlerGroup)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     public boolean hasTick() {

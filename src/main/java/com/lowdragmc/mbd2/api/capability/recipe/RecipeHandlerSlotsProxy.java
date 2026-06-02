@@ -27,6 +27,16 @@ public record RecipeHandlerSlotsProxy<T>(IRecipeHandler<T> proxy, Set<String> sl
     }
 
     @Override
+    public String getRecipeGroup() {
+        return proxy.getRecipeGroup();
+    }
+
+    @Override
+    public Set<String> getRecipeGroups() {
+        return proxy.getRecipeGroups();
+    }
+
+    @Override
     public RecipeCapability<T> getRecipeCapability() {
         return proxy.getRecipeCapability();
     }
@@ -39,6 +49,11 @@ public record RecipeHandlerSlotsProxy<T>(IRecipeHandler<T> proxy, Set<String> sl
     @Override
     public List<T> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate) {
         return proxy.handleRecipe(io, recipe, left, slotName, simulate);
+    }
+
+    @Override
+    public List<T> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate, @Nullable String recipeGroup) {
+        return proxy.handleRecipe(io, recipe, left, slotName, simulate, recipeGroup);
     }
 
     @Override

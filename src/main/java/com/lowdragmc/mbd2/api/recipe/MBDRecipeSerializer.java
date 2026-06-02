@@ -72,7 +72,8 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         boolean isFuel = GsonHelper.getAsBoolean(json, "isFuel", false);
         boolean isXEIHidden = GsonHelper.getAsBoolean(json, "isXEIHidden", false);
         int priority = GsonHelper.getAsInt(json, "priority", 0);
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority);
+        String recipeGroup = json.has("recipeGroup") ? RecipeGroup.normalize(GsonHelper.getAsString(json, "recipeGroup")) : null;
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
     }
 
     public JsonObject capabilitiesToJson(Map<RecipeCapability<?>, List<Content>> contents) {
@@ -114,6 +115,9 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         }
         if (recipe.priority != 0) {
             json.addProperty("priority", recipe.priority);
+        }
+        if (RecipeGroup.hasGroup(recipe.recipeGroup)) {
+            json.addProperty("recipeGroup", RecipeGroup.normalize(recipe.recipeGroup));
         }
         return json;
     }
@@ -159,7 +163,8 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         boolean isFuel = buf.readBoolean();
         boolean isXEIHidden = buf.readBoolean();
         int priority = buf.readVarInt();
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority);
+        String recipeGroup = RecipeGroup.normalizeOptional(buf.readUtf());
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
     }
 
     @Override
@@ -173,6 +178,7 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         buf.writeBoolean(recipe.isFuel);
         buf.writeBoolean(recipe.isXEIHidden);
         buf.writeVarInt(recipe.priority);
+        buf.writeUtf(recipe.recipeGroup == null ? "" : RecipeGroup.normalize(recipe.recipeGroup));
     }
 
     public Map<RecipeCapability<?>, List<Content>> capabilitiesFromNBT(CompoundTag nbt) {
@@ -207,7 +213,8 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         boolean isFuel = nbt.getBoolean("isFuel");
         boolean isXEIHidden = nbt.getBoolean("isXEIHidden");
         int priority = nbt.getInt("priority");
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority);
+        String recipeGroup = nbt.contains("recipeGroup", Tag.TAG_STRING) ? RecipeGroup.normalize(nbt.getString("recipeGroup")) : null;
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
     }
 
     public CompoundTag capabilitiesToNBT(Map<RecipeCapability<?>, List<Content>> contents) {
@@ -240,6 +247,9 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         nbt.putBoolean("isFuel", recipe.isFuel);
         nbt.putBoolean("isXEIHidden", recipe.isXEIHidden);
         nbt.putInt("priority", recipe.priority);
+        if (RecipeGroup.hasGroup(recipe.recipeGroup)) {
+            nbt.putString("recipeGroup", RecipeGroup.normalize(recipe.recipeGroup));
+        }
         return nbt;
     }
 }

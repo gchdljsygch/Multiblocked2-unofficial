@@ -8,6 +8,7 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.capability.recipe.LongFeRecipeCapability;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -20,6 +21,19 @@ public class LongFeRecipeCapabilityFallbackHandler implements IRecipeHandler<Lon
 
     @Override
     public List<Long> handleRecipeInner(IO io, MBDRecipe recipe, List<Long> left, @Nullable String slotName, boolean simulate) {
+        return handleRecipeInner(io, recipe, left, slotName, simulate, null);
+    }
+
+    @Override
+    public List<Long> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate, @Nullable String recipeGroup) {
+        var copied = new ArrayList<Long>(left.size());
+        for (var content : left) {
+            copied.add(copyContent(content));
+        }
+        return handleRecipeInner(io, recipe, copied, slotName, simulate, recipeGroup);
+    }
+
+    private List<Long> handleRecipeInner(IO io, MBDRecipe recipe, List<Long> left, @Nullable String slotName, boolean simulate, @Nullable String recipeGroup) {
         if (left == null || left.isEmpty()) return null;
         for (Long v : left) {
             if (v != null && v > Integer.MAX_VALUE) {
@@ -27,7 +41,7 @@ public class LongFeRecipeCapabilityFallbackHandler implements IRecipeHandler<Lon
             }
         }
         List<Integer> ints = left.stream().map(v -> v == null ? 0 : v.intValue()).toList();
-        List<Integer> intLeft = delegate.handleRecipeInner(io, recipe, ints, slotName, simulate);
+        List<Integer> intLeft = delegate.handleRecipe(io, recipe, ints, slotName, simulate, recipeGroup);
         if (intLeft == null) return null;
         return intLeft.stream().map(v -> v == null ? 0L : v.longValue()).toList();
     }
@@ -40,6 +54,16 @@ public class LongFeRecipeCapabilityFallbackHandler implements IRecipeHandler<Lon
     @Override
     public boolean isDistinct() {
         return delegate.isDistinct();
+    }
+
+    @Override
+    public String getRecipeGroup() {
+        return delegate.getRecipeGroup();
+    }
+
+    @Override
+    public Set<String> getRecipeGroups() {
+        return delegate.getRecipeGroups();
     }
 
     @Override

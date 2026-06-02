@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.test;
 
+import com.gregtechceu.gtceu.core.mixins.GuiGraphicsAccessor;
 import com.lowdragmc.lowdraglib.client.renderer.impl.IModelRenderer;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.event.MBDRegistryEvent;
@@ -13,9 +14,9 @@ import com.lowdragmc.mbd2.common.machine.definition.config.toggle.ToggleShape;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraft.world.level.storage.loot.providers.number.NumberProvider;
+import net.minecraft.client.gui.GuiGraphics;
 
 public class MBDTest {
-
     @SubscribeEvent
     public void onRegisterMachine(MBDRegistryEvent.Machine event) {
 //        var renderer = new IModelRenderer(MBD2.id("block/pedestal"));

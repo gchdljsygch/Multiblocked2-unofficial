@@ -14,6 +14,7 @@ import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.redstone.RedstoneSignalCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.ae2.trait.MEInterfaceTraitDefinition;
+import com.lowdragmc.mbd2.integration.ae2.trait.MEPatternInputTraitDefinition;
 import com.lowdragmc.mbd2.integration.arsnouveau.trait.ArsNouveauSourceCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicSoulNetworkTraitDefinition;
 import com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicWillTraitDefinition;
@@ -69,6 +70,7 @@ public class MBDTraitDefinitionTypes {
         }
         if (MBD2.isAE2Loaded()) {
             register(MEInterfaceTraitDefinition.class);
+            register(MEPatternInputTraitDefinition.class);
         }
         if (MBD2.isBloodMagicLoaded()) {
             register(BloodMagicWillTraitDefinition.class);

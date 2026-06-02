@@ -289,6 +289,8 @@
     "config.definition.trait.distinct.tooltip.1": "無効 - 非区別特性の組み合わせがレシピを満たすときにレシピが処理されます。",
     "config.definition.trait.slot_names": "スロット名",
     "config.definition.trait.slot_names.tooltip": "レシピの材料がスロット名を指定している場合、その材料はそのスロット名を持つ特性でのみ処理できます。",
+    "config.definition.trait.recipe_group": "レシピグループ",
+    "config.definition.trait.recipe_group.tooltip": "数字または大文字小文字の英字4文字のレシピグループID。同じグループのレシピだけがこの特性を使用できます。0000はデフォルト、ZZZZはグループ分離を無視します。",
 
     "config.definition.trait.filter.whitelist": "ホワイトリストモード",
     "config.definition.trait.filter.match_nbt": "NBTを一致させる",

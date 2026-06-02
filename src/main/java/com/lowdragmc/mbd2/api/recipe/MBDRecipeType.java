@@ -22,6 +22,7 @@ import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.event.FuelRecipeUIEvent;
 import com.lowdragmc.mbd2.api.recipe.event.RecipeUIEvent;
 import com.lowdragmc.mbd2.api.recipe.event.TransferProxyRecipeEvent;
+import com.lowdragmc.mbd2.common.gui.recipe.ingredient.ScrollablePreviewSlotsWidget;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.MachineUIEvent;
 import com.lowdragmc.mbd2.core.mixins.RecipeManagerAccessor;
 import com.lowdragmc.mbd2.integration.kubejs.recipe.MBDRecipeSchema;
@@ -464,6 +465,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     }
 
     private static void bindCapIOUI(WidgetGroup ui, Map<RecipeCapability<?>, List<Content>> values, IO io) {
+        ScrollablePreviewSlotsWidget.bindXEIRecipeUI(ui, values, io);
         values.forEach((cap, contents) -> {
             for (int i = 0; i < contents.size(); i++) {
                 var content = contents.get(i);

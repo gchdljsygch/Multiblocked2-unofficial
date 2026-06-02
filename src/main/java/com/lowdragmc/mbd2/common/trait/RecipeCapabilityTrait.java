@@ -4,6 +4,7 @@ import com.lowdragmc.lowdraglib.syncdata.IEnhancedManaged;
 import com.lowdragmc.lowdraglib.syncdata.ISubscription;
 import com.lowdragmc.lowdraglib.syncdata.field.FieldManagedStorage;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
+import com.lowdragmc.mbd2.api.recipe.RecipeGroup;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import lombok.Getter;
 
@@ -63,6 +64,10 @@ public abstract class RecipeCapabilityTrait implements ITrait, IEnhancedManaged 
 
     public Set<String> getSlotNames() {
         return Arrays.stream(getDefinition().getSlotNames()).collect(Collectors.toSet());
+    }
+
+    public String getRecipeGroup() {
+        return RecipeGroup.normalizeOrDefault(getDefinition().getRecipeGroup());
     }
 
 }
