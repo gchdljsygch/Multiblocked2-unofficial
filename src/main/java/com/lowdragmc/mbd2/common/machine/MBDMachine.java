@@ -25,8 +25,7 @@ import com.lowdragmc.mbd2.api.recipe.RecipeConsumption;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.client.MachineSound;
-import com.lowdragmc.mbd2.client.renderer.FusionModelRenderer;
-import com.lowdragmc.mbd2.client.renderer.MachineStateRenderer;
+import com.lowdragmc.mbd2.client.renderer.MBDClientRenderers;
 import com.lowdragmc.mbd2.common.gui.factory.MachineUIFactory;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigMachineSettings;
@@ -84,12 +83,14 @@ import org.joml.Vector3f;
 import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMachine.class);
     private static final int GAME_DELAY_SYNC_INTERVAL = 20;
     private static final int GAME_DELAY_AVERAGE_WINDOW_SECONDS = 10;
+    private static final Set<String> REPORTED_TRAIT_LOAD_FAILURES = ConcurrentHashMap.newKeySet();
 
     @Override
     public ManagedFieldHolder getFieldHolder() {
@@ -429,7 +430,13 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
             }
             additionalTraits.clear();
             definition.machineSettings().traitDefinitions().stream().sorted((a, b) -> b.getPriority() - a.getPriority()).forEach(traitDefinition -> {
-                var trait = traitDefinition.createTrait(this);
+                ITrait trait;
+                try {
+                    trait = traitDefinition.createTrait(this);
+                } catch (RuntimeException | LinkageError error) {
+                    reportTraitLoadFailure(traitDefinition, error);
+                    return;
+                }
                 additionalTraits.add(trait);
                 if (trait instanceof IManaged managed) {
                     for (IRef ref : managed.getSyncStorage().getPersistedFields()) {
@@ -439,6 +446,17 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 }
             });
             initCapabilitiesProxy();
+        }
+    }
+
+    private void reportTraitLoadFailure(TraitDefinition traitDefinition, Throwable error) {
+        var traitKey = traitDefinition.getClass().getName() + ":" + traitDefinition.getName();
+        if (REPORTED_TRAIT_LOAD_FAILURES.add(traitKey)) {
+            MBD2.LOGGER.warn("[mbd2] Failed to create trait '{}' ({}) for machine {} at {}; skipping this trait to keep the block entity loadable. This is often caused by an incompatible optional integration or stale runtime transformer patch. Original error: {}",
+                    traitDefinition.getName(), traitDefinition.getClass().getName(), definition.id(), getPos(), error.toString(), error);
+        } else {
+            MBD2.LOGGER.warn("[mbd2] Skipped failed trait '{}' for machine {} at {}. Original error: {}",
+                    traitDefinition.getName(), definition.id(), getPos(), error.toString());
         }
     }
 
@@ -626,7 +644,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         if (realFrontRenderer == IRenderer.EMPTY) {
             return realBlockRenderer;
         }
-        return new MachineStateRenderer(realBlockRenderer, realFrontRenderer, frontFacing);
+        return MBDClientRenderers.createMachineStateRenderer(realBlockRenderer, realFrontRenderer, frontFacing);
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -658,7 +676,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
             return null;
         }
         var modelLocation = ResourceLocation.tryParse(modelPath);
-        return modelLocation == null ? null : new FusionModelRenderer(modelLocation);
+        return modelLocation == null ? null : MBDClientRenderers.createFusionModelRenderer(modelLocation);
     }
 
     @OnlyIn(Dist.CLIENT)

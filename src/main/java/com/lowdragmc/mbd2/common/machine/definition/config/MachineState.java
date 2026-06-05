@@ -1,7 +1,6 @@
 package com.lowdragmc.mbd2.common.machine.definition.config;
 
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
-import com.lowdragmc.lowdraglib.client.renderer.impl.IModelRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
@@ -9,8 +8,7 @@ import com.lowdragmc.lowdraglib.syncdata.IPersistedSerializable;
 import com.lowdragmc.lowdraglib.utils.ShapeUtils;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.client.MachineSound;
-import com.lowdragmc.mbd2.client.renderer.FusionModelRenderer;
-import com.lowdragmc.mbd2.client.renderer.MachineStateRenderer;
+import com.lowdragmc.mbd2.client.renderer.MBDClientRenderers;
 import com.lowdragmc.mbd2.common.machine.definition.config.toggle.*;
 import com.lowdragmc.mbd2.integration.geckolib.GeckolibRenderer;
 import dev.latvian.mods.rhino.util.HideFromJS;
@@ -26,6 +24,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
@@ -187,7 +186,7 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
         if (frontRenderer == IRenderer.EMPTY) {
             return blockRenderer;
         }
-        return new MachineStateRenderer(blockRenderer, frontRenderer, frontFacing);
+        return MBDClientRenderers.createMachineStateRenderer(blockRenderer, frontRenderer, frontFacing);
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -344,8 +343,11 @@ public class MachineState implements IConfigurable, IPersistedSerializable, Comp
             return frontRenderer(createModelRenderer(location));
         }
 
-        protected IModelRenderer createModelRenderer(ResourceLocation modelPath) {
-            return new FusionModelRenderer(modelPath);
+        protected IRenderer createModelRenderer(ResourceLocation modelPath) {
+            if (FMLEnvironment.dist == Dist.DEDICATED_SERVER) {
+                return IRenderer.EMPTY;
+            }
+            return MBDClientRenderers.createFusionModelRenderer(modelPath);
         }
 
         @HideFromJS

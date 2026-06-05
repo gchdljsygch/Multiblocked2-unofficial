@@ -12,10 +12,9 @@ import com.lowdragmc.lowdraglib.gui.texture.IGuiTexture;
 import com.lowdragmc.lowdraglib.gui.texture.ItemStackTexture;
 import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
-import com.lowdragmc.lowdraglib.gui.widget.SceneWidget;
+import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.syncdata.IAutoPersistedSerializable;
-import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
 import com.lowdragmc.mbd2.api.block.ProxyPartBlock;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
@@ -292,32 +291,7 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
     }
 
     @OnlyIn(Dist.CLIENT)
-    protected SceneWidget createPreview() {
-        var level = new TrackedDummyWorld();
-        var blockInfo = Optional.ofNullable(candidates).map(Supplier::get).filter(x -> x.length > 0).map(x -> x[0]).orElse(BlockInfo.EMPTY);
-        level.addBlock(BlockPos.ZERO, blockInfo);
-        var sceneWidget = new SceneWidget(0, 0, 100, 100, null) {
-            @Override
-            @OnlyIn(Dist.CLIENT)
-            public void updateScreen() {
-                super.updateScreen();
-                if (gui.getTickCount() % 20 == 0) {
-                    var blockInfo = Optional.ofNullable(candidates).map(Supplier::get)
-                            .filter(x -> x.length > 0)
-                            .map(x -> x[(int) ((gui.getTickCount() / 20L) % x.length)])
-                            .orElse(BlockInfo.EMPTY);
-                    level.addBlock(BlockPos.ZERO, blockInfo);
-                }
-            }
-        };
-        sceneWidget.setRenderFacing(false);
-        sceneWidget.setRenderSelect(false);
-        sceneWidget.setScalable(false);
-        sceneWidget.setDraggable(false);
-        sceneWidget.setIntractable(false);
-        sceneWidget.createScene(level);
-        sceneWidget.getRenderer().setOnLookingAt(null); // better performance
-        sceneWidget.setRenderedCore(Collections.singleton(BlockPos.ZERO), null);
-        return sceneWidget;
+    protected Widget createPreview() {
+        return SimplePredicateClientPreview.create(this);
     }
 }

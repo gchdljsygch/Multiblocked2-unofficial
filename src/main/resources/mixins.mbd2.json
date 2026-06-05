@@ -18,6 +18,7 @@
     "client.ModelManagerAccessor",
     "lowdraglib.DrawerHelperMixin",
     "lowdraglib.IModelRendererFusionMixin",
+    "lowdraglib.SceneWidgetRenderedCoreMixin",
     "fusion.ConnectingBakedModelMixin"
   ],
   "mixins": [
@@ -40,7 +41,7 @@
     "lowdraglib.PhantomFluidWidgetMixin",
     "lowdraglib.PhantomSlotWidgetMixin",
     "lowdraglib.PhantomTankWidgetMixin",
-    "lowdraglib.SceneWidgetRenderedCoreMixin",
+    "lowdraglib.LDLibKubeJSPluginMixin",
     "lowdraglib.SlotWidgetMixin",
     "lowdraglib.TextFormattingUtilMixin",
     "lowdraglib.WidgetSlotItemTransferMixin"

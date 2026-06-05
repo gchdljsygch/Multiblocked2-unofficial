@@ -104,6 +104,7 @@ public class MultiblockWorldSavedData extends SavedData {
             // if it requires catalyst, don't add it to async logic.
             if (machine.getDefinition().multiblockSettings().catalyst().isEnable()) return;
         }
+        if (controllers.contains(controller)) return;
         controllers.add(controller);
         createExecutorService();
     }

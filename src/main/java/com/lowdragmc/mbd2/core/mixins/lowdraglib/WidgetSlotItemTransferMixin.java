@@ -19,14 +19,14 @@ public abstract class WidgetSlotItemTransferMixin {
     @Shadow(remap = false)
     private int index;
 
-    @Shadow(remap = false)
+    @Shadow
     public abstract ItemStack getItem();
 
     /**
      * @author
      * @reason Block vanilla swap-to-cursor behavior when this widget slot currently holds an oversized stack.
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public boolean mayPlace(@Nonnull ItemStack stack) {
         if (stack.isEmpty()) {
             return false;
@@ -56,7 +56,7 @@ public abstract class WidgetSlotItemTransferMixin {
      * @author
      * @reason Limit player pickup to the item's native max stack size while keeping oversized storage intact.
      */
-    @Overwrite(remap = false)
+    @Overwrite
     @Nonnull
     public ItemStack remove(int amount) {
         ItemStack current = getItem();
@@ -76,7 +76,7 @@ public abstract class WidgetSlotItemTransferMixin {
      * @author
      * @reason Make vanilla container interaction see the native item stack size instead of oversized slot limits.
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public int getMaxStackSize() {
         ItemStack current = getItem();
         return current.isEmpty() ? 64 : current.getMaxStackSize();
@@ -86,7 +86,7 @@ public abstract class WidgetSlotItemTransferMixin {
      * @author
      * @reason Prevent cursor insertion and drag-splitting from exceeding the item's native max stack size.
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public int getMaxStackSize(@Nonnull ItemStack stack) {
         return stack.getMaxStackSize();
     }

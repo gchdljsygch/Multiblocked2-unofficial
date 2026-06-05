@@ -36,7 +36,7 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
     /**
      * Prevent swapping an oversized widget slot stack directly onto the carried cursor stack.
      */
-    @Inject(method = "clicked", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
     private void mbd2$blockOversizedCursorSwap(int slotId, int dragType, ClickType clickTypeIn, Player player, CallbackInfo ci) {
         if (slotId < 0) {
             return;
@@ -52,7 +52,7 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
      * @author
      * @reason Limit shift-click extraction from widget transfer slots to one native stack per action.
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public ItemStack quickMoveStack(Player player, int index) {
         Slot slot = getSlot(index);
         if (!slot.mayPickup(player) || !slot.hasItem()) {

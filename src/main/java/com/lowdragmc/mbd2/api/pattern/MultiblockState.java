@@ -103,6 +103,12 @@ public class MultiblockState {
         return true;
     }
 
+    public boolean testPredicateAt(BlockPos pos, TraceabilityPredicate predicate, Direction patternFacing, Direction patternBaseFacing) {
+        clean();
+        setPatternContext(patternFacing, patternBaseFacing);
+        return update(pos, predicate) && predicate.test(this);
+    }
+
     public IMultiController getController() {
         if (world.isLoaded(controllerPos)) {
             var machineOptional = IMachine.ofMachine(world, controllerPos);
@@ -164,14 +170,20 @@ public class MultiblockState {
     }
 
     public void addPosCache(BlockPos pos) {
+        if (cache == null) {
+            cache = new LongOpenHashSet();
+        }
         cache.add(pos.asLong());
     }
 
     public boolean isPosInCache(BlockPos pos) {
-        return cache.contains(pos.asLong());
+        return cache != null && cache.contains(pos.asLong());
     }
 
     public Collection<BlockPos> getCache() {
+        if (cache == null) {
+            return java.util.Collections.emptyList();
+        }
         return cache.stream().map(BlockPos::of).collect(Collectors.toList());
     }
 

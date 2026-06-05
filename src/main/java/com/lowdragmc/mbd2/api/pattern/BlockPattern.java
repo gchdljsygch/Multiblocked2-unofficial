@@ -91,6 +91,22 @@ public class BlockPattern {
         this.mbd2$baseFacing = facing;
     }
 
+    public int getEstimatedBlockCount() {
+        if (fingerLength <= 0 || thumbLength <= 0 || palmLength <= 0) {
+            return 0;
+        }
+        long repetitions = 0;
+        for (int i = 0; i < fingerLength; i++) {
+            int maxRepetition = 1;
+            if (i < aisleRepetitions.length && aisleRepetitions[i].length > 1) {
+                maxRepetition = Math.max(aisleRepetitions[i][0], aisleRepetitions[i][1]);
+            }
+            repetitions += Math.max(1, maxRepetition);
+        }
+        long blocks = repetitions * thumbLength * palmLength;
+        return blocks > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) blocks;
+    }
+
     public boolean checkPatternAtWithoutController(MultiblockState worldState, Direction facing) {
         var centerPos = worldState.controllerPos;
         return checkPatternAt(worldState, centerPos, facing, false);

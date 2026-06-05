@@ -29,6 +29,14 @@ public class CombinedBlockPattern extends BlockPattern {
     }
 
     @Override
+    public int getEstimatedBlockCount() {
+        return Arrays.stream(patterns)
+                .mapToInt(BlockPattern::getEstimatedBlockCount)
+                .max()
+                .orElse(0);
+    }
+
+    @Override
     public boolean checkPatternAtWithoutController(MultiblockState worldState, Direction facing) {
         return checkPatterns(worldState, pattern -> pattern.checkPatternAtWithoutController(worldState, facing));
     }

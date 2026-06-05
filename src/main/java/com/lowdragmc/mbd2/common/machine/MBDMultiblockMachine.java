@@ -17,6 +17,7 @@ import com.lowdragmc.mbd2.api.machine.IMultiPart;
 import com.lowdragmc.mbd2.api.pattern.BlockPattern;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
 import com.lowdragmc.mbd2.api.pattern.MultiblockWorldSavedData;
+import com.lowdragmc.mbd2.api.pattern.TraceabilityPredicate;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
@@ -52,6 +53,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MBDMultiblockMachine extends MBDMachine implements IMultiController {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMultiblockMachine.class, MBDMachine.MANAGED_FIELD_HOLDER);
+    private static final int FORMED_VALIDATION_BATCH_SIZE = 64;
+    private static final int FORMED_VALIDATION_FULL_CHECK_DELAY = 20;
     @Override
     public ManagedFieldHolder getFieldHolder() {
         return MANAGED_FIELD_HOLDER;
@@ -79,6 +82,8 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     // runtime
     @Getter
     private boolean isFormedValid = false;
+    private transient BlockPos[] formedValidationPositions = new BlockPos[0];
+    private transient int formedValidationIndex;
 
     public MBDMultiblockMachine(IMachineBlockEntity machineHolder, MultiblockMachineDefinition definition, Object... args) {
         super(machineHolder, definition, args);
@@ -114,17 +119,80 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     public void serverTick() {
         long start = System.nanoTime();
         try {
-            if (isFormed && !isFormedValid && getLevel() instanceof ServerLevel serverLevel) {
-                if (checkPatternWithTryLock()) {
-                    onStructureFormed();
-                    var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
-                    mwsd.addMapping(getMultiblockState());
-                    mwsd.removeAsyncLogic(this);
-                }
-            }
+            validateFormedStructureIncrementally();
             super.serverTick();
         } finally {
             updateGameDelay(System.nanoTime() - start);
+        }
+    }
+
+    private void validateFormedStructureIncrementally() {
+        if (!isFormed || isFormedValid || !(getLevel() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        var lock = getPatternLock();
+        if (!lock.tryLock()) {
+            return;
+        }
+        try {
+            if (getOffsetTimer() % FORMED_VALIDATION_FULL_CHECK_DELAY != 0 && formedValidationPositions.length == 0) {
+                return;
+            }
+            var state = getMultiblockState();
+            if (formedValidationPositions.length == 0) {
+                formedValidationPositions = state.getCache().toArray(BlockPos[]::new);
+                formedValidationIndex = 0;
+                if (formedValidationPositions.length == 0) {
+                    formedValidationPositions = new BlockPos[0];
+                    refreshFormedStructure(serverLevel);
+                    return;
+                }
+            }
+            if (!validateFormedStructureBatch()) {
+                return;
+            }
+            if (formedValidationIndex < formedValidationPositions.length) {
+                return;
+            }
+            formedValidationPositions = new BlockPos[0];
+            formedValidationIndex = 0;
+            refreshFormedStructure(serverLevel);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private boolean validateFormedStructureBatch() {
+        var state = getMultiblockState();
+        Map<BlockPos, TraceabilityPredicate> predicateMap = state.getMatchContext().get("predicates");
+        Direction patternFacing = state.getPatternFacing();
+        Direction patternBaseFacing = state.getPatternBaseFacing();
+        int end = Math.min(formedValidationPositions.length, formedValidationIndex + FORMED_VALIDATION_BATCH_SIZE);
+        for (; formedValidationIndex < end; formedValidationIndex++) {
+            BlockPos pos = formedValidationPositions[formedValidationIndex];
+            TraceabilityPredicate predicate = predicateMap == null ? null : predicateMap.get(pos);
+            if (predicate == null) {
+                formedValidationPositions = new BlockPos[0];
+                formedValidationIndex = 0;
+                return true;
+            }
+            MultiblockState checkState = new MultiblockState(getLevel(), getPos());
+            if (!checkState.testPredicateAt(pos, predicate, patternFacing, patternBaseFacing)) {
+                state.setError(checkState.error == null ? MultiblockState.UNINIT_ERROR : checkState.error);
+                formedValidationPositions = new BlockPos[0];
+                formedValidationIndex = 0;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void refreshFormedStructure(ServerLevel serverLevel) {
+        if (checkPatternWithTryLock()) {
+            onStructureFormed();
+            var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
+            mwsd.addMapping(getMultiblockState());
+            mwsd.removeAsyncLogic(this);
         }
     }
 
@@ -317,6 +385,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     @Override
     public void onStructureFormed() {
+        resetFormedValidation();
         setFormed(true);
         this.isFormedValid = true;
         this.parts.clear();
@@ -367,6 +436,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     @Override
     public void onStructureInvalid(boolean isControllerRemoved) {
+        resetFormedValidation();
         setFormed(false);
         this.isFormedValid = false;
         // reset recipe Logic
@@ -402,6 +472,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     @Override
     public void onPartUnload() {
+        resetFormedValidation();
         parts.removeIf(IMachine::isInValid);
         getMultiblockState().setError(MultiblockState.UNLOAD_ERROR);
         if (getLevel() instanceof ServerLevel serverLevel) {
@@ -424,6 +495,11 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
             mwsd.removeMapping(getMultiblockState());
             mwsd.addAsyncLogic(this);
         }
+    }
+
+    private void resetFormedValidation() {
+        formedValidationPositions = new BlockPos[0];
+        formedValidationIndex = 0;
     }
 
     /**

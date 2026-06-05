@@ -23,6 +23,10 @@ import java.util.concurrent.locks.Lock;
 
 public interface IMultiController extends IMachine {
 
+    int BASE_ASYNC_CHECK_INTERVAL = 4;
+    int LARGE_PATTERN_BLOCKS = 512;
+    int MAX_ASYNC_CHECK_INTERVAL = 80;
+
     static Optional<IMultiController> ofController(@Nullable BlockEntity blockEntity) {
         return blockEntity == null ? Optional.empty() : blockEntity.getCapability(MBDCapabilities.CAPABILITY_MACHINE).resolve()
                 .filter(IMultiController.class::isInstance)
@@ -42,7 +46,20 @@ public interface IMultiController extends IMachine {
      */
     default boolean checkPattern() {
         BlockPattern pattern = getPattern();
-        return pattern != null && pattern.checkPatternAt(getMultiblockState(), false);
+        return pattern != null && pattern.checkPatternAt(getMultiblockState(), true);
+    }
+
+    default int getAsyncCheckPatternInterval() {
+        BlockPattern pattern = getPattern();
+        if (pattern == null) {
+            return BASE_ASYNC_CHECK_INTERVAL;
+        }
+        int estimatedBlocks = pattern.getEstimatedBlockCount();
+        if (estimatedBlocks <= LARGE_PATTERN_BLOCKS) {
+            return BASE_ASYNC_CHECK_INTERVAL;
+        }
+        int scale = Math.max(1, (estimatedBlocks + LARGE_PATTERN_BLOCKS - 1) / LARGE_PATTERN_BLOCKS);
+        return Math.min(MAX_ASYNC_CHECK_INTERVAL, BASE_ASYNC_CHECK_INTERVAL * scale);
     }
 
     /**
@@ -150,7 +167,11 @@ public interface IMultiController extends IMachine {
      * @param periodID period Tick
      */
     default void asyncCheckPattern(long periodID) {
-        if ((getMultiblockState().hasError() || !isFormed()) && (getOffset() + periodID) % 4 == 0 && checkPatternWithTryLock()) { // per second
+        long periodOffset = getOffset() + periodID;
+        if ((getMultiblockState().hasError() || !isFormed())
+                && periodOffset % BASE_ASYNC_CHECK_INTERVAL == 0
+                && periodOffset % getAsyncCheckPatternInterval() == 0
+                && checkPatternWithTryLock()) {
             if (getLevel() instanceof ServerLevel serverLevel) {
                 serverLevel.getServer().execute(() -> {
                     var lock = getPatternLock();
