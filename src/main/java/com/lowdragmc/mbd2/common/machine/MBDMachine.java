@@ -1006,13 +1006,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Override
     public void onConsumeInputsAfterWorking() {
-        onConsumeInputsAfterWorking(RecipeConsumption.EMPTY);
+        MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, getCurrentRecipeLogic().getLastRecipe()).postCustomEvent());
     }
 
     @Override
     public void onConsumeInputsAfterWorking(RecipeConsumption consumedInputs) {
         MinecraftForge.EVENT_BUS.post(new MachineOnConsumeInputsAfterWorkingEvent(this, getCurrentRecipeLogic().getLastRecipe(), consumedInputs).postCustomEvent());
-        IMachine.super.onConsumeInputsAfterWorking(consumedInputs);
     }
 
     @Override
