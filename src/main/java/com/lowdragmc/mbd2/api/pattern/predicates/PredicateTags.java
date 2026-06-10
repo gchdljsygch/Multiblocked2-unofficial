@@ -7,17 +7,23 @@ import com.lowdragmc.lowdraglib.gui.editor.configurator.ConfiguratorGroup;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.SearchComponentConfigurator;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
+import com.lowdragmc.mbd2.api.pattern.TraceabilityPredicate;
 import lombok.NoArgsConstructor;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 @LDLRegister(name = "tags", group = "predicate")
@@ -46,6 +52,43 @@ public class PredicateTags extends SimplePredicate {
             return Arrays.stream(new Block[]{Blocks.BARRIER});
         }).map(BlockInfo::fromBlock).toArray(BlockInfo[]::new));
         return super.buildPredicate();
+    }
+
+    @Override
+    public List<Component> getToolTips(TraceabilityPredicate predicates) {
+        var result = new ArrayList<>(super.getToolTips(predicates));
+        Arrays.stream(tags)
+                .filter(Objects::nonNull)
+                .forEach(tag -> addBlockTagToolTip(result, tag));
+        return result;
+    }
+
+    @Override
+    public List<Component> getCandidateToolTips(TraceabilityPredicate predicates, ItemStack stack) {
+        var result = new ArrayList<>(super.getToolTips(predicates));
+        var matchingTags = getMatchingTags(stack);
+        if (matchingTags.isEmpty()) {
+            matchingTags = Arrays.stream(tags).filter(Objects::nonNull).toList();
+        }
+        matchingTags.forEach(tag -> addBlockTagToolTip(result, tag));
+        return result;
+    }
+
+    private List<ResourceLocation> getMatchingTags(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
+            return List.of();
+        }
+        var block = blockItem.getBlock();
+        return Arrays.stream(tags)
+                .filter(Objects::nonNull)
+                .filter(tag -> block.builtInRegistryHolder().is(BlockTags.create(tag)))
+                .toList();
+    }
+
+    private static void addBlockTagToolTip(List<Component> tooltips, ResourceLocation tag) {
+        tooltips.add(Component.translatable(
+                "mbd2.multiblock.pattern.block_tag",
+                Component.literal("#" + tag)));
     }
 
     @Override

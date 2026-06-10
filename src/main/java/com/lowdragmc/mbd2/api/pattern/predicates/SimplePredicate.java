@@ -168,6 +168,11 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
         return result;
     }
 
+    @OnlyIn(Dist.CLIENT)
+    public List<Component> getCandidateToolTips(TraceabilityPredicate predicates, ItemStack stack) {
+        return getToolTips(predicates);
+    }
+
     private boolean isProxyBlock(MultiblockState blockWorldState) {
         return blockWorldState.getBlockState().getBlock() == ProxyPartBlock.BLOCK;
     }

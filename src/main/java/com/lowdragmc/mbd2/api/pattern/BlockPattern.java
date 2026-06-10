@@ -13,6 +13,7 @@ import com.lowdragmc.mbd2.api.pattern.util.RelativeDirection;
 import com.lowdragmc.mbd2.common.autobuild.AutoBuildPlacementExecutor;
 import com.lowdragmc.mbd2.common.autobuild.SlowAutoBuildScheduler;
 import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
+import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
 import com.lowdragmc.mbd2.utils.MultiFluidHandler;
 import com.lowdragmc.mbd2.utils.MultiItemHandler;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
@@ -613,55 +614,31 @@ public class BlockPattern {
                 for (int y = 0; y < this.thumbLength; y++) {
                     for (int z = 0; z < this.palmLength; z++) {
                         var predicate = this.blockMatches[l][y][z];
-                        boolean find = false;
-                        BlockInfo[] infos = null;
-                        for (SimplePredicate limit : predicate.limited) { // check layer and previewCount
-                            if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
-                                continue;
-                            if (limit.minLayerCount > 0) {
-                                if (!cacheLayer.containsKey(limit)) {
-                                    cacheLayer.put(limit, 1);
-                                } else if (cacheLayer.get(limit) < limit.minLayerCount) {
-                                    cacheLayer.put(limit, cacheLayer.get(limit) + 1);
-                                } else {
-                                    continue;
-                                }
-                                if (cacheGlobal.getOrDefault(limit, 0) < limit.previewCount) {
-                                    if (!cacheGlobal.containsKey(limit)) {
-                                        cacheGlobal.put(limit, 1);
-                                    } else if (cacheGlobal.get(limit) < limit.previewCount) {
-                                        cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
-                                    } else {
-                                        continue;
-                                    }
-                                }
-                            } else {
-                                continue;
-                            }
-                            infos = limit.candidates == null ? null : limit.candidates.get();
-                            find = true;
-                            break;
-                        }
-                        if (!find) { // check global and previewCount
-                            for (SimplePredicate limit : predicate.limited) {
+                        BlockInfo info = null;
+                        if (predicate.isController) {
+                            info = new ControllerBlockInfo(mbd2$getBaseFacing());
+                        } else {
+                            boolean find = false;
+                            BlockInfo[] infos = null;
+                            for (SimplePredicate limit : predicate.limited) { // check layer and previewCount
                                 if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
                                     continue;
-                                if (limit.minCount == -1 && limit.previewCount == -1) continue;
-                                if (cacheGlobal.getOrDefault(limit, 0) < limit.previewCount) {
-                                    if (!cacheGlobal.containsKey(limit)) {
-                                        cacheGlobal.put(limit, 1);
-                                    } else if (cacheGlobal.get(limit) < limit.previewCount) {
-                                        cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
+                                if (limit.minLayerCount > 0) {
+                                    if (!cacheLayer.containsKey(limit)) {
+                                        cacheLayer.put(limit, 1);
+                                    } else if (cacheLayer.get(limit) < limit.minLayerCount) {
+                                        cacheLayer.put(limit, cacheLayer.get(limit) + 1);
                                     } else {
                                         continue;
                                     }
-                                } else if (limit.minCount > 0) {
-                                    if (!cacheGlobal.containsKey(limit)) {
-                                        cacheGlobal.put(limit, 1);
-                                    } else if (cacheGlobal.get(limit) < limit.minCount) {
-                                        cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
-                                    } else {
-                                        continue;
+                                    if (cacheGlobal.getOrDefault(limit, 0) < limit.previewCount) {
+                                        if (!cacheGlobal.containsKey(limit)) {
+                                            cacheGlobal.put(limit, 1);
+                                        } else if (cacheGlobal.get(limit) < limit.previewCount) {
+                                            cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
+                                        } else {
+                                            continue;
+                                        }
                                     }
                                 } else {
                                     continue;
@@ -670,67 +647,98 @@ public class BlockPattern {
                                 find = true;
                                 break;
                             }
-                        }
-                        if (!find) { // check common with previewCount
-                            for (SimplePredicate common : predicate.common) {
-                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
-                                    continue;
-                                if (common.previewCount > 0) {
-                                    if (!cacheGlobal.containsKey(common)) {
-                                        cacheGlobal.put(common, 1);
-                                    } else if (cacheGlobal.get(common) < common.previewCount) {
-                                        cacheGlobal.put(common, cacheGlobal.get(common) + 1);
+                            if (!find) { // check global and previewCount
+                                for (SimplePredicate limit : predicate.limited) {
+                                    if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
+                                        continue;
+                                    if (limit.minCount == -1 && limit.previewCount == -1) continue;
+                                    if (cacheGlobal.getOrDefault(limit, 0) < limit.previewCount) {
+                                        if (!cacheGlobal.containsKey(limit)) {
+                                            cacheGlobal.put(limit, 1);
+                                        } else if (cacheGlobal.get(limit) < limit.previewCount) {
+                                            cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
+                                        } else {
+                                            continue;
+                                        }
+                                    } else if (limit.minCount > 0) {
+                                        if (!cacheGlobal.containsKey(limit)) {
+                                            cacheGlobal.put(limit, 1);
+                                        } else if (cacheGlobal.get(limit) < limit.minCount) {
+                                            cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
+                                        } else {
+                                            continue;
+                                        }
                                     } else {
                                         continue;
                                     }
-                                } else {
-                                    continue;
+                                    infos = limit.candidates == null ? null : limit.candidates.get();
+                                    find = true;
+                                    break;
                                 }
-                                infos = common.candidates == null ? null : common.candidates.get();
-                                find = true;
-                                break;
                             }
-                        }
-                        if (!find) { // check without previewCount
-                            for (SimplePredicate common : predicate.common) {
-                                if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
-                                    continue;
-                                if (common.previewCount == -1) {
+                            if (!find) { // check common with previewCount
+                                for (SimplePredicate common : predicate.common) {
+                                    if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
+                                        continue;
+                                    if (common.previewCount > 0) {
+                                        if (!cacheGlobal.containsKey(common)) {
+                                            cacheGlobal.put(common, 1);
+                                        } else if (cacheGlobal.get(common) < common.previewCount) {
+                                            cacheGlobal.put(common, cacheGlobal.get(common) + 1);
+                                        } else {
+                                            continue;
+                                        }
+                                    } else {
+                                        continue;
+                                    }
                                     infos = common.candidates == null ? null : common.candidates.get();
                                     find = true;
                                     break;
                                 }
                             }
-                        }
-                        if (!find) { // check max
-                            for (SimplePredicate limit : predicate.limited) {
-                                if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
-                                    continue;
-                                if (limit.previewCount != -1) {
-                                    continue;
-                                } else if (limit.maxCount != -1 || limit.maxLayerCount != -1) {
-                                    if (cacheGlobal.getOrDefault(limit, 0) < limit.maxCount) {
-                                        if (!cacheGlobal.containsKey(limit)) {
-                                            cacheGlobal.put(limit, 1);
+                            if (!find) { // check without previewCount
+                                for (SimplePredicate common : predicate.common) {
+                                    if (common.controllerFront.isEnable() && common.controllerFront.getValue() != Direction.NORTH)
+                                        continue;
+                                    if (common.previewCount == -1) {
+                                        infos = common.candidates == null ? null : common.candidates.get();
+                                        find = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!find) { // check max
+                                for (SimplePredicate limit : predicate.limited) {
+                                    if (limit.controllerFront.isEnable() && limit.controllerFront.getValue() != Direction.NORTH)
+                                        continue;
+                                    if (limit.previewCount != -1) {
+                                        continue;
+                                    } else if (limit.maxCount != -1 || limit.maxLayerCount != -1) {
+                                        if (cacheGlobal.getOrDefault(limit, 0) < limit.maxCount) {
+                                            if (!cacheGlobal.containsKey(limit)) {
+                                                cacheGlobal.put(limit, 1);
+                                            } else {
+                                                cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
+                                            }
+                                        } else if (cacheLayer.getOrDefault(limit, 0) < limit.maxLayerCount) {
+                                            if (!cacheLayer.containsKey(limit)) {
+                                                cacheLayer.put(limit, 1);
+                                            } else {
+                                                cacheLayer.put(limit, cacheLayer.get(limit) + 1);
+                                            }
                                         } else {
-                                            cacheGlobal.put(limit, cacheGlobal.get(limit) + 1);
-                                        }
-                                    } else if (cacheLayer.getOrDefault(limit, 0) < limit.maxLayerCount) {
-                                        if (!cacheLayer.containsKey(limit)) {
-                                            cacheLayer.put(limit, 1);
-                                        } else {
-                                            cacheLayer.put(limit, cacheLayer.get(limit) + 1);
+                                            continue;
                                         }
                                     } else {
                                         continue;
                                     }
-                                }
 
-                                infos = limit.candidates == null ? null : limit.candidates.get();
-                                break;
+                                    infos = limit.candidates == null ? null : limit.candidates.get();
+                                    break;
+                                }
                             }
+                            info = infos == null || infos.length == 0 ? BlockInfo.EMPTY : infos[0];
                         }
-                        BlockInfo info = infos == null || infos.length == 0 ? BlockInfo.EMPTY : infos[0];
                         BlockPos pos = setActualRelativeOffset(z, y, x, Direction.NORTH);
 
                         blocks.put(pos, info);

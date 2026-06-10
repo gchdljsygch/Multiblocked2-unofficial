@@ -134,7 +134,7 @@ public class MultiblockAreaPanel extends WidgetGroup {
         @Override
         public void buildConfigurator(ConfiguratorGroup father) {
             IConfigurable.super.buildConfigurator(father);
-            var buttonGroup = new WidgetGroup(0, 0, 100, 22);
+            var buttonGroup = new WidgetGroup(0, 0, 100, 10);
             buttonGroup.addWidget(new ButtonWidget(0, 0, 100, 10,
                     new GuiTextureGroup(
                             ColorPattern.T_GRAY.rectTexture().setRadius(5),
@@ -149,20 +149,6 @@ public class MultiblockAreaPanel extends WidgetGroup {
                     .setHoverTexture(
                             ColorPattern.WHITE.borderTexture(1).setRadius(5),
                             new TextTexture("editor.machine.multiblock.area_panel.generatePattern.button.0")));
-            buttonGroup.addWidget(new ButtonWidget(0, 12, 100, 10,
-                    new GuiTextureGroup(
-                            ColorPattern.T_GRAY.rectTexture().setRadius(5),
-                            new TextTexture("editor.machine.multiblock.area_panel.generatePattern.button.1")),
-                    cd -> {
-                        DialogWidget.showNotification(Editor.INSTANCE,
-                                "editor.machine.multiblock.area_panel.generatePattern.button.1.title",
-                                "editor.machine.multiblock.area_panel.generatePattern.button.1.info");
-                        generateShapeInfo();
-                    })
-                    .setHoverTooltips(Component.translatable("mbd2.multiblock_area.generate_shape_info.tooltip"))
-                    .setHoverTexture(
-                            ColorPattern.WHITE.borderTexture(1).setRadius(5),
-                            new TextTexture("editor.machine.multiblock.area_panel.generatePattern.button.1")));
             var wrapper = new WrapperConfigurator("editor.machine.multiblock.area_panel.generatePattern", buttonGroup);
             wrapper.setTips("editor.machine.multiblock.area_panel.generatePattern.tips");
             father.addConfigurators(wrapper);

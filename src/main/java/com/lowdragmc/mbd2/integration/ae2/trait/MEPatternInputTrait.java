@@ -68,7 +68,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Getter
@@ -79,6 +81,8 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
     private static final String NBT_ITEM_STORAGE = "itemStorage";
     private static final String NBT_FLUID_STORAGE = "fluidStorage";
     private static final String NBT_ITEM_GROUPS = "itemRecipeGroups";
+    private static final String NBT_PATTERN_GROUPS = "patternRecipeGroups";
+    private static final String NBT_PATTERN_KEY = "patternKey";
     private static final String NBT_RECIPE_GROUP = "mbd2RecipeGroup";
     private static final String NBT_SLOT = "slot";
 
@@ -93,6 +97,8 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
     private final SerializableInputBuffer inputBuffer;
     @Persisted
     private final SerializablePatternInventory patternInventory;
+    @Persisted
+    private final SerializablePatternRecipeGroups patternRecipeGroups;
     @Persisted
     @DescSynced
     private final DynamicItemStorage itemStorage;
@@ -126,6 +132,7 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         actionSource = IActionSource.ofMachine(mainNode::getNode);
         inputBuffer = createInputBuffer();
         patternInventory = createPatternInventory();
+        patternRecipeGroups = new SerializablePatternRecipeGroups();
         itemStorage = createItemStorage();
         fluidStorage = createFluidStorage();
     }
@@ -241,7 +248,7 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         for (int attempts = 0; attempts < 4096; attempts++) {
             recipeGroupSeed++;
             var group = RecipeGroup.fromHash(recipeGroupSeed);
-            if (!hasStoredRecipeGroup(group)) {
+            if (!hasStoredRecipeGroup(group) && !patternRecipeGroups.containsGroup(group)) {
                 return group;
             }
         }
@@ -250,6 +257,18 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
 
     private boolean hasStoredRecipeGroup(String recipeGroup) {
         return itemStorage.getRecipeGroups().contains(recipeGroup) || fluidStorage.getRecipeGroups().contains(recipeGroup);
+    }
+
+    private String getPatternRecipeGroup(IPatternDetails patternDetails) {
+        var definition = patternDetails.getDefinition();
+        var recipeGroup = patternRecipeGroups.get(definition);
+        if (recipeGroup != null) {
+            return recipeGroup;
+        }
+        recipeGroup = createNextRecipeGroup();
+        patternRecipeGroups.put(definition, recipeGroup);
+        onChanged();
+        return recipeGroup;
     }
 
     private static boolean matchesRecipeGroup(@Nullable String requestedRecipeGroup, String storedRecipeGroup) {
@@ -333,7 +352,7 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         if (isBlockingPattern(patternDetails)) {
             return false;
         }
-        var recipeGroup = createNextRecipeGroup();
+        var recipeGroup = getPatternRecipeGroup(patternDetails);
         if (!canAcceptInputs(inputHolder, recipeGroup)) {
             return false;
         }
@@ -851,6 +870,56 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
 
         public void deserializeNBT(CompoundTag tag) {
             readFromNBT(tag, NBT_PATTERNS);
+        }
+    }
+
+    public static class SerializablePatternRecipeGroups implements ITagSerializable<CompoundTag>, IContentChangeAware {
+        @Getter
+        private Runnable onContentsChanged = () -> {};
+        private final Map<AEItemKey, String> groups = new LinkedHashMap<>();
+
+        @Override
+        public void setOnContentsChanged(Runnable onContentsChanged) {
+            this.onContentsChanged = onContentsChanged == null ? () -> {} : onContentsChanged;
+        }
+
+        @Nullable
+        public String get(AEItemKey definition) {
+            return groups.get(definition);
+        }
+
+        public void put(AEItemKey definition, String recipeGroup) {
+            groups.put(definition, RecipeGroup.normalize(recipeGroup));
+            onContentsChanged.run();
+        }
+
+        public boolean containsGroup(String recipeGroup) {
+            return groups.containsValue(RecipeGroup.normalizeOrDefault(recipeGroup));
+        }
+
+        public CompoundTag serializeNBT() {
+            var tag = new CompoundTag();
+            var list = new ListTag();
+            for (var entry : groups.entrySet()) {
+                var groupTag = new CompoundTag();
+                groupTag.put(NBT_PATTERN_KEY, entry.getKey().toTagGeneric());
+                groupTag.putString(NBT_RECIPE_GROUP, RecipeGroup.normalize(entry.getValue()));
+                list.add(groupTag);
+            }
+            tag.put(NBT_PATTERN_GROUPS, list);
+            return tag;
+        }
+
+        public void deserializeNBT(CompoundTag tag) {
+            groups.clear();
+            var list = tag.getList(NBT_PATTERN_GROUPS, net.minecraft.nbt.Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                var groupTag = list.getCompound(i);
+                var patternKey = AEKey.fromTagGeneric(groupTag.getCompound(NBT_PATTERN_KEY));
+                if (patternKey instanceof AEItemKey itemKey) {
+                    groups.put(itemKey, RecipeGroup.normalizeOrDefault(groupTag.getString(NBT_RECIPE_GROUP)));
+                }
+            }
         }
     }
 

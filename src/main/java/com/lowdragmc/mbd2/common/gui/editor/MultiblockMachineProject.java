@@ -271,6 +271,7 @@ public class MultiblockMachineProject extends MachineProject {
                             }
                             traceabilityPredicate = new TraceabilityPredicate(new PredicateBlocks(definition.block())).or(traceabilityPredicate);
                         }
+                        traceabilityPredicate.setController();
                     }
                     if (Direction.Axis.X == layerAxis) {
                         predicate[x][y][z] = traceabilityPredicate;
@@ -330,9 +331,28 @@ public class MultiblockMachineProject extends MachineProject {
     public void saveProject(File file) {
         try {
             writeProjectFile(file, serializeNBT());
+            reloadRuntimeDefinition(file);
         } catch (IOException e) {
             MBD2.LOGGER.error("Failed to save multiblock project {}", file, e);
         }
+    }
+
+    private void reloadRuntimeDefinition(File file) throws IOException {
+        if (!(MBDRegistries.MACHINE_DEFINITIONS.get(getDefinition().id()) instanceof MultiblockMachineDefinition definition)) {
+            return;
+        }
+        var projectFile = existingProjectFile(file);
+        var tag = NbtIo.read(projectFile);
+        if (tag == null) {
+            return;
+        }
+        synchronized (MultiblockMachineDefinition.CATALYST_CANDIDATES) {
+            MultiblockMachineDefinition.CATALYST_CANDIDATES.values().forEach(candidates -> candidates.remove(definition));
+            MultiblockMachineDefinition.CATALYST_CANDIDATES.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        }
+        var postTask = new ArrayDeque<Runnable>();
+        definition.loadProductiveTag(projectFile, tag, postTask);
+        postTask.forEach(Runnable::run);
     }
 
     @Nullable
@@ -383,7 +403,9 @@ public class MultiblockMachineProject extends MachineProject {
 
     public static void writeProjectFile(File file, CompoundTag projectTag) throws IOException {
         File manifestFile = projectManifestFile(file);
-        var splitTag = splitPatterns(manifestFile, projectTag);
+        var splitSourceTag = projectTag.copy();
+        expandPatternReferences(manifestFile, splitSourceTag);
+        var splitTag = splitPatterns(manifestFile, splitSourceTag);
         File parent = manifestFile.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
             throw new IOException("Failed to create project directory: " + parent);
@@ -438,6 +460,9 @@ public class MultiblockMachineProject extends MachineProject {
     }
 
     public static int appendPattern(CompoundTag projectTag, CompoundTag newPattern, boolean existingFile, File projectFile) throws IOException {
+        if (existingFile) {
+            expandPatternReferences(projectFile, projectTag);
+        }
         ListTag patterns = new ListTag();
         if (projectTag.contains("patterns", Tag.TAG_LIST)) {
             patterns.addAll(projectTag.getList("patterns", Tag.TAG_COMPOUND));
@@ -460,8 +485,7 @@ public class MultiblockMachineProject extends MachineProject {
             for (int i = 0; i < patterns.size(); i++) {
                 var pattern = patterns.getCompound(i);
                 if (isPatternReference(pattern)) {
-                    patternRefs.add(pattern.copy());
-                    continue;
+                    pattern = readPatternFile(patternFile(projectFile, pattern.getString(PATTERN_FILE_KEY)));
                 }
                 var fileName = patternFileName(projectFile, i, patterns.size());
                 writePatternFile(patternFile(projectFile, fileName), pattern);
@@ -554,7 +578,7 @@ public class MultiblockMachineProject extends MachineProject {
                 return null;
             }
             return patterns.stream().allMatch(CompoundTag.class::isInstance) &&
-                    patterns.stream().map(CompoundTag.class::cast).allMatch(MultiblockMachineProject::isPatternReference) ?
+                    patterns.stream().map(CompoundTag.class::cast).anyMatch(MultiblockMachineProject::isPatternReference) ?
                     "patterns" : null;
         }
         return projectTag.contains(PATTERN_FILES_KEY, Tag.TAG_LIST) ? PATTERN_FILES_KEY : null;

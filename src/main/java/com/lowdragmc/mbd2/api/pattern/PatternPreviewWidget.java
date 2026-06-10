@@ -40,6 +40,7 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,35 +49,26 @@ public class PatternPreviewWidget extends WidgetGroup {
     private boolean isLoaded;
     private static TrackedDummyWorld LEVEL;
     private static BlockPos LAST_POS = new BlockPos(0, 50, 0);
-    private static final Map<MultiblockMachineDefinition, MBPattern[]> CACHE = new HashMap<>();
     private final SceneWidget sceneWidget;
     public final MultiblockMachineDefinition controllerDefinition;
     public final ImageWidget descriptionWidget;
-    public final MBPattern[] patterns;
+    public MBPattern[] patterns;
+    private long previewRevision;
     private int index;
     public int layer;
-    private final CycleItemStackHandler predicatesItemHandler;
-    private final SlotWidget[] predicates;
+    private final XEIIngredientScrollableWidgetGroup predicatesGroup;
     private final DraggableScrollableWidgetGroup candidatesGroup;
+    private ButtonWidget pageButton;
 
     protected PatternPreviewWidget(MultiblockMachineDefinition controllerDefinition) {
         super(0, 0, 160, 160);
         setClientSideWidget();
 
         // predicates
-        predicates = new SlotWidget[5];
-        var predicateItems = new ArrayList<List<ItemStack>>();
-        for (int i = 0; i < 5; i++) {
-            predicateItems.add(Collections.emptyList());
-        }
-        predicatesItemHandler = new CycleItemStackHandler(predicateItems);
-        for (int i = 0; i < predicates.length; i++) {
-            var slot = new SlotWidget(predicatesItemHandler, i,
-                    6, 9 + i * 18, false, false)
-                    .setIngredientIO(IngredientIO.INPUT);
-            predicates[i] = slot;
-            addWidget(slot);
-        }
+        addWidget(predicatesGroup = new XEIIngredientScrollableWidgetGroup(4, 9, 22, 90, 1, 5,
+                IngredientIO.INPUT, false));
+        predicatesGroup.setYScrollBarWidth(4)
+                .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
 
         // prepare scene
         addWidget(new ImageWidget(26, 7, 106, 106, ResourceBorderTexture.BORDERED_BACKGROUND_INVERSE));
@@ -95,22 +87,7 @@ public class PatternPreviewWidget extends WidgetGroup {
         // load patterns
         this.controllerDefinition = controllerDefinition;
         this.layer = -1;
-
-        var cachedPatterns = CACHE.get(controllerDefinition);
-        if (cachedPatterns == null || cachedPatterns.length == 0) {
-            HashSet<ItemStackKey> drops = new HashSet<>();
-            drops.add(new ItemStackKey(this.controllerDefinition.asStack()));
-            cachedPatterns = Arrays.stream(controllerDefinition.shapeInfoFactory().apply(controllerDefinition))
-                    .map(it -> initializePattern(it, drops))
-                    .filter(Objects::nonNull)
-                    .toArray(MBPattern[]::new);
-            if (cachedPatterns.length > 0) {
-                CACHE.put(controllerDefinition, cachedPatterns);
-            } else {
-                MBD2.LOGGER.warn("No multiblock preview patterns generated for {}", controllerDefinition.id());
-            }
-        }
-        this.patterns = cachedPatterns;
+        reloadPatterns();
 
         // id
         addWidget(new ImageWidget(26 + 3, 7 + 3, 106 - 6, 15,
@@ -124,11 +101,12 @@ public class PatternPreviewWidget extends WidgetGroup {
                 new ColorRectTexture(ColorUtils.color(255,221,221,221)),
                 new ColorBorderTexture(-1, ColorUtils.color(255, 73,73,73))
         );
-        var pageButton = new ButtonWidget(136, 11, 18, 18, new GuiTextureGroup(
+        pageButton = new ButtonWidget(136, 11, 18, 18, new GuiTextureGroup(
                 buttonTexture,
                 new ItemStackTexture(Items.PAPER),
                 new TextTexture("0", ColorPattern.BLACK.color).setSupplier(() -> Integer.toString(index)).scale(0.8f)
-        ), cd -> setPage((index + 1 >= patterns.length) ? 0 : index + 1)).setHoverBorderTexture(-1, -1)
+        ), cd -> setPage((index + 1 >= patterns.length) ? 0 : index + 1));
+        pageButton.setHoverBorderTexture(-1, -1)
                 .setHoverTooltips("pattern_preview.page");
         var layerButton = new ButtonWidget(136, 34, 18, 18, new GuiTextureGroup(
                 buttonTexture,
@@ -143,9 +121,8 @@ public class PatternPreviewWidget extends WidgetGroup {
                         new GuiTextureGroup(buttonTexture, new ResourceTexture("mbd2:textures/gui/multiblock_info_page.png")))
                 .setHoverBorderTexture(-1, -1)
                 .setHoverTooltips("pattern_preview.formed");
-        if (patterns.length > 1) {
-            addWidget(pageButton);
-        }
+        updatePageButtonVisibility();
+        addWidget(pageButton);
         addWidget(layerButton);
         addWidget(formedButton);
 
@@ -193,7 +170,50 @@ public class PatternPreviewWidget extends WidgetGroup {
                 .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
 
         // set initial page
-        setPage(0);
+        setPage(getPreferredPageIndex());
+    }
+
+    private void reloadPatterns() {
+        previewRevision = controllerDefinition.previewRevision();
+
+        HashSet<ItemStackKey> drops = new HashSet<>();
+        drops.add(new ItemStackKey(this.controllerDefinition.asStack()));
+        patterns = Arrays.stream(controllerDefinition.getPatternShapeInfos(null))
+                .map(it -> initializePattern(it, drops))
+                .filter(Objects::nonNull)
+                .toArray(MBPattern[]::new);
+        if (patterns.length == 0) {
+            MBD2.LOGGER.warn("No multiblock preview patterns generated for {}", controllerDefinition.id());
+        }
+    }
+
+    private void ensurePatternsFresh() {
+        if (previewRevision == controllerDefinition.previewRevision()) return;
+        reloadPatterns();
+        updatePageButtonVisibility();
+        if (patterns.length > 0) {
+            setPage(getPreferredPageIndex());
+        } else {
+            index = 0;
+            layer = -1;
+            sceneWidget.setRenderedCore(Collections.emptyList(), null);
+            predicatesGroup.setStacks(Collections.emptyList());
+            if (candidatesGroup instanceof XEIIngredientScrollableWidgetGroup xeiGroup) {
+                xeiGroup.setStacks(Collections.emptyList());
+            }
+            descriptionWidget.setImage(IGuiTexture.EMPTY);
+            descriptionWidget.setHoverTooltips(Collections.emptyList());
+        }
+    }
+
+    private void updatePageButtonVisibility() {
+        if (pageButton != null) {
+            pageButton.setVisible(patterns.length > 1);
+        }
+    }
+
+    private int getPreferredPageIndex() {
+        return Math.max(0, Math.min(controllerDefinition.getSelectedPatternShapeInfoIndex(null), patterns.length - 1));
     }
 
     private void updateLayer() {
@@ -253,17 +273,22 @@ public class PatternPreviewWidget extends WidgetGroup {
     }
 
     private void setupPatternCandidates(MBPattern pattern) {
-        candidatesGroup.clearAllWidgets();
         if (candidatesGroup instanceof XEIIngredientScrollableWidgetGroup xeiGroup) {
             xeiGroup.setStacks(pattern.parts);
         }
-        var candidatesItemHandler = new CycleItemStackHandler(pattern.parts);
-        for (int i = 0; i < pattern.parts.size(); i++) {
-            var slot = new SlotWidget(candidatesItemHandler, i,
-                    (i % 7) * 18, (i / 7) * 18, false, false)
-                    .setIngredientIO(IngredientIO.INPUT);
-            candidatesGroup.addWidget(slot);
+    }
+
+    private void setupPredicateCandidates(List<List<ItemStack>> candidateStacks, List<SimplePredicate> simplePredicates,
+                                          TraceabilityPredicate traceabilityPredicate) {
+        int scrollYOffset = predicatesGroup.getScrollYOffset();
+        var tooltipProviders = new ArrayList<Function<ItemStack, List<Component>>>();
+        for (var simplePredicate : simplePredicates) {
+            tooltipProviders.add(stack -> simplePredicate.getCandidateToolTips(traceabilityPredicate, stack));
         }
+        predicatesGroup.setStacks(candidateStacks, tooltipProviders);
+        predicatesGroup.computeMax();
+        int maxScrollYOffset = predicatesGroup.getMaxScrollYOffset();
+        predicatesGroup.setScrollYOffset(Math.min(scrollYOffset, maxScrollYOffset));
     }
 
     private void setupDescription(MBPattern pattern) {
@@ -299,30 +324,15 @@ public class PatternPreviewWidget extends WidgetGroup {
         allPredicates.addAll(predicate.limited);
         allPredicates.removeIf(p -> p == null || p.candidates == null); // why it happens?
         var candidateStacks = new ArrayList<List<ItemStack>>();
-        var predicateTips = new ArrayList<List<Component>>();
+        var simplePredicates = new ArrayList<SimplePredicate>();
         for (var simplePredicate : allPredicates) {
             List<ItemStack> itemStacks = simplePredicate.getCandidates();
             if (!itemStacks.isEmpty()) {
                 candidateStacks.add(itemStacks);
-                predicateTips.add(simplePredicate.getToolTips(predicate));
+                simplePredicates.add(simplePredicate);
             }
         }
-        var predicateItems = new ArrayList<List<ItemStack>>();
-        for (int i = 0; i < 5; i++) {
-            if (candidateStacks.size() > i) {
-                predicateItems.add(candidateStacks.get(i));
-            } else {
-                predicateItems.add(Collections.emptyList());
-            }
-        }
-        predicatesItemHandler.updateStacks(predicateItems);
-        for (int i = 0; i < 5; i++) {
-            if (predicateTips.size() > i) {
-                predicates[i].setHoverTooltips(predicateTips.get(i));
-            } else {
-                predicates[i].setHoverTooltips(Collections.emptyList());
-            }
-        }
+        setupPredicateCandidates(candidateStacks, simplePredicates, predicate);
     }
 
     public static BlockPos locateNextRegion(int range) {
@@ -333,19 +343,21 @@ public class PatternPreviewWidget extends WidgetGroup {
 
     @Override
     public void updateScreen() {
+        ensurePatternsFresh();
         super.updateScreen();
         // I can only think of this way
         if (!isLoaded && LDLib.isEmiLoaded() && Minecraft.getInstance().screen instanceof RecipeScreen) {
-            setPage(0);
+            setPage(getPreferredPageIndex());
             isLoaded = true;
         } else if (!isLoaded && LDLib.isReiLoaded() && Minecraft.getInstance().screen instanceof AbstractDisplayViewingScreen) {
-            setPage(0);
+            setPage(getPreferredPageIndex());
             isLoaded = true;
         }
     }
 
     @Override
     public void drawInBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        ensurePatternsFresh();
         RenderSystem.enableBlend();
         super.drawInBackground(graphics, mouseX, mouseY, partialTicks);
     }
@@ -510,58 +522,193 @@ public class PatternPreviewWidget extends WidgetGroup {
         }
     }
 
-    private static class XEIIngredientScrollableWidgetGroup extends DraggableScrollableWidgetGroup {
+    private class XEIIngredientScrollableWidgetGroup extends DraggableScrollableWidgetGroup {
 
-        private static final int COLUMNS = 7;
-        private static final int ROWS = 2;
-        private static final int VISIBLE_SLOTS = COLUMNS * ROWS;
-        private final List<List<ItemStack>> proxyStacks;
-        private final CycleItemStackHandler proxyHandler;
+        private static final int SLOT_SIZE = 18;
+        private final int columns;
+        private final int visibleSlots;
+        private final List<List<ItemStack>> displayStacks;
+        private final CycleItemStackHandler displayHandler;
         private final List<Widget> xeiSlots;
+        private final boolean exposeXEISlots;
         private List<List<ItemStack>> stacks = Collections.emptyList();
+        private List<Function<ItemStack, List<Component>>> tooltipProviders = Collections.emptyList();
 
         public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height) {
+            this(x, y, width, height, 7, 2, IngredientIO.INPUT);
+        }
+
+        public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height, int columns, int rows, IngredientIO ingredientIO) {
+            this(x, y, width, height, columns, rows, ingredientIO, true);
+        }
+
+        public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height, int columns, int rows,
+                                                  IngredientIO ingredientIO, boolean exposeXEISlots) {
             super(x, y, width, height);
-            this.proxyStacks = new ArrayList<>(VISIBLE_SLOTS);
-            for (int i = 0; i < VISIBLE_SLOTS; i++) {
-                proxyStacks.add(Collections.emptyList());
+            this.columns = Math.max(1, columns);
+            this.visibleSlots = this.columns * Math.max(1, rows);
+            this.exposeXEISlots = exposeXEISlots;
+            this.displayStacks = new ArrayList<>(visibleSlots);
+            for (int i = 0; i < visibleSlots; i++) {
+                displayStacks.add(Collections.emptyList());
             }
-            this.proxyHandler = new CycleItemStackHandler(proxyStacks);
-            this.xeiSlots = new ArrayList<>(VISIBLE_SLOTS);
-            for (int i = 0; i < VISIBLE_SLOTS; i++) {
-                xeiSlots.add(new SlotWidget(proxyHandler, i,
-                        x + (i % COLUMNS) * 18, y + (i / COLUMNS) * 18, false, false)
-                        .setIngredientIO(IngredientIO.INPUT)
-                        .setDrawHoverOverlay(false)
-                        .setDrawHoverTips(false)
-                        .setBackgroundTexture(null));
+            this.displayHandler = new CycleItemStackHandler(displayStacks);
+            this.xeiSlots = new ArrayList<>(visibleSlots);
+            for (int i = 0; i < visibleSlots; i++) {
+                int displaySlotIndex = i;
+                addWidget(new PredicateSlotWidget(displayHandler, i,
+                        (i % this.columns) * SLOT_SIZE, (i / this.columns) * SLOT_SIZE,
+                        stack -> getToolTips(displaySlotIndex, stack))
+                        .setIngredientIO(ingredientIO));
+                if (exposeXEISlots) {
+                    xeiSlots.add(new PredicateSlotWidget(displayHandler, i,
+                            x + (i % this.columns) * SLOT_SIZE, y + (i / this.columns) * SLOT_SIZE,
+                            stack -> getToolTips(displaySlotIndex, stack))
+                            .setIngredientIO(ingredientIO)
+                            .setDrawHoverOverlay(false)
+                            .setDrawHoverTips(false)
+                            .setBackgroundTexture(null));
+                }
             }
         }
 
         public void setStacks(List<List<ItemStack>> stacks) {
-            this.stacks = stacks;
-            updateXEIStacks();
+            setStacks(stacks, Collections.emptyList());
+        }
+
+        public void setStacks(List<List<ItemStack>> stacks, List<Function<ItemStack, List<Component>>> tooltipProviders) {
+            this.stacks = stacks == null ? Collections.emptyList() : stacks;
+            this.tooltipProviders = tooltipProviders == null ? Collections.emptyList() : tooltipProviders;
+            this.scrollYOffset = Math.min(this.scrollYOffset, getMaxScrollYOffset());
+            updateDisplayStacks();
         }
 
         @Override
         public void setScrollYOffset(int scrollYOffset) {
-            super.setScrollYOffset(Math.max(0, Math.round(scrollYOffset / 18f) * 18));
-            updateXEIStacks();
+            int snapped = Math.max(0, Math.round(scrollYOffset / (float) SLOT_SIZE) * SLOT_SIZE);
+            this.scrollYOffset = Math.min(snapped, getMaxScrollYOffset());
+            updateDisplayStacks();
         }
 
         @Override
         public List<Widget> getContainedWidgets(boolean includeHidden) {
-            return xeiSlots;
+            ensurePatternsFresh();
+            return exposeXEISlots ? xeiSlots : Collections.emptyList();
         }
 
-        private void updateXEIStacks() {
-            int firstSlot = (getScrollYOffset() / 18) * COLUMNS;
-            for (int i = 0; i < VISIBLE_SLOTS; i++) {
+        @Override
+        public void computeMax() {
+            this.scrollYOffset = Math.min(this.scrollYOffset, getMaxScrollYOffset());
+            updateDisplayStacks();
+        }
+
+        @Override
+        public int getWidgetBottomHeight() {
+            return getTotalRows() * SLOT_SIZE;
+        }
+
+        @Override
+        protected int getMaxHeight() {
+            return Math.max(getSize().height, getWidgetBottomHeight() + xBarHeight);
+        }
+
+        private int getVisibleRows() {
+            return Math.max(1, (visibleSlots + columns - 1) / columns);
+        }
+
+        private int getTotalRows() {
+            return Math.max(getVisibleRows(), (stacks.size() + columns - 1) / columns);
+        }
+
+        private int getMaxScrollYOffset() {
+            return Math.max(0, (getTotalRows() - getVisibleRows()) * SLOT_SIZE);
+        }
+
+        private void updateDisplayStacks() {
+            int firstSlot = (getScrollYOffset() / SLOT_SIZE) * columns;
+            for (int i = 0; i < visibleSlots; i++) {
                 int stackIndex = firstSlot + i;
-                proxyStacks.set(i, stackIndex >= 0 && stackIndex < stacks.size() ?
+                displayStacks.set(i, stackIndex >= 0 && stackIndex < stacks.size() ?
                         stacks.get(stackIndex) : Collections.emptyList());
             }
-            proxyHandler.updateStacks(proxyStacks);
+            displayHandler.updateStacks(displayStacks);
+        }
+
+        private List<Component> getToolTips(int proxySlotIndex, ItemStack stack) {
+            int stackIndex = (getScrollYOffset() / SLOT_SIZE) * columns + proxySlotIndex;
+            if (stackIndex >= 0 && stackIndex < tooltipProviders.size()) {
+                return tooltipProviders.get(stackIndex).apply(getTooltipStack(stackIndex, stack));
+            }
+            return Collections.emptyList();
+        }
+
+        private ItemStack getTooltipStack(int stackIndex, ItemStack stack) {
+            if (stack != null && !stack.isEmpty()) {
+                return stack;
+            }
+            if (stackIndex >= 0 && stackIndex < stacks.size()) {
+                return stacks.get(stackIndex).stream()
+                        .filter(candidate -> candidate != null && !candidate.isEmpty())
+                        .findFirst()
+                        .orElse(ItemStack.EMPTY);
+            }
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static class PredicateSlotWidget extends SlotWidget {
+
+        private final Function<ItemStack, List<Component>> tooltipProvider;
+        private ItemStack lastTooltipStack = ItemStack.EMPTY;
+
+        PredicateSlotWidget(CycleItemStackHandler itemHandler, int slotIndex, int xPosition, int yPosition,
+                            Function<ItemStack, List<Component>> tooltipProvider) {
+            super(itemHandler, slotIndex, xPosition, yPosition, false, false);
+            this.tooltipProvider = tooltipProvider;
+        }
+
+        @Override
+        public List<Component> getTooltipTexts() {
+            var tooltips = new ArrayList<>(super.getTooltipTexts());
+            tooltips.addAll(tooltipProvider.apply(getTooltipStack()));
+            return tooltips;
+        }
+
+        @Override
+        public List<Component> getFullTooltipTexts() {
+            var tooltips = super.getFullTooltipTexts();
+            return tooltips.isEmpty() ? getTooltipTexts() : tooltips;
+        }
+
+        @Override
+        public List<Object> getXEIIngredients() {
+            captureTooltipStack();
+            return super.getXEIIngredients();
+        }
+
+        @Override
+        public Object getXEIIngredientOverMouse(double mouseX, double mouseY) {
+            captureTooltipStack();
+            return super.getXEIIngredientOverMouse(mouseX, mouseY);
+        }
+
+        @Override
+        public Object getXEICurrentIngredient() {
+            captureTooltipStack();
+            return super.getXEICurrentIngredient();
+        }
+
+        private ItemStack getTooltipStack() {
+            var stack = getItem();
+            if (stack != null && !stack.isEmpty()) {
+                lastTooltipStack = stack.copy();
+                return stack;
+            }
+            return lastTooltipStack;
+        }
+
+        private void captureTooltipStack() {
+            getTooltipStack();
         }
     }
 }

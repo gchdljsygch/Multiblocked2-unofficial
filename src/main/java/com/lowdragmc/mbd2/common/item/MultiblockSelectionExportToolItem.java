@@ -137,6 +137,7 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
         super.appendHoverText(stack, level, components, flag);
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.0").withStyle(ChatFormatting.GRAY));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.1").withStyle(ChatFormatting.GRAY));
+        components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.blocks").withStyle(ChatFormatting.GRAY));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.2", getTargetPath(stack)).withStyle(ChatFormatting.DARK_GREEN));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.3", getFacing(stack).getSerializedName()).withStyle(ChatFormatting.DARK_GREEN));
         Selection selection = readSelection(stack);

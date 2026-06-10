@@ -57,8 +57,9 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
 
     private Function<MBDMultiblockMachine, BlockPattern> blockPatternFactory;
     private Function<MBDMultiblockMachine, BlockPattern[]> blockPatternsFactory;
-    @Setter
     private Function<MultiblockMachineDefinition, MultiblockShapeInfo[]> shapeInfoFactory;
+    private int selectedPatternIndex;
+    private long previewRevision;
 
     public MultiblockMachineDefinition(ResourceLocation id,
                                        @Nullable MachineState rootState,
@@ -130,6 +131,7 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
             var predicateResource = new PredicateResource();
             predicateResource.deserializeNBT(projectTag.getCompound("resources").getCompound(PredicateResource.RESOURCE_NAME));
             var patternEntries = loadPatternEntries(projectTag);
+            selectedPatternIndex = Math.max(0, Math.min(projectTag.getInt("selected_pattern"), patternEntries.size() - 1));
             var loadedPatterns = new ArrayList<LoadedPattern>();
             for (var patternTag : patternEntries) {
                 loadedPatterns.add(loadPattern(patternTag, predicateResource));
@@ -224,12 +226,17 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
         return index;
     }
 
+    public int getSelectedPatternShapeInfoIndex(@Nullable MBDMultiblockMachine controller) {
+        return getFirstPatternShapeInfoIndex(controller, selectedPatternIndex);
+    }
+
     public void blockPatternFactory(Function<MBDMultiblockMachine, BlockPattern> blockPatternFactory) {
         this.blockPatternFactory = blockPatternFactory;
         this.blockPatternsFactory = controller -> {
             var pattern = blockPatternFactory.apply(controller);
             return pattern == null ? new BlockPattern[0] : new BlockPattern[]{pattern};
         };
+        previewRevision++;
     }
 
     public void blockPatternsFactory(Function<MBDMultiblockMachine, BlockPattern[]> blockPatternsFactory) {
@@ -240,6 +247,12 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
             if (patterns.length == 1) return patterns[0];
             return new CombinedBlockPattern(patterns);
         };
+        previewRevision++;
+    }
+
+    public void shapeInfoFactory(Function<MultiblockMachineDefinition, MultiblockShapeInfo[]> shapeInfoFactory) {
+        this.shapeInfoFactory = shapeInfoFactory;
+        previewRevision++;
     }
 
     public void sortParts(List<IMultiPart> parts) {

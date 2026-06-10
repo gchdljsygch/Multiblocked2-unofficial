@@ -24,6 +24,7 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
         public MultiblockInfoWrapper(MultiblockMachineDefinition definition) {
             super(PatternPreviewWidget.getPatternWidget(definition));
             this.definition = definition;
+            setShouldRenderTooltips(true);
         }
     }
 
