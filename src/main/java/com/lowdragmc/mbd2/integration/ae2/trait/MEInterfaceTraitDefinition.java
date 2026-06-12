@@ -47,7 +47,7 @@ public class MEInterfaceTraitDefinition extends SimpleCapabilityTraitDefinition 
         var prefix = uiPrefixName();
         for (var i = 0; i < this.slotSize; i++) {
             var slotWidget = new AEInterfaceSlotWidget();
-            slotWidget.setSelfPosition(new Position(10 + i % (int) row * 18, 10 + i / (int) row * 72));
+            slotWidget.setSelfPosition(new Position(10 + i % (int) row * 18, 10 + i / (int) row * 36));
             slotWidget.initTemplate();
             slotWidget.setId(prefix + "_" + i);
             ui.addWidget(slotWidget);
@@ -63,7 +63,7 @@ public class MEInterfaceTraitDefinition extends SimpleCapabilityTraitDefinition 
             WidgetUtils.widgetByIdForEach(group, "^%s_[0-9]+$".formatted(prefix), AEInterfaceSlotWidget.class, slotWidget -> {
                 var index = WidgetUtils.widgetIdIndex(slotWidget);
                 if (index >= 0 && index < slotSize) {
-                    slotWidget.setItemInterfaceLogic(interfaceTrait.getInterfaceLogic(), index);
+                    slotWidget.setInterfaceLogic(interfaceTrait.getInterfaceLogic(), index);
                     slotWidget.setIngredientIO(ingredientIO);
                     slotWidget.setCanTakeItems(guiIO.support(IO.OUT));
                     slotWidget.setCanPutItems(guiIO.support(IO.IN));

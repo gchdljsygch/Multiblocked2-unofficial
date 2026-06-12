@@ -30,7 +30,6 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.client.Minecraft;
@@ -348,8 +347,10 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
             animationState.setData(DataTickets.TICK, animatable.getTick(animatable));
             // TODO MORE DATA?
             if (currentItemStack == null) { // block
-                poseStack.translate(0.5, 0, 0.5);
+                // Geo block models use a bottom-center origin; rotate around the block center to keep vertical facings in place.
+                poseStack.translate(0.5, 0.5, 0.5);
                 rotateBlock(getFacing(animatable), poseStack);
+                poseStack.translate(0, -0.5, 0);
             } else { // itemstack
                 poseStack.translate(0, 0.01f, 0);
             }
@@ -367,14 +368,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
      * Rotate the {@link PoseStack} based on the determined {@link Direction} the block is facing
      */
     protected void rotateBlock(Direction facing, PoseStack poseStack) {
-        switch (facing) {
-            case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
-            case WEST -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
-            case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
-            case EAST -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
-            case UP -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
-            case DOWN -> poseStack.mulPose(Axis.XN.rotationDegrees(90));
-        }
+        poseStack.mulPose(ModelFactory.getQuaternion(facing));
     }
 
     /**

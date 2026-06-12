@@ -16,7 +16,6 @@ import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
 import com.lowdragmc.lowdraglib.misc.ItemTransferList;
 import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
 import com.lowdragmc.lowdraglib.side.fluid.IFluidTransfer;
-import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.side.item.IItemTransfer;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
@@ -39,7 +38,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.Capability;
 import org.jetbrains.annotations.Nullable;
@@ -50,8 +48,10 @@ import java.util.*;
 @Setter
 public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConnectedBlockEntity, InterfaceLogicHost {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEInterfaceTrait.class);
+
     @Override
     public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+
     private final Random random = new Random();
 
     @Persisted
@@ -79,7 +79,15 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     }
 
     protected SerializableInterfaceLogic createLogic() {
-        return new SerializableInterfaceLogic(getMainNode(), this, getMachine().getDropItem().getItem(), getDefinition().getSlotSize() * 2);
+        return new SerializableInterfaceLogic(getMainNode(), this, getMachine().getDropItem().getItem(), getDefinition().getSlotSize());
+    }
+
+    protected int getItemSlotIndex(int slotIndex) {
+        return slotIndex;
+    }
+
+    protected int getFluidSlotIndex(int slotIndex) {
+        return slotIndex;
     }
 
     @Override
@@ -213,11 +221,11 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
         }
 
         protected IItemTransfer getSafeStorage() {
-            var transfer = new ItemStackTransfer(interfaceLogic.getStorage().size() / 2);
+            var transfer = new ItemStackTransfer(getDefinition().getSlotSize());
             for (int i = 0; i < transfer.getSlots(); i++) {
-                var stack = interfaceLogic.getStorage().getStack(i * 2);
+                var stack = interfaceLogic.getStorage().getStack(getItemSlotIndex(i));
                 if (stack != null && stack.what() instanceof AEItemKey itemKey) {
-                    transfer.setStackInSlot(i, itemKey.toStack((int)stack.amount()));
+                    transfer.setStackInSlot(i, itemKey.toStack((int) stack.amount()));
                 }
             }
             return transfer;
@@ -225,8 +233,8 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
 
         protected IItemTransfer getStorage() {
             List<IItemTransfer> transfers = new ArrayList<>();
-            for (int i = 0; i < interfaceLogic.getStorage().size() / 2; i++) {
-                transfers.add(AEInterfaceSlotWidget.createAEItemTransfer(interfaceLogic.getStorage(), i * 2));
+            for (int i = 0; i < getDefinition().getSlotSize(); i++) {
+                transfers.add(AEInterfaceSlotWidget.createAEItemTransfer(interfaceLogic.getStorage(), getItemSlotIndex(i)));
             }
             return new ItemTransferList(transfers);
         }
@@ -327,11 +335,11 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
 
         protected List<IFluidTransfer> getSafeStorage() {
             List<IFluidTransfer> storages = new ArrayList<>();
-            for (int i = 0; i < interfaceLogic.getStorage().size() / 2; i++) {
+            for (int i = 0; i < getDefinition().getSlotSize(); i++) {
                 var transfer = new FluidStorage(interfaceLogic.getStorage().getCapacity(AEKeyType.fluids()));
-                var stack = interfaceLogic.getStorage().getStack(i * 2 + 1);
+                var stack = interfaceLogic.getStorage().getStack(getFluidSlotIndex(i));
                 if (stack != null && stack.what() instanceof AEFluidKey fluidKey) {
-                    transfer.setFluidInTank(0, FluidHelperImpl.toFluidStack(fluidKey.toStack((int) stack.amount())));
+                    transfer.setFluidInTank(0, FluidStack.create(fluidKey.getFluid(), stack.amount(), fluidKey.copyTag()));
                 }
                 storages.add(transfer);
             }
@@ -340,8 +348,8 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
 
         protected List<IFluidTransfer> getStorage() {
             List<IFluidTransfer> storages = new ArrayList<>();
-            for (int i = 0; i < interfaceLogic.getStorage().size() / 2; i++) {
-                storages.add(AEInterfaceSlotWidget.createAEFluidTransfer(interfaceLogic.getStorage(), i * 2 + 1));
+            for (int i = 0; i < getDefinition().getSlotSize(); i++) {
+                storages.add(AEInterfaceSlotWidget.createAEFluidTransfer(interfaceLogic.getStorage(), getFluidSlotIndex(i)));
             }
             return storages;
         }

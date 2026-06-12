@@ -127,7 +127,7 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
                 tips = {"config.definition.trait.capability_io.tooltip.0", "config.definition.trait.capability_io.tooltip.1"})
         private final CapabilityIO capabilityIO = new CapabilityIO();
         @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true,
-                tips = {"config.definition.trait.auto_io.tooltip.0", "config.definition.trait.auto_io.tooltip.1"})
+                tips = {"config.definition.trait.auto_io.tooltip"})
         private final ToggleAutoIO autoIO = new ToggleAutoIO();
     }
 }

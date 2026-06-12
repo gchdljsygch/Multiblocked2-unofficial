@@ -34,7 +34,7 @@ public class CreateRotationCondition extends RecipeCondition {
     @Configurable(name = "config.recipe.condition.stress.min")
     @NumberRange(range = {0f, Float.MAX_VALUE})
     private float minStress;
-    @Configurable(name = "config.recipe.condition.stress.min")
+    @Configurable(name = "config.recipe.condition.stress.max")
     @NumberRange(range = {0f, Float.MAX_VALUE})
     private float maxStress;
 

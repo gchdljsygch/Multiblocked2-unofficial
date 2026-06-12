@@ -14,7 +14,6 @@ import com.lowdragmc.lowdraglib.gui.widget.*;
 import com.lowdragmc.lowdraglib.jei.IngredientIO;
 import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
 import com.lowdragmc.lowdraglib.side.fluid.IFluidTransfer;
-import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.side.item.IItemTransfer;
 import lombok.Getter;
 import net.minecraft.nbt.CompoundTag;
@@ -23,70 +22,70 @@ import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.lowdragmc.lowdraglib.gui.widget.SlotWidget.ITEM_SLOT_TEXTURE;
-import static com.lowdragmc.lowdraglib.gui.widget.TankWidget.FLUID_SLOT_TEXTURE;
 
 
 @LDLRegister(name = "ae_interface_slot", group = "widget.container", modID = "ae2")
 public class AEInterfaceSlotWidget extends WidgetGroup {
-    private PhantomSlotWidget phantomSlot = new PhantomSlotWidget();
-    private SlotWidget slot = new SlotWidget();
-    private PhantomTankWidget phantomTank = new PhantomTankWidget();
-    private TankWidget tank = new TankWidget();
-    @Getter @Nullable
+    private static final String CONFIG_SLOT_ID = "config_slot";
+    private static final String STORAGE_SLOT_ID = "storage_slot";
+    private static final String FLUID_CONFIG_SLOT_ID = "fluid_config_slot";
+    private static final String FLUID_STORAGE_SLOT_ID = "fluid_storage_slot";
+
+    private AEKeySlotWidget configSlot = new AEKeySlotWidget();
+    private AEKeySlotWidget storageSlot = new AEKeySlotWidget();
+    @Getter
+    @Nullable
     private SerializableInterfaceLogic interfaceLogic;
     @Getter
     private int slotIndex;
 
     public AEInterfaceSlotWidget() {
-        super(0, 0, 20, 18 * 4 + 2);
-        phantomSlot.setSelfPosition(1, 1);
-        slot.setSelfPosition(1, 19);
-        phantomSlot.setId("phantom_slot");
-        slot.setId("slot");
-        phantomTank.setSelfPosition(1, 1 + 36);
-        tank.setSelfPosition(1, 1 + 18 * 3);
-        phantomTank.setId("phantom_tank");
-        tank.setId("tank");
-        addWidget(phantomSlot);
-        addWidget(slot);
-        addWidget(phantomTank);
-        addWidget(tank);
+        super(0, 0, 20, 18 * 2 + 2);
+        setupKeySlot(configSlot, CONFIG_SLOT_ID, 1, 1);
+        setupKeySlot(storageSlot, STORAGE_SLOT_ID, 1, 19);
+        storageSlot.setCanAcceptPhantom(false);
+        storageSlot.setCanSetAmount(false);
+        addWidget(configSlot);
+        addWidget(storageSlot);
     }
 
     @Override
     public void initTemplate() {
-        phantomSlot.initTemplate();
-        slot.initTemplate();
-        phantomSlot.setBackgroundTexture(new GuiTextureGroup(ITEM_SLOT_TEXTURE, Icons.DOWN.copy().setColor(ColorPattern.GRAY.color).scale(0.8f)));
-        phantomTank.setBackground(new GuiTextureGroup(FLUID_SLOT_TEXTURE, Icons.DOWN.copy().setColor(ColorPattern.GRAY.color).scale(0.8f)));
+        configSlot.initTemplate();
+        storageSlot.initTemplate();
+        configSlot.setBackground(new GuiTextureGroup(ITEM_SLOT_TEXTURE, Icons.DOWN.copy().setColor(ColorPattern.GRAY.color).scale(0.8f)));
     }
 
     public void setItemInterfaceLogic(SerializableInterfaceLogic interfaceLogic, int slotIndex) {
-        this.interfaceLogic = interfaceLogic;
-        this.slotIndex = slotIndex;
-        slot.setHandlerSlot(createAEItemTransfer(interfaceLogic.getStorage(), slotIndex * 2), 0);
-        phantomSlot.setHandlerSlot(createAEItemTransfer(interfaceLogic.getConfig(), slotIndex * 2), 0);
-        tank.setFluidTank(createAEFluidTransfer(interfaceLogic.getStorage(), slotIndex * 2 + 1), 0);
-        phantomTank.setFluidTank(createAEFluidTransfer(interfaceLogic.getConfig(), slotIndex * 2 + 1), 0);
+        setInterfaceLogic(interfaceLogic, slotIndex);
     }
 
+    public void setInterfaceLogic(SerializableInterfaceLogic interfaceLogic, int slotIndex) {
+        this.interfaceLogic = interfaceLogic;
+        this.slotIndex = slotIndex;
+        storageSlot.setConfigInventory(interfaceLogic.getStorage(), slotIndex);
+        configSlot.setConfigInventory(interfaceLogic.getConfig(), slotIndex);
+    }
 
     public void setIngredientIO(IngredientIO ingredientIO) {
-        slot.setIngredientIO(ingredientIO);
-        tank.setIngredientIO(ingredientIO);
+        storageSlot.setIngredientIO(ingredientIO);
     }
 
     public void setCanTakeItems(boolean support) {
-        slot.setCanTakeItems(support);
-        tank.setAllowClickFilled(support);
+        storageSlot.setCanTakeItems(support);
     }
 
     public void setCanPutItems(boolean support) {
-        slot.setCanPutItems(support);
-        tank.setAllowClickDrained(support);
+        storageSlot.setCanPutItems(support);
+    }
+
+    private static void setupKeySlot(AEKeySlotWidget slot, String id, int x, int y) {
+        slot.setSelfPosition(x, y);
+        slot.setId(id);
     }
 
     public static @NotNull IItemTransfer createAEItemTransfer(ConfigInventory inventory, int slotIndex) {
@@ -176,7 +175,7 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
                 if (fluidStack.isEmpty()) {
                     inventory.setStack(slotIndex, null);
                 } else {
-                    inventory.setStack(slotIndex, new GenericStack(AEFluidKey.of(FluidHelperImpl.toFluidStack(fluidStack)), fluidStack.getAmount()));
+                    inventory.setStack(slotIndex, new GenericStack(AEFluidKey.of(fluidStack.getFluid(), fluidStack.getTag()), fluidStack.getAmount()));
                 }
             }
 
@@ -187,13 +186,13 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
 
             @Override
             public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
-                return inventory.isAllowed(new GenericStack(AEFluidKey.of(FluidHelperImpl.toFluidStack(stack)), stack.getAmount()));
+                return !stack.isEmpty() && inventory.isAllowed(new GenericStack(AEFluidKey.of(stack.getFluid(), stack.getTag()), stack.getAmount()));
             }
 
             @Override
             public long fill(int tank, FluidStack resource, boolean simulate, boolean notifyChanges) {
-                if (!inventory.canInsert()) return 0;
-                return inventory.insert(slotIndex, AEFluidKey.of(FluidHelperImpl.toFluidStack(resource)), resource.getAmount(), simulate ? Actionable.SIMULATE : Actionable.MODULATE);
+                if (!inventory.canInsert() || resource.isEmpty()) return 0;
+                return inventory.insert(slotIndex, AEFluidKey.of(resource.getFluid(), resource.getTag()), resource.getAmount(), simulate ? Actionable.SIMULATE : Actionable.MODULATE);
             }
 
             @Override
@@ -203,7 +202,7 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
 
             @Override
             public @NotNull FluidStack drain(int tank, FluidStack resource, boolean simulate, boolean notifyChanges) {
-                if (!inventory.canExtract() || !(inventory.getKey(slotIndex) instanceof AEFluidKey fluidKey) || FluidHelperImpl.toFluidStack(resource).isEmpty() || !fluidKey.getFluid().isSame(FluidHelperImpl.toFluidStack(resource).getFluid()))
+                if (!inventory.canExtract() || !(inventory.getKey(slotIndex) instanceof AEFluidKey fluidKey) || resource.isEmpty() || !fluidKey.getFluid().isSame(resource.getFluid()) || !Objects.equals(fluidKey.getTag(), resource.getTag()))
                     return FluidStack.empty();
                 var drained = inventory.extract(slotIndex, fluidKey, resource.getAmount(), simulate ? Actionable.SIMULATE : Actionable.MODULATE);
                 return FluidStack.create(fluidKey.getFluid(), drained, fluidKey.copyTag());
@@ -237,17 +236,44 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
     @Override
     public void deserializeInnerNBT(CompoundTag nbt) {
         super.deserializeInnerNBT(nbt);
+        widgets.stream()
+                .filter(widget -> widget instanceof PhantomSlotWidget
+                        || widget instanceof SlotWidget
+                        || widget instanceof PhantomTankWidget
+                        || widget instanceof TankWidget
+                        || widget instanceof AEKeySlotWidget keySlotWidget
+                        && (FLUID_CONFIG_SLOT_ID.equals(keySlotWidget.getId())
+                        || FLUID_STORAGE_SLOT_ID.equals(keySlotWidget.getId())))
+                .toList()
+                .forEach(this::removeWidget);
         for (Widget widget : widgets) {
-            if (widget instanceof PhantomSlotWidget phantomSlotWidget && phantomSlotWidget.getId().equals("phantom_slot")) {
-                this.phantomSlot = phantomSlotWidget;
-            } else if (widget instanceof SlotWidget slotWidget && slotWidget.getId().equals("slot")) {
-                this.slot = slotWidget;
-            } else if (widget instanceof PhantomTankWidget phantomTankWidget && phantomTankWidget.getId().equals("phantom_tank")) {
-                this.phantomTank = phantomTankWidget;
-            } else if (widget instanceof TankWidget tankWidget && tankWidget.getId().equals("tank")) {
-                this.tank = tankWidget;
+            if (widget instanceof AEKeySlotWidget keySlotWidget) {
+                if (keySlotWidget.getId().equals(CONFIG_SLOT_ID)) {
+                    this.configSlot = keySlotWidget;
+                } else if (keySlotWidget.getId().equals(STORAGE_SLOT_ID)) {
+                    this.storageSlot = keySlotWidget;
+                }
             }
         }
+        ensureKeySlot(configSlot, CONFIG_SLOT_ID, 1, 1);
+        ensureKeySlot(storageSlot, STORAGE_SLOT_ID, 1, 19);
+        configSlot.setCanAcceptPhantom(true);
+        configSlot.setCanSetAmount(true);
+        storageSlot.setCanAcceptPhantom(false);
+        storageSlot.setCanSetAmount(false);
+        setSize(20, 18 * 2 + 2);
+    }
+
+    private void ensureKeySlot(AEKeySlotWidget slot, String id, int x, int y) {
+        if (widgets.contains(slot)) {
+            return;
+        }
+        setupKeySlot(slot, id, x, y);
+        slot.initTemplate();
+        if (id.equals(CONFIG_SLOT_ID)) {
+            slot.setBackground(new GuiTextureGroup(ITEM_SLOT_TEXTURE, Icons.DOWN.copy().setColor(ColorPattern.GRAY.color).scale(0.8f)));
+        }
+        addWidget(slot);
     }
 
 }
