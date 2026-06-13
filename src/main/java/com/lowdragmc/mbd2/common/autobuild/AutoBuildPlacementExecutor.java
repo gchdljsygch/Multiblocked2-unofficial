@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.common.autobuild;
 
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
+import com.lowdragmc.mbd2.api.pattern.util.PatternStateRotation;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
@@ -163,12 +164,13 @@ public final class AutoBuildPlacementExecutor {
         BlockState expectedState = placement.expectedInfo.getBlockState();
         if (expectedState == null) return;
         Rotation rotation = placement.rotateExpectedState && placement.rotation != null ? placement.rotation : Rotation.NONE;
-        BlockState rotatedState = rotation == Rotation.NONE ? expectedState : expectedState.rotate(rotation);
+        BlockState rotatedState = rotation == Rotation.NONE ? expectedState : PatternStateRotation.rotate(expectedState, rotation);
         BlockState currentState = world.getBlockState(pos);
         if (currentState.getBlock() != rotatedState.getBlock()) return;
         try {
             var rotatedInfo = new BlockInfo();
             rotatedInfo.deserializeNBT(placement.expectedInfo.serializeNBT());
+            rotatedInfo.setHasBlockEntity(placement.expectedInfo.hasBlockEntity());
             rotatedInfo.setBlockState(rotatedState);
             rotatedInfo.apply(world, pos);
         } catch (Throwable ignored) {

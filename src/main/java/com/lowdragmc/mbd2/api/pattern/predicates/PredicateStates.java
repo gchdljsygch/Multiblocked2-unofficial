@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
+import com.lowdragmc.mbd2.api.pattern.util.PatternStateRotation;
 import lombok.NoArgsConstructor;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Blocks;
@@ -45,13 +46,13 @@ public class PredicateStates extends SimplePredicate {
                 if (state == null) return false;
                 Direction currentFacing = state.getPatternFacing();
                 Direction baseFacing = state.getPatternBaseFacing();
-                Rotation rotation = horizontalRotation(baseFacing, currentFacing);
+                Rotation rotation = PatternStateRotation.horizontalRotation(baseFacing, currentFacing);
                 if (rotation == Rotation.NONE) return basePredicate.test(state);
                 BlockState actual = state.getBlockState();
                 if (actual == null || states == null) return false;
                 for (BlockState expected : states) {
                     if (expected == null) continue;
-                    BlockState rotated = expected.rotate(rotation);
+                    BlockState rotated = PatternStateRotation.rotate(expected, rotation);
                     if (rotated.equals(actual)) return true;
                 }
                 return false;
@@ -59,29 +60,5 @@ public class PredicateStates extends SimplePredicate {
         }
         candidates = Suppliers.memoize(() -> Arrays.stream(states).map(BlockInfo::fromBlockState).toArray(BlockInfo[]::new));
         return super.buildPredicate();
-    }
-
-    private static Rotation horizontalRotation(Direction from, Direction to) {
-        if (from == null || to == null) return Rotation.NONE;
-        if (from.getAxis() == Direction.Axis.Y || to.getAxis() == Direction.Axis.Y) return Rotation.NONE;
-        int fromIndex = horizontalIndex(from);
-        int toIndex = horizontalIndex(to);
-        int steps = (toIndex - fromIndex + 4) & 3;
-        return switch (steps) {
-            case 1 -> Rotation.CLOCKWISE_90;
-            case 2 -> Rotation.CLOCKWISE_180;
-            case 3 -> Rotation.COUNTERCLOCKWISE_90;
-            default -> Rotation.NONE;
-        };
-    }
-
-    private static int horizontalIndex(Direction dir) {
-        return switch (dir) {
-            case NORTH -> 0;
-            case EAST -> 1;
-            case SOUTH -> 2;
-            case WEST -> 3;
-            default -> 0;
-        };
     }
 }

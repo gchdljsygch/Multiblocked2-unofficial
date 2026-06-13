@@ -9,6 +9,7 @@ import com.lowdragmc.mbd2.api.pattern.error.PatternStringError;
 import com.lowdragmc.mbd2.api.pattern.error.SinglePredicateError;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
 import com.lowdragmc.mbd2.api.pattern.util.PatternMatchContext;
+import com.lowdragmc.mbd2.api.pattern.util.PatternStateRotation;
 import com.lowdragmc.mbd2.api.pattern.util.RelativeDirection;
 import com.lowdragmc.mbd2.common.autobuild.AutoBuildPlacementExecutor;
 import com.lowdragmc.mbd2.common.autobuild.SlowAutoBuildScheduler;
@@ -571,34 +572,11 @@ public class BlockPattern {
     private static Rotation computeRotation(BlockPattern pattern, Direction currentFacing) {
         Direction base = pattern.mbd2$getBaseFacing();
         if (base == null) return Rotation.NONE;
-        return horizontalRotation(base, currentFacing);
-    }
-
-    private static Rotation horizontalRotation(Direction from, Direction to) {
-        if (from == null || to == null) return Rotation.NONE;
-        if (from.getAxis() == Direction.Axis.Y || to.getAxis() == Direction.Axis.Y) return Rotation.NONE;
-        int fromIndex = horizontalIndex(from);
-        int toIndex = horizontalIndex(to);
-        int steps = (toIndex - fromIndex + 4) & 3;
-        return switch (steps) {
-            case 1 -> Rotation.CLOCKWISE_90;
-            case 2 -> Rotation.CLOCKWISE_180;
-            case 3 -> Rotation.COUNTERCLOCKWISE_90;
-            default -> Rotation.NONE;
-        };
-    }
-
-    private static int horizontalIndex(Direction dir) {
-        return switch (dir) {
-            case NORTH -> 0;
-            case EAST -> 1;
-            case SOUTH -> 2;
-            case WEST -> 3;
-            default -> 0;
-        };
+        return PatternStateRotation.horizontalRotation(base, currentFacing);
     }
 
     public BlockInfo[][][] getPreview(int[] repetition) {
+        Rotation previewRotation = PatternStateRotation.horizontalRotation(mbd2$getBaseFacing(), Direction.NORTH);
         Map<SimplePredicate, Integer> cacheGlobal = new HashMap<>();
         Map<BlockPos, BlockInfo> blocks = new HashMap<>();
         int minX = Integer.MAX_VALUE;
@@ -615,8 +593,10 @@ public class BlockPattern {
                     for (int z = 0; z < this.palmLength; z++) {
                         var predicate = this.blockMatches[l][y][z];
                         BlockInfo info = null;
+                        boolean rotatePreviewState = true;
                         if (predicate.isController) {
-                            info = new ControllerBlockInfo(mbd2$getBaseFacing());
+                            info = new ControllerBlockInfo(Direction.NORTH);
+                            rotatePreviewState = false;
                         } else {
                             boolean find = false;
                             BlockInfo[] infos = null;
@@ -644,6 +624,7 @@ public class BlockPattern {
                                     continue;
                                 }
                                 infos = limit.candidates == null ? null : limit.candidates.get();
+                                rotatePreviewState = !limit.controllerFront.isEnable();
                                 find = true;
                                 break;
                             }
@@ -672,6 +653,7 @@ public class BlockPattern {
                                         continue;
                                     }
                                     infos = limit.candidates == null ? null : limit.candidates.get();
+                                    rotatePreviewState = !limit.controllerFront.isEnable();
                                     find = true;
                                     break;
                                 }
@@ -692,6 +674,7 @@ public class BlockPattern {
                                         continue;
                                     }
                                     infos = common.candidates == null ? null : common.candidates.get();
+                                    rotatePreviewState = !common.controllerFront.isEnable();
                                     find = true;
                                     break;
                                 }
@@ -702,6 +685,7 @@ public class BlockPattern {
                                         continue;
                                     if (common.previewCount == -1) {
                                         infos = common.candidates == null ? null : common.candidates.get();
+                                        rotatePreviewState = !common.controllerFront.isEnable();
                                         find = true;
                                         break;
                                     }
@@ -734,6 +718,7 @@ public class BlockPattern {
                                     }
 
                                     infos = limit.candidates == null ? null : limit.candidates.get();
+                                    rotatePreviewState = !limit.controllerFront.isEnable();
                                     break;
                                 }
                             }
@@ -741,6 +726,7 @@ public class BlockPattern {
                         }
                         BlockPos pos = setActualRelativeOffset(z, y, x, Direction.NORTH);
 
+                        info = rotatePreviewInfo(info, previewRotation, rotatePreviewState);
                         blocks.put(pos, info);
                         minX = Math.min(pos.getX(), minX);
                         minY = Math.min(pos.getY(), minY);
@@ -759,6 +745,28 @@ public class BlockPattern {
         int finalMinZ = minZ;
         blocks.forEach((pos, info) -> result[pos.getX() - finalMinX][pos.getY() - finalMinY][pos.getZ() - finalMinZ] = info);
         return result;
+    }
+
+    private static BlockInfo rotatePreviewInfo(BlockInfo info, Rotation rotation, boolean rotatePreviewState) {
+        if (!rotatePreviewState || rotation == Rotation.NONE || info == null || info == BlockInfo.EMPTY || info instanceof ControllerBlockInfo) {
+            return info;
+        }
+
+        BlockState state = info.getBlockState();
+        if (state == null) {
+            return info;
+        }
+
+        BlockState rotatedState = PatternStateRotation.rotate(state, rotation);
+        if (rotatedState == state) {
+            return info;
+        }
+
+        var rotatedInfo = new BlockInfo();
+        rotatedInfo.deserializeNBT(info.serializeNBT());
+        rotatedInfo.setHasBlockEntity(info.hasBlockEntity());
+        rotatedInfo.setBlockState(rotatedState);
+        return rotatedInfo;
     }
 
 
