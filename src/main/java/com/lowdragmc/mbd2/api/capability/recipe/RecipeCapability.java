@@ -85,6 +85,13 @@ public abstract class RecipeCapability<T> {
     }
 
     /**
+     * Whether this capability's input contents should be scaled while detecting automatic parallel.
+     */
+    public boolean scalesForAutomaticParallel() {
+        return true;
+    }
+
+    /**
      * create a preview widget for the content of this capability.
      * <br>
      * it will be used for ui editor. make sure the widget's size is (18, 18)

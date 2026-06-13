@@ -662,11 +662,24 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      * @return modified recipe and parallel amount
      */
     public static Pair<MBDRecipe, Integer> accurateParallel(IRecipeCapabilityHolder recipeCapabilityHolder, @Nonnull MBDRecipe recipe, int maxParallel, boolean modifyDuration) {
-        if (maxParallel == 1) {
+        if (maxParallel == 1 || recipe.hasOnlyNonScalingInputsForAutomaticParallel()) {
             return Pair.of(recipe, 1);
         }
         var parallel = tryParallel(recipeCapabilityHolder, recipe, 1, maxParallel, modifyDuration);
         return parallel == null ? Pair.of(recipe, 1) : parallel;
+    }
+
+    private boolean hasOnlyNonScalingInputsForAutomaticParallel() {
+        boolean hasNonScalingInput = false;
+        for (var entry : inputs.entrySet()) {
+            var contents = entry.getValue();
+            if (contents == null || contents.isEmpty()) continue;
+            if (entry.getKey().scalesForAutomaticParallel()) {
+                return false;
+            }
+            hasNonScalingInput = true;
+        }
+        return hasNonScalingInput;
     }
 
     @Nullable

@@ -32,7 +32,8 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
     @Persisted
     @DescSynced
     private final int[] remainingTicks = new int[6];
-    private int lastInputSignal = -1;
+    @DescSynced
+    private int inputSignal;
     private final RedstoneSignalRecipeHandler recipeHandler = new RedstoneSignalRecipeHandler();
 
     public RedstoneSignalCapabilityTrait(MBDMachine machine, RedstoneSignalCapabilityTraitDefinition definition) {
@@ -51,11 +52,7 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
 
     @Override
     public void serverTick() {
-        int inputSignal = getInputSignal();
-        if (inputSignal != lastInputSignal) {
-            lastInputSignal = inputSignal;
-            notifyListeners();
-        }
+        updateInputSignal();
         boolean timerChanged = false;
         for (Direction side : Direction.values()) {
             int index = side.ordinal();
@@ -81,11 +78,7 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
 
     @Override
     public void onNeighborChanged(Block block, net.minecraft.core.BlockPos fromPos, boolean isMoving) {
-        int inputSignal = getInputSignal();
-        if (inputSignal != lastInputSignal) {
-            lastInputSignal = inputSignal;
-            notifyListeners();
-        }
+        updateInputSignal();
     }
 
     public boolean canConnectRedstone(Direction side) {
@@ -93,6 +86,18 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
     }
 
     public int getInputSignal() {
+        return inputSignal;
+    }
+
+    private void updateInputSignal() {
+        int signal = readInputSignal();
+        if (signal != inputSignal) {
+            inputSignal = signal;
+            signalChanged();
+        }
+    }
+
+    private int readInputSignal() {
         Level level = getMachine().getLevel();
         if (level == null) return 0;
         int signal = 0;
@@ -169,9 +174,9 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         public List<RedstoneSignal> handleRecipeInner(IO io, MBDRecipe recipe, List<RedstoneSignal> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;
             if (io == IO.IN) {
-                int required = left.stream().mapToInt(RedstoneSignal::strength).max().orElse(0);
                 int current = getInputSignal();
-                return current >= required ? null : List.of(RedstoneSignal.input(required - current));
+                List<RedstoneSignal> unmatched = left.stream().filter(signal -> !signal.matchesInput(current)).toList();
+                return unmatched.isEmpty() ? null : unmatched;
             }
             int strength = left.stream().mapToInt(RedstoneSignal::strength).max().orElse(0);
             int duration = left.stream().mapToInt(RedstoneSignal::duration).max().orElse(0);

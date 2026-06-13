@@ -13,6 +13,7 @@ public class MBDJadePlugin implements IWailaPlugin {
     public void register(IWailaCommonRegistration registration) {
         registration.registerBlockDataProvider(new RecipeLogicProvider(), BlockEntity.class);
         registration.registerBlockDataProvider(new LongFeEnergyDataProvider(), BlockEntity.class);
+        registration.registerFluidStorage(LongFluidStorageProvider.INSTANCE, BlockEntity.class);
     }
 
     @Override
@@ -20,5 +21,6 @@ public class MBDJadePlugin implements IWailaPlugin {
         registration.registerBlockComponent(new RecipeLogicProvider(), Block.class);
         registration.registerBlockComponent(new MultiblockProvider(), Block.class);
         registration.registerBlockComponent(new LongFeEnergyDataProvider(), Block.class);
+        registration.registerFluidStorageClient(LongFluidStorageProvider.INSTANCE);
     }
 }

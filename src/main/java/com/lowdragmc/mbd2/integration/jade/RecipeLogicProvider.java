@@ -10,14 +10,20 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
+import snownee.jade.api.ui.IElement;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IBlockComponentProvider;
 import snownee.jade.api.IServerDataProvider;
 import snownee.jade.api.ITooltip;
 import snownee.jade.api.config.IPluginConfig;
 import snownee.jade.api.ui.BoxStyle;
+import snownee.jade.impl.ui.IconElement;
 import snownee.jade.impl.ui.ProgressElement;
 import snownee.jade.impl.ui.ProgressStyle;
+import snownee.jade.overlay.IconUI;
+
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class RecipeLogicProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
 
@@ -29,8 +35,8 @@ public class RecipeLogicProvider implements IBlockComponentProvider, IServerData
         if (rawMachine instanceof MBDMachine machine) {
             var event = new MachineJadeTooltipEvent(machine, blockAccessor.getPlayer(), getUid());
             MinecraftForge.EVENT_BUS.post(event.postCustomEvent());
-            for (Component component : event.getTooltips()) {
-                tooltip.add(component);
+            for (var line : event.getTooltipLines()) {
+                addTooltipLine(tooltip, line);
             }
             if (event.isCanceled()) {
                 return;
@@ -91,5 +97,35 @@ public class RecipeLogicProvider implements IBlockComponentProvider, IServerData
     @Override
     public ResourceLocation getUid() {
         return MBD2.id("recipe_logic_provider");
+    }
+
+    private static void addTooltipLine(ITooltip tooltip, MachineJadeTooltipEvent.TooltipLine line) {
+        var elements = new ArrayList<IElement>();
+        var helper = tooltip.getElementHelper();
+        for (var part : line.getParts()) {
+            if (part instanceof MachineJadeTooltipEvent.TextPart textPart) {
+                elements.add(helper.text(textPart.component()));
+            } else if (part instanceof MachineJadeTooltipEvent.ItemIconPart itemPart) {
+                elements.add(itemPart.small() ? helper.smallItem(itemPart.stack()) : helper.item(itemPart.stack()));
+            } else if (part instanceof MachineJadeTooltipEvent.JadeIconPart iconPart) {
+                parseJadeIcon(iconPart.iconName()).ifPresent(icon -> elements.add(new IconElement(icon)));
+            } else if (part instanceof MachineJadeTooltipEvent.SpacerPart spacerPart) {
+                elements.add(helper.spacer(spacerPart.width(), spacerPart.height()));
+            }
+        }
+        if (!elements.isEmpty()) {
+            tooltip.add(elements);
+        }
+    }
+
+    private static java.util.Optional<IconUI> parseJadeIcon(String iconName) {
+        if (iconName == null || iconName.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            return java.util.Optional.of(IconUI.valueOf(iconName.toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException ignored) {
+            return java.util.Optional.empty();
+        }
     }
 }

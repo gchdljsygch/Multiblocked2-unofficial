@@ -8,6 +8,7 @@ import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.widget.TextTextureWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.utils.LocalizationUtils;
+import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ITrait;
@@ -19,6 +20,10 @@ import net.minecraft.world.item.Items;
 
 @LDLRegister(name = "redstone_signal", group = "trait", priority = -100)
 public class RedstoneSignalCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
+
+    public RedstoneSignalCapabilityTraitDefinition() {
+        setRecipeHandlerIO(IO.BOTH);
+    }
 
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {

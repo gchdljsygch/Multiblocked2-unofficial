@@ -19,6 +19,7 @@ import net.minecraft.world.item.Items;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSignal> {
     public static final RedstoneSignalRecipeCapability CAP = new RedstoneSignalRecipeCapability();
@@ -35,6 +36,11 @@ public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSig
     @Override
     public RedstoneSignal createDefaultContent(IO io) {
         return io == IO.IN ? RedstoneSignal.input(15) : RedstoneSignal.output(15, 20);
+    }
+
+    @Override
+    public boolean scalesForAutomaticParallel() {
+        return false;
     }
 
     @Override
@@ -58,7 +64,7 @@ public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSig
             if (ingredientIO == IngredientIO.OUTPUT || signal.duration() > 0) {
                 text.setText(Component.literal("%d RS / %dt".formatted(signal.strength(), signal.duration())));
             } else {
-                text.setText(Component.literal(">=%d RS".formatted(signal.strength())));
+                text.setText(Component.literal("%s RS".formatted(signal.inputDisplay())));
             }
         }
     }
@@ -70,9 +76,14 @@ public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSig
 
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<RedstoneSignal> supplier, Consumer<RedstoneSignal> onUpdate, IO io) {
-        father.addConfigurators(new NumberConfigurator("recipe.capability.redstone_signal.strength",
+        father.addConfigurators(new NumberConfigurator(io == IO.IN ? "recipe.capability.redstone_signal.min_strength" : "recipe.capability.redstone_signal.strength",
                 () -> supplier.get().strength(),
                 number -> onUpdate.accept(supplier.get().withStrength(number.intValue())), 1, true).setRange(0, 15));
+        if (io == IO.IN) {
+            father.addConfigurators(new NumberConfigurator("recipe.capability.redstone_signal.max_strength",
+                    () -> supplier.get().maxStrength(),
+                    number -> onUpdate.accept(supplier.get().withMaxStrength(number.intValue())), 1, true).setRange(1, 16));
+        }
         if (io.support(IO.OUT)) {
             var duration = new NumberConfigurator("recipe.capability.redstone_signal.duration",
                     () -> supplier.get().duration(),
@@ -84,7 +95,7 @@ public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSig
 
     @Override
     public Component getLeftErrorInfo(List<RedstoneSignal> left) {
-        int missing = left.stream().mapToInt(RedstoneSignal::strength).max().orElse(0);
+        String missing = left.stream().map(RedstoneSignal::inputDisplay).collect(Collectors.joining(", "));
         return Component.translatable("recipe.capability.redstone_signal.missing", missing);
     }
 

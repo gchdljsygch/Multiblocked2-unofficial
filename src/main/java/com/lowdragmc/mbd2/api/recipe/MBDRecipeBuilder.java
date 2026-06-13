@@ -286,6 +286,14 @@ public class MBDRecipeBuilder {
         return input(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(strength));
     }
 
+    public MBDRecipeBuilder inputRedstone(int minStrength, int maxStrength) {
+        return input(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(minStrength, maxStrength));
+    }
+
+    public MBDRecipeBuilder inputRedstone(String signal) {
+        return input(RedstoneSignalRecipeCapability.CAP, RedstoneSignalRecipeCapability.CAP.of(signal));
+    }
+
     public MBDRecipeBuilder outputRedstone(int strength, int duration) {
         return output(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.output(strength, duration));
     }

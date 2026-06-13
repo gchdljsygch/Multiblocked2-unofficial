@@ -267,6 +267,14 @@ public interface MBDRecipeSchema {
             return inputs(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(strength));
         }
 
+        public MBDRecipeJS inputRedstone(int minStrength, int maxStrength) {
+            return inputs(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.input(minStrength, maxStrength));
+        }
+
+        public MBDRecipeJS inputRedstone(String signal) {
+            return inputs(RedstoneSignalRecipeCapability.CAP, signal);
+        }
+
         public MBDRecipeJS outputRedstone(int strength, int duration) {
             return outputs(RedstoneSignalRecipeCapability.CAP, RedstoneSignal.output(strength, duration));
         }
