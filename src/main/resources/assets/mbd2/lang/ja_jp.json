@@ -202,7 +202,7 @@
     "config.part_settings.proxy_capability.trait_name_filter.tooltip.0": "フィルター名を含むすべての特性がプロキシされます。",
     "config.part_settings.proxy_capability.trait_name_filter.tooltip.1": "例: フィルター名が§cempty§rの場合、その名前を含むすべての特性がプロキシされます。",
     "config.part_settings.proxy_controller_capabilities": "コントローラーの特性プロキシ機能",
-    "config.part_settings.proxy_controller_capabilities.tooltip": "パーツに必要な機能が含まれていない場合、パーツはコントローラーの特性から機能をプロキシします。",
+    "config.part_settings.proxy_controller_capabilities.tooltip.0": "パーツに必要な機能が含まれていない場合、パーツはコントローラーの特性から機能をプロキシします。",
 
     "config.recipe.recipe_modifier": "レシピ修正",
     "config.recipe.recipe_modifiers": "レシピ修正機能",

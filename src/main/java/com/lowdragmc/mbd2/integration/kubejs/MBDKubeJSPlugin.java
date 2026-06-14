@@ -37,11 +37,13 @@ public class MBDKubeJSPlugin extends KubeJSPlugin {
     public void registerEvents() {
         super.registerEvents();
         MBDServerEvents.init();
+        MBDEntityMachineEventDispatcher.init();
         if (LDLib.isClient()) {
             MBDClientEvents.init();
         }
         MBDStartupEvents.REGISTRY_EVENTS.register();
         MBDMachineEvents.MBD_MACHINE_EVENTS.register();
+        MBDEntityMachineEvents.MBD_ENTITY_MACHINE_EVENTS.register();
         MBDRecipeTypeEvents.MBD_RECIPE_TYPE_EVENTS.register();
     }
 

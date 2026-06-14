@@ -429,7 +429,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 }
             }
             additionalTraits.clear();
-            definition.machineSettings().traitDefinitions().stream().sorted((a, b) -> b.getPriority() - a.getPriority()).forEach(traitDefinition -> {
+            definition.machineSettings().traitDefinitions().stream()
+                    .filter(this::canLoadTrait)
+                    .sorted((a, b) -> b.getPriority() - a.getPriority()).forEach(traitDefinition -> {
                 ITrait trait;
                 try {
                     trait = traitDefinition.createTrait(this);
@@ -447,6 +449,10 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
             });
             initCapabilitiesProxy();
         }
+    }
+
+    protected boolean canLoadTrait(TraitDefinition traitDefinition) {
+        return true;
     }
 
     private void reportTraitLoadFailure(TraitDefinition traitDefinition, Throwable error) {

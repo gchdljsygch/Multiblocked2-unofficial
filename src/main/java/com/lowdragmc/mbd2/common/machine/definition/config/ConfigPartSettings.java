@@ -103,7 +103,7 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
             proxyCapability.buildConfigurator(group);
             return group;
         }, true);
-        proxyCapabilities.setTips("config.part_settings.proxy_controller_capabilities.tooltip");
+        proxyCapabilities.setTips("config.part_settings.proxy_controller_capabilities.tooltip.0","config.part_settings.proxy_controller_capabilities.tooltip.1");
         proxyCapabilities.setAddDefault(ProxyCapability::new);
         proxyCapabilities.setOnAdd(proxyControllerCapabilities::add);
         proxyCapabilities.setOnRemove(proxyControllerCapabilities::remove);
@@ -122,12 +122,16 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
         @Configurable(name = "config.part_settings.proxy_capability.trait_name_filter",
                 tips = {"config.part_settings.proxy_capability.trait_name_filter.tooltip.0",
                         "config.part_settings.proxy_capability.trait_name_filter.tooltip.1"})
-        private String traitNameFilter;
+        private String traitNameFilter = "";
         @Configurable(name = "config.definition.trait.capability_io", subConfigurable = true,
                 tips = {"config.definition.trait.capability_io.tooltip.0", "config.definition.trait.capability_io.tooltip.1"})
         private final CapabilityIO capabilityIO = new CapabilityIO();
         @Configurable(name = "config.definition.trait.auto_io", subConfigurable = true,
                 tips = {"config.definition.trait.auto_io.tooltip"})
         private final ToggleAutoIO autoIO = new ToggleAutoIO();
+
+        public boolean matchesTraitName(String traitName) {
+            return traitName != null && (traitNameFilter == null || traitNameFilter.isBlank() || traitName.contains(traitNameFilter));
+        }
     }
 }

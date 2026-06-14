@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.gui.editor.runtime.AnnotationDetector;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.event.MBDRegistryEvent;
+import com.lowdragmc.mbd2.common.machine.definition.EntityMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import com.lowdragmc.mbd2.integration.create.machine.CreateKineticMachineDefinition;
@@ -19,6 +20,7 @@ public class MBDMachineDefinitionTypes {
         MBDRegistries.MACHINE_DEFINITION_TYPES.unfreeze();
         register(MBDMachineDefinition.class, MBDMachineDefinition::createDefault);
         register(MultiblockMachineDefinition.class, MultiblockMachineDefinition::createDefault);
+        register(EntityMachineDefinition.class, EntityMachineDefinition::createDefault);
         if (MBD2.isCreateLoaded()) {
             register(CreateKineticMachineDefinition.class, CreateKineticMachineDefinition::createDefault);
         }

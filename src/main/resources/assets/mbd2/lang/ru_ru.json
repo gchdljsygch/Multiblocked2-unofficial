@@ -285,7 +285,7 @@
     "config.part_settings.proxy_capability.trait_name_filter.tooltip.0": "Все признаки, имя которых содержит имя фильтра, будут проксированы.",
     "config.part_settings.proxy_capability.trait_name_filter.tooltip.1": "Например, если имя файла §cempty§r, все признаки, имя которых содержит, будут проксированы.",
     "config.part_settings.proxy_controller_capabilities": "Возможности черт прокси-контроллера",
-    "config.part_settings.proxy_controller_capabilities.tooltip": "Если часть не содержит требуемой возможности, часть будет прокси-возможностей из черт контроллеров.",
+    "config.part_settings.proxy_controller_capabilities.tooltip.0": "Если часть не содержит требуемой возможности, часть будет прокси-возможностей из черт контроллеров.",
 
     "config.recipe.recipe_modifier": "Модификатор рецепта",
     "config.recipe.recipe_modifiers": "Модификаторы рецепта",

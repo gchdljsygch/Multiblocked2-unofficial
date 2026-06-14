@@ -63,7 +63,7 @@ public class MBDRecipeTypeEmiCategory extends EmiRecipeCategory {
             if (mbdRecipeType.isXEIVisible()) {
                     for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
                         var recipeType = definition.recipeLogicSettings().getRecipeType();
-                        if (recipeType == mbdRecipeType) {
+                        if (recipeType == mbdRecipeType && definition.item() != null) {
                             registry.addWorkstation(MBDRecipeTypeEmiCategory.CATEGORIES.apply(mbdRecipeType), EmiStack.of(definition.item()));
                         }
                     }

@@ -311,7 +311,8 @@
   "config.part_settings.proxy_capability.trait_name_filter.tooltip.0": "名称包含过滤器名的所有特性都将被代理。",
   "config.part_settings.proxy_capability.trait_name_filter.tooltip.1": "例如，如果过滤器名称是 §cempty§r，所有包含该名称的特性都将被代理。",
   "config.part_settings.proxy_controller_capabilities": "代理控制器特性",
-  "config.part_settings.proxy_controller_capabilities.tooltip": "如果部件不包含所需的特性，部件将代理来自控制器的特性。",
+  "config.part_settings.proxy_controller_capabilities.tooltip.0": "如果部件不包含所需的特性，部件将代理来自控制器的特性。",
+  "config.part_settings.proxy_controller_capabilities.tooltip.1": "如果你只想为多方块添加部件，你应该去添加机器特性，而不是增加代理控制器特性",
   "config.recipe.recipe_modifier": "配方修改器",
   "config.recipe.recipe_modifiers": "配方修改器",
   "config.recipe.recipe_modifiers.tooltip": "用于实时修改（自身/控制器）配方。您可以用它来制作升级/插件部件。",
@@ -1346,5 +1347,11 @@
   "ANALOG": "模拟输出",
   "Value": "值",
   "mbd2.multiblock_area.generate_pattern.tooltip": "生成样式前，请先让控制器朝向北方搭建多方块结构，以获得更好的预览效果。",
-  "mbd2.multiblock_area.generate_shape_info.tooltip": "如果机器样式中的方块状态异常，请点击此控件重新生成结构信息。"
+  "mbd2.multiblock_area.generate_shape_info.tooltip": "如果机器样式中的方块状态异常，请点击此控件重新生成结构信息。",
+  "ldlib.gui.editor.register.editor.machine.em": "实体机器项目",
+  "config.entity_machine.entity_kind": "实体类型",
+  "config.entity_machine.width": "实体宽度",
+  "config.entity_machine.height": "实体高度",
+  "config.entity_machine.client_tracking_range": "客户端追踪范围",
+  "config.entity_machine.update_interval": "更新间隔"
 }

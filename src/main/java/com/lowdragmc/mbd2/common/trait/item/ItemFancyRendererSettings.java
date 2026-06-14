@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.mbd2.api.capability.MBDCapabilities;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.machine.MBDPartMachine;
 import com.lowdragmc.mbd2.common.trait.FancyRendererSettings;
 import com.mojang.blaze3d.vertex.PoseStack;
 import lombok.Getter;
@@ -22,7 +23,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
-import org.joml.Vector3f;
+
+import java.util.List;
 
 public class ItemFancyRendererSettings extends FancyRendererSettings {
     private final ItemSlotCapabilityTraitDefinition definition;
@@ -61,59 +63,72 @@ public class ItemFancyRendererSettings extends FancyRendererSettings {
             var optional = blockEntity.getCapability(MBDCapabilities.CAPABILITY_MACHINE).resolve();
             if (optional.isPresent() && optional.get() instanceof MBDMachine machine) {
                 if (machine.getTraitByDefinition(definition) instanceof ItemSlotCapabilityTrait trait) {
-                    var itemRenderer = Minecraft.getInstance().getItemRenderer();
-                    float tick = blockEntity.getLevel().getGameTime() + partialTicks;
                     for (int i = 0; i < trait.storage.getSlots(); i++) {
-                        var itemStack = trait.storage.getStackInSlot(i);
-                        if (itemStack.isEmpty()) continue;
-
-                        var bakedmodel = itemRenderer.getModel(itemStack, Minecraft.getInstance().level, null, Item.getId(itemStack.getItem()) + itemStack.getDamageValue());
-                        var isGui3d = bakedmodel.isGui3d();
-                        var renderAmount = renderStack ? getRenderAmount(itemStack) : 1;
-                        RANDOM.setSeed(itemStack.isEmpty() ? 187 : Item.getId(itemStack.getItem()) + itemStack.getDamageValue());
-
-                        poseStack.pushPose();
-
-                        // rotate orientation
-                        if (rotateOrientation) {
-                            poseStack.translate(0.5D, 0.5d, 0.5D);
-                            poseStack.mulPose(ModelFactory.getQuaternion(machine.getFrontFacing().orElse(Direction.NORTH)));
-                            poseStack.translate(-0.5D, -0.5d, -0.5D);
-                        }
-
-                        // transform
-                        poseStack.translate(position.x, position.y, position.z);
-                        // self-rotation
-                        if (spin != 0) {
-                            poseStack.mulPose(new Quaternionf().rotateAxis(spin * tick * Mth.TWO_PI / 80, 0, 1, 0));
-                        }
-                        poseStack.mulPose(new Quaternionf().rotateXYZ((float) Math.toRadians(rotation.x), (float) Math.toRadians(rotation.y), (float) Math.toRadians(rotation.z)));
-                        // scale
-                        poseStack.scale(scale.x, scale.y, scale.z);
-
-                        for (int j = 0; j < renderAmount; j++) {
-                            poseStack.pushPose();
-                            // offset
-                            if (isGui3d) { // e.g. blocks
-                                float rx = 0, ry = 0, rz = 0;
-                                if (renderAmount > 1) {
-                                    rx = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
-                                    ry = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
-                                    rz = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
-                                }
-                                poseStack.translate(rx, ry, rz);
-                            } else { // e.g. ingots
-                                var offset = j / 10f - (renderAmount - 1) / 20f;
-                                poseStack.translate(offset, offset, offset);
-                            }
-
-                            itemRenderer.render(itemStack, ItemDisplayContext.FIXED, false, poseStack, bufferSource, combinedLight, combinedOverlay, bakedmodel);
-                            poseStack.popPose();
-                        }
-                        poseStack.popPose();
+                        renderItemStack(machine, blockEntity, partialTicks, poseStack, bufferSource, combinedLight, combinedOverlay, trait.storage.getStackInSlot(i));
                     }
+                } else if (machine instanceof MBDPartMachine partMachine) {
+                    renderStacks(machine, blockEntity, partialTicks, poseStack, bufferSource, combinedLight, combinedOverlay,
+                            partMachine.getProxiedTraitRenderItems(definition.getName()));
                 }
             }
+        }
+
+        private void renderStacks(MBDMachine machine, BlockEntity blockEntity, float partialTicks, PoseStack poseStack,
+                                  MultiBufferSource bufferSource, int combinedLight, int combinedOverlay, List<ItemStack> itemStacks) {
+            for (var itemStack : itemStacks) {
+                renderItemStack(machine, blockEntity, partialTicks, poseStack, bufferSource, combinedLight, combinedOverlay, itemStack);
+            }
+        }
+
+        private void renderItemStack(MBDMachine machine, BlockEntity blockEntity, float partialTicks, PoseStack poseStack,
+                                     MultiBufferSource bufferSource, int combinedLight, int combinedOverlay, ItemStack itemStack) {
+            if (itemStack.isEmpty()) return;
+            var itemRenderer = Minecraft.getInstance().getItemRenderer();
+            float tick = blockEntity.getLevel().getGameTime() + partialTicks;
+            var bakedmodel = itemRenderer.getModel(itemStack, Minecraft.getInstance().level, null, Item.getId(itemStack.getItem()) + itemStack.getDamageValue());
+            var isGui3d = bakedmodel.isGui3d();
+            var renderAmount = renderStack ? getRenderAmount(itemStack) : 1;
+            RANDOM.setSeed(Item.getId(itemStack.getItem()) + itemStack.getDamageValue());
+
+            poseStack.pushPose();
+
+            // rotate orientation
+            if (rotateOrientation) {
+                poseStack.translate(0.5D, 0.5d, 0.5D);
+                poseStack.mulPose(ModelFactory.getQuaternion(machine.getFrontFacing().orElse(Direction.NORTH)));
+                poseStack.translate(-0.5D, -0.5d, -0.5D);
+            }
+
+            // transform
+            poseStack.translate(position.x, position.y, position.z);
+            // self-rotation
+            if (spin != 0) {
+                poseStack.mulPose(new Quaternionf().rotateAxis(spin * tick * Mth.TWO_PI / 80, 0, 1, 0));
+            }
+            poseStack.mulPose(new Quaternionf().rotateXYZ((float) Math.toRadians(rotation.x), (float) Math.toRadians(rotation.y), (float) Math.toRadians(rotation.z)));
+            // scale
+            poseStack.scale(scale.x, scale.y, scale.z);
+
+            for (int j = 0; j < renderAmount; j++) {
+                poseStack.pushPose();
+                // offset
+                if (isGui3d) { // e.g. blocks
+                    float rx = 0, ry = 0, rz = 0;
+                    if (renderAmount > 1) {
+                        rx = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
+                        ry = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
+                        rz = (RANDOM.nextFloat() * 2.0f - 1.0f) * 0.06f;
+                    }
+                    poseStack.translate(rx, ry, rz);
+                } else { // e.g. ingots
+                    var offset = j / 10f - (renderAmount - 1) / 20f;
+                    poseStack.translate(offset, offset, offset);
+                }
+
+                itemRenderer.render(itemStack, ItemDisplayContext.FIXED, false, poseStack, bufferSource, combinedLight, combinedOverlay, bakedmodel);
+                poseStack.popPose();
+            }
+            poseStack.popPose();
         }
 
         private int getRenderAmount(ItemStack stack) {

@@ -89,7 +89,7 @@ public class MBDRecipeTypeFuelDisplayCategory extends ModularUIDisplayCategory<M
             if (mbdRecipeType.isXEIVisible() && mbdRecipeType.isRequireFuelForWorking()) {
                 for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
                     var recipeType = definition.recipeLogicSettings().getRecipeType();
-                    if (recipeType == mbdRecipeType) {
+                    if (recipeType == mbdRecipeType && definition.item() != null) {
                         registry.addWorkstations(MBDRecipeTypeFuelDisplayCategory.CATEGORIES.apply(mbdRecipeType), EntryStack.of(VanillaEntryTypes.ITEM, definition.item().getDefaultInstance()));
                     }
                 }

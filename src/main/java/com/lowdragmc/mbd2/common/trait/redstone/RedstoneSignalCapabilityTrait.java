@@ -5,10 +5,13 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
+import com.lowdragmc.mbd2.api.machine.IMultiPart;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignal;
 import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignalRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
+import com.lowdragmc.mbd2.common.machine.MBDPartMachine;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import net.minecraft.core.Direction;
@@ -107,6 +110,18 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
                 signal = Math.max(signal, level.getSignal(pos.relative(side), side));
             }
         }
+        if (getMachine() instanceof MBDMultiblockMachine multiblockMachine && multiblockMachine.isFormed()) {
+            for (IMultiPart part : multiblockMachine.getParts()) {
+                if (part instanceof MBDPartMachine partMachine && partMachine.isProxyingControllerRedstone(this)) {
+                    var partPos = partMachine.getPos();
+                    for (Direction side : Direction.values()) {
+                        if (partMachine.getControllerRedstoneProxyIO(this, side).support(IO.IN)) {
+                            signal = Math.max(signal, level.getSignal(partPos.relative(side), side));
+                        }
+                    }
+                }
+            }
+        }
         return signal;
     }
 
@@ -116,6 +131,10 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
             signal = Math.max(signal, Byte.toUnsignedInt(value));
         }
         return signal;
+    }
+
+    public int getOutputSignal(Direction side) {
+        return Byte.toUnsignedInt(emittedSignal[side.ordinal()]);
     }
 
     public int getMaxRemainingTicks() {
@@ -130,22 +149,44 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         if (signal.strength() <= 0 || signal.duration() <= 0) return;
         boolean changed = false;
         for (Direction side : Direction.values()) {
-            if (!getCapabilityIO(side).support(IO.OUT)) continue;
-            int index = side.ordinal();
-            int current = Byte.toUnsignedInt(emittedSignal[index]);
-            if (signal.strength() >= current || remainingTicks[index] <= 0) {
-                emittedSignal[index] = (byte) signal.strength();
-                getMachine().setOutputSignal(signal.strength(), side);
-                changed = true;
-            }
-            if (remainingTicks[index] < signal.duration()) {
-                remainingTicks[index] = signal.duration();
-                changed = true;
+            var outputOnController = getCapabilityIO(side).support(IO.OUT);
+            if (outputOnController || isProxiedOutputSide(side)) {
+                changed |= emitSignalToSide(signal, side, outputOnController);
             }
         }
         if (changed) {
             signalChanged();
         }
+    }
+
+    private boolean isProxiedOutputSide(Direction side) {
+        if (getMachine() instanceof MBDMultiblockMachine multiblockMachine && multiblockMachine.isFormed()) {
+            for (IMultiPart part : multiblockMachine.getParts()) {
+                if (part instanceof MBDPartMachine partMachine &&
+                        partMachine.getControllerRedstoneProxyIO(this, side).support(IO.OUT)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean emitSignalToSide(RedstoneSignal signal, Direction side, boolean outputOnController) {
+        boolean changed = false;
+        int index = side.ordinal();
+        int current = Byte.toUnsignedInt(emittedSignal[index]);
+        if (signal.strength() >= current || remainingTicks[index] <= 0) {
+            emittedSignal[index] = (byte) signal.strength();
+            if (outputOnController) {
+                getMachine().setOutputSignal(signal.strength(), side);
+            }
+            changed = true;
+        }
+        if (remainingTicks[index] < signal.duration()) {
+            remainingTicks[index] = signal.duration();
+            changed = true;
+        }
+        return changed;
     }
 
     private void clearSignal(Direction side) {
@@ -163,6 +204,17 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
     private void signalChanged() {
         notifyListeners();
         onChanged();
+        updateProxiedPartsSignal();
+    }
+
+    private void updateProxiedPartsSignal() {
+        if (getMachine() instanceof MBDMultiblockMachine multiblockMachine && multiblockMachine.isFormed()) {
+            for (IMultiPart part : multiblockMachine.getParts()) {
+                if (part instanceof MBDPartMachine partMachine && partMachine.isProxyingControllerRedstone(this)) {
+                    partMachine.updateSignal();
+                }
+            }
+        }
     }
 
     public class RedstoneSignalRecipeHandler extends RecipeHandlerTrait<RedstoneSignal> {

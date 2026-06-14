@@ -280,7 +280,7 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     protected void bindMachineUI(MBDMachine machine, WidgetGroup ui) {
         WidgetUtils.widgetByIdForEach(ui, "^ui:machine_name$", TextTextureWidget.class,
                 nameWidget -> nameWidget.setText(() -> {
-                    if (machine.getCustomName() == null) return machine.getDefinition().block().getName();
+                    if (machine.getCustomName() == null) return machine.getDefinition().getMachineName(machine);
                     return machine.getCustomName();
                 }));
         WidgetUtils.widgetByIdForEach(ui, "^ui:progress_bar$", ProgressWidget.class,
@@ -333,6 +333,10 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                 }
             }
         }
+    }
+
+    protected Component getMachineName(MBDMachine machine) {
+        return block().getName();
     }
 
     public void onRegistry(RegisterEvent event) {

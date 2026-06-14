@@ -4,6 +4,8 @@ import com.lowdragmc.lowdraglib.client.model.forge.LDLRendererModel;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
+import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
+import com.lowdragmc.mbd2.common.machine.MBDPartMachine;
 import com.mojang.blaze3d.vertex.PoseStack;
 import lombok.AllArgsConstructor;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -103,6 +105,8 @@ public class MBDBlockRenderer implements IRenderer {
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
                                 .filter(Objects::nonNull)
+                                .anyMatch(renderer -> renderer.hasTESR(blockEntity)) ||
+                        getProxiedTraitRenderers(machine).stream()
                                 .anyMatch(renderer -> renderer.hasTESR(blockEntity))
         ).orElseGet(() -> defaultRenderer.get().hasTESR(blockEntity));
     }
@@ -115,6 +119,8 @@ public class MBDBlockRenderer implements IRenderer {
                         machine.getDefinition().machineSettings().traitDefinitions().stream()
                                 .map(definition -> definition.getBESRenderer(machine))
                                 .filter(Objects::nonNull)
+                                .anyMatch(renderer -> renderer.isGlobalRenderer(blockEntity)) ||
+                        getProxiedTraitRenderers(machine).stream()
                                 .anyMatch(renderer -> renderer.isGlobalRenderer(blockEntity))
         ).orElseGet(() -> defaultRenderer.get().isGlobalRenderer(blockEntity));
     }
@@ -139,7 +145,34 @@ public class MBDBlockRenderer implements IRenderer {
                     renderer.render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
                 }
             }
+            for (var renderer : getProxiedTraitRenderers(machine)) {
+                if (renderer.hasTESR(blockEntity)) {
+                    renderer.render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay);
+                }
+            }
         }, () -> defaultRenderer.get().render(blockEntity, partialTicks, stack, buffer, combinedLight, combinedOverlay));
+    }
+
+    private List<IRenderer> getProxiedTraitRenderers(MBDMachine machine) {
+        if (!(machine instanceof MBDPartMachine partMachine) || partMachine.getDefinition().partSettings() == null) {
+            return Collections.emptyList();
+        }
+        var renderers = new java.util.ArrayList<IRenderer>();
+        for (var controller : partMachine.getControllers()) {
+            if (controller instanceof MBDMultiblockMachine proxyController) {
+                for (var proxyControllerCapability : partMachine.getDefinition().partSettings().proxyControllerCapabilities()) {
+                    for (var traitDefinition : proxyController.getDefinition().machineSettings().traitDefinitions()) {
+                        if (proxyControllerCapability.matchesTraitName(traitDefinition.getName())) {
+                            var renderer = traitDefinition.getBESRenderer(partMachine);
+                            if (renderer != null && renderer != IRenderer.EMPTY) {
+                                renderers.add(renderer);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return renderers;
     }
 
     private void renderDynamicModel(MBDMachine machine, BlockEntity blockEntity, PoseStack stack, MultiBufferSource buffer, int combinedLight, int combinedOverlay) {

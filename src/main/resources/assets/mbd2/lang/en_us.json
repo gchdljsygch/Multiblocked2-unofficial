@@ -312,7 +312,8 @@
   "config.part_settings.proxy_capability.trait_name_filter.tooltip.0": "All traits that name contain the filter name will be proxied.",
   "config.part_settings.proxy_capability.trait_name_filter.tooltip.1": "e.g. if the filer name is §cempty§r, all traits that name contain will be proxied.",
   "config.part_settings.proxy_controller_capabilities": "Proxy Controller Trait Capabilities",
-  "config.part_settings.proxy_controller_capabilities.tooltip": "If the part doesnt contain the required capability, the part will proxy the capabilities from controllers’ traits.",
+  "config.part_settings.proxy_controller_capabilities.tooltip.0": "If the part doesnt contain the required capability, the part will proxy the capabilities from controllers’ traits.",
+  "config.part_settings.proxy_controller_capabilities.tooltip.1": "If you only want to add Part to Multiblock, you should add Machine Trait instead of proxy controller's Trait",
   "config.recipe.recipe_modifier": "Recipe Modifier",
   "config.recipe.recipe_modifiers": "Recipe Modifiers",
   "config.recipe.recipe_modifiers.tooltip": "To modify the (self / controller) recipe on the fly. You can use it to make a upgrade / plugin part.",
@@ -1137,5 +1138,11 @@
   "mbd2.gp.catalyst": "Catalyst",
   "mbd2.gp.tooltip.the_type_of_entity_to_get_if_null_all_entities_will_be_returned": "The type of entity to get. If null, all entities will be returned.",
   "mbd2.multiblock_area.generate_pattern.tooltip": "Build the multiblock with the controller facing north before generating the pattern for the best preview result.",
-  "mbd2.multiblock_area.generate_shape_info.tooltip": "If block states look wrong in the machine style preview, click this control to regenerate the shape info."
+  "mbd2.multiblock_area.generate_shape_info.tooltip": "If block states look wrong in the machine style preview, click this control to regenerate the shape info.",
+  "ldlib.gui.editor.register.editor.machine.em": "Entity Machine Project",
+  "config.entity_machine.entity_kind": "Entity kind",
+  "config.entity_machine.width": "Entity width",
+  "config.entity_machine.height": "Entity height",
+  "config.entity_machine.client_tracking_range": "Client tracking range",
+  "config.entity_machine.update_interval": "Update interval"
 }

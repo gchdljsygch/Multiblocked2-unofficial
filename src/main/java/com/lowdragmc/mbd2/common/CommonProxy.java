@@ -15,7 +15,9 @@ import com.lowdragmc.mbd2.common.data.MBDRecipeCapabilities;
 import com.lowdragmc.mbd2.common.data.MBDRecipeConditions;
 import com.lowdragmc.mbd2.common.data.MBDTraitDefinitionTypes;
 import com.lowdragmc.mbd2.common.event.MBDRegistryEvent;
+import com.lowdragmc.mbd2.common.gui.factory.EntityMachineUIFactory;
 import com.lowdragmc.mbd2.common.gui.factory.MachineUIFactory;
+import com.lowdragmc.mbd2.common.machine.definition.EntityMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import com.lowdragmc.mbd2.common.network.MBD2Network;
@@ -34,6 +36,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
 import net.minecraftforge.common.crafting.CraftingHelper;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoader;
@@ -71,6 +74,7 @@ public class CommonProxy {
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ConfigHolder.SPEC);
         // Register UI Factory
         UIFactory.register(MachineUIFactory.INSTANCE);
+        UIFactory.register(EntityMachineUIFactory.INSTANCE);
         // Register blocks
         BLOCKS.register("proxy_part_block", () -> ProxyPartBlock.BLOCK);
         ProxyPartBlockEntity.TYPE = BLOCK_ENTITY_TYPES.register("proxy_part_block", () -> BlockEntityType.Builder.of(ProxyPartBlockEntity::new, ProxyPartBlock.BLOCK).build(null));
@@ -102,6 +106,9 @@ public class CommonProxy {
         // load multiblock machine
         path = new File(MBD2.getLocation(), "multiblock");
         FileUtils.loadNBTFiles(path, ".mb", (file, tag) -> event.register(MultiblockMachineDefinition.createDefault().loadProductiveTag(file, tag, postTask)));
+        // load entity machine definitions.
+        path = new File(MBD2.getLocation(), "entity_machine");
+        FileUtils.loadNBTFiles(path, ".em", (file, tag) -> event.register(EntityMachineDefinition.createDefault().loadProductiveTag(file, tag, postTask)));
         if (MBD2.isCreateLoaded()) {
             // load kinetic machine
             path = new File(MBD2.getLocation(), "kinetic_machine");
@@ -118,6 +125,7 @@ public class CommonProxy {
         public static void postMachineEvent() {
             MBDMachineRegistryEventJS.BUILDERS.put("single", MBDMachineDefinition::builder);
             MBDMachineRegistryEventJS.BUILDERS.put("multiblock", MultiblockMachineDefinition::builder);
+            MBDMachineRegistryEventJS.BUILDERS.put("entity", EntityMachineDefinition::builder);
             if (MBD2.isCreateLoaded()) {
                 MBDMachineRegistryEventJS.BUILDERS.put("kinetic", CreateKineticMachineDefinition::builder);
             }
@@ -164,6 +172,15 @@ public class CommonProxy {
     }
 
     @SubscribeEvent
+    public void registerEntityAttributes(EntityAttributeCreationEvent event) {
+        MBDRegistries.MACHINE_DEFINITIONS.forEach(definition -> {
+            if (definition instanceof EntityMachineDefinition entityDefinition) {
+                entityDefinition.registerEntityAttributes(event);
+            }
+        });
+    }
+
+    @SubscribeEvent
     public void register(RegisterEvent event) {
         MBDRegistries.FAKE_MACHINE().onRegistry(event);
         MBDRegistries.MACHINE_DEFINITIONS.forEach((definition) -> definition.onRegistry(event));
@@ -178,7 +195,8 @@ public class CommonProxy {
     public void buildContents(BuildCreativeModeTabContentsEvent event) {
         var tabLoc = event.getTabKey().location();
         for (var machineDefinition : MBDRegistries.MACHINE_DEFINITIONS) {
-            if (machineDefinition.itemProperties().creativeTab().isEnable() &&
+            if (machineDefinition.item() != null &&
+                    machineDefinition.itemProperties().creativeTab().isEnable() &&
                     tabLoc.equals(machineDefinition.itemProperties().creativeTab().getValue())) {
                 event.accept(machineDefinition.item());
             }

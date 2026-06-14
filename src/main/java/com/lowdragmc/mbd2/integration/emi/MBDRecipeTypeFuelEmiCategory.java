@@ -61,14 +61,11 @@ public class MBDRecipeTypeFuelEmiCategory extends EmiRecipeCategory {
     public static void registerWorkStations(EmiRegistry registry) {
         for (var mbdRecipeType : MBDRegistries.RECIPE_TYPES) {
             if (mbdRecipeType.isXEIVisible() && mbdRecipeType.isRequireFuelForWorking()) {
-                for (var machine : MBDRegistries.MACHINE_DEFINITIONS) {
-                    for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
-                        var recipeType = definition.recipeLogicSettings().getRecipeType();
-                        if (recipeType == mbdRecipeType) {
-                            registry.addWorkstation(MBDRecipeTypeFuelEmiCategory.CATEGORIES.apply(mbdRecipeType), EmiStack.of(machine.item()));
-                        }
+                for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
+                    var recipeType = definition.recipeLogicSettings().getRecipeType();
+                    if (recipeType == mbdRecipeType && definition.item() != null) {
+                        registry.addWorkstation(MBDRecipeTypeFuelEmiCategory.CATEGORIES.apply(mbdRecipeType), EmiStack.of(definition.item()));
                     }
-
                 }
             }
         }

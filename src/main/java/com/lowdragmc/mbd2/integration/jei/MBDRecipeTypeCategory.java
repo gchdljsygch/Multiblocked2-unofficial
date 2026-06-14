@@ -82,7 +82,7 @@ public class MBDRecipeTypeCategory extends ModularUIRecipeCategory<MBDRecipeType
             if (mbdRecipeType.isXEIVisible()) {
                 for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
                     var recipeType = definition.recipeLogicSettings().getRecipeType();
-                    if (recipeType == mbdRecipeType) {
+                    if (recipeType == mbdRecipeType && definition.item() != null) {
                         registration.addRecipeCatalyst(definition.item().getDefaultInstance(), MBDRecipeTypeCategory.TYPES.apply(mbdRecipeType));
                     }
                 }

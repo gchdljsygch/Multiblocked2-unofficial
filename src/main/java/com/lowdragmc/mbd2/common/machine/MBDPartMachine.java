@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.common.machine;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
 import com.lowdragmc.lowdraglib.syncdata.annotation.RequireRerender;
+import com.lowdragmc.lowdraglib.syncdata.annotation.RPCMethod;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.capability.recipe.*;
@@ -12,14 +13,19 @@ import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.ConfigPartSettings;
-import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.IProxyAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ITrait;
+import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.redstone.RedstoneSignalCapabilityTrait;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
@@ -31,6 +37,7 @@ import java.util.*;
 
 public class MBDPartMachine extends MBDMachine implements IMultiPart {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDPartMachine.class, MBDMachine.MANAGED_FIELD_HOLDER);
+
     @Override
     public ManagedFieldHolder getFieldHolder() {
         return MANAGED_FIELD_HOLDER;
@@ -38,11 +45,13 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
 
     @DescSynced
     @RequireRerender
-    protected final Set<BlockPos> controllerPositions  = new HashSet<>();
+    protected final Set<BlockPos> controllerPositions = new HashSet<>();
     @Getter
     @DescSynced
     @RequireRerender
     protected boolean disableRendering = false;
+    private final Map<String, List<ItemStack>> proxiedTraitRenderItems = new HashMap<>();
+    private CompoundTag lastProxiedTraitRenderItemsTag = new CompoundTag();
 
     public MBDPartMachine(IMachineBlockEntity machineHolder, MBDMachineDefinition definition, Object... args) {
         super(machineHolder, definition, args);
@@ -105,6 +114,8 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
             }
         }
         controllerPositions.clear();
+        proxiedTraitRenderItems.clear();
+        lastProxiedTraitRenderItemsTag = new CompoundTag();
     }
 
     /**
@@ -116,6 +127,8 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         checkDisabledRendering();
         if (!isFormed()) {
             setMachineState("base");
+            proxiedTraitRenderItems.clear();
+            syncProxiedTraitRenderItems();
         }
         notifyBlockUpdate();
     }
@@ -182,10 +195,11 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
      * Override it to modify controller recipe on the fly e.g. applying overclock, change chance, etc
      * <br>
      * We will apply part recipe modifiers here. see {@link ConfigPartSettings#recipeModifiers()}.
-     * @param recipe recipe from detected from MBDRecipeType
+     *
+     * @param recipe                recipe from detected from MBDRecipeType
      * @param controllerRecipeLogic controller recipe logic
      * @return modified recipe.
-     *         null -- this recipe is unavailable
+     * null -- this recipe is unavailable
      */
     @Override
     public MBDRecipe modifyControllerRecipe(@Nonnull MBDRecipe recipe, RecipeLogic controllerRecipeLogic) {
@@ -211,6 +225,89 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         return false;
     }
 
+    public boolean isProxyingControllerRedstone(RedstoneSignalCapabilityTrait redstoneTrait) {
+        if (getControllerRedstoneProxyPartSettings(redstoneTrait) == null) {
+            return false;
+        }
+        for (var side : Direction.values()) {
+            if (getControllerRedstoneProxyIO(redstoneTrait, side) != IO.NONE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public IO getControllerRedstoneProxyIO(RedstoneSignalCapabilityTrait redstoneTrait, @Nullable Direction side) {
+        var partSettings = getControllerRedstoneProxyPartSettings(redstoneTrait);
+        if (partSettings == null) {
+            return IO.NONE;
+        }
+        var front = getFrontFacing().orElse(Direction.NORTH);
+        var result = IO.NONE;
+        for (var proxyControllerCapability : partSettings.proxyControllerCapabilities()) {
+            if (proxyControllerCapability.matchesTraitName(redstoneTrait.getDefinition().getName())) {
+                result = mergeProxyIO(result, proxyControllerCapability.capabilityIO().getIO(front, side));
+                if (result == IO.BOTH) {
+                    return result;
+                }
+            }
+        }
+        return result;
+    }
+
+    @Nullable
+    private ConfigPartSettings getControllerRedstoneProxyPartSettings(RedstoneSignalCapabilityTrait redstoneTrait) {
+        var partSettings = getDefinition().partSettings();
+        if (partSettings == null ||
+                redstoneTrait == null ||
+                !(redstoneTrait.getMachine() instanceof MBDMultiblockMachine controller) ||
+                !hasController(controller.getPos())) {
+            return null;
+        }
+        return partSettings;
+    }
+
+    private static IO mergeProxyIO(IO first, IO second) {
+        if (first == second) return first;
+        if (first == IO.NONE) return second;
+        if (second == IO.NONE) return first;
+        return IO.BOTH;
+    }
+
+    @Override
+    public boolean canConnectRedstone(Direction direction) {
+        if (super.canConnectRedstone(direction)) {
+            return true;
+        }
+        for (var controller : getControllers()) {
+            if (controller instanceof MBDMultiblockMachine proxyController) {
+                for (var trait : proxyController.getAdditionalTraits()) {
+                    if (trait instanceof RedstoneSignalCapabilityTrait redstoneTrait &&
+                            getControllerRedstoneProxyIO(redstoneTrait, direction) != IO.NONE) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int getOutputSignal(Direction direction) {
+        var signal = super.getOutputSignal(direction);
+        for (var controller : getControllers()) {
+            if (controller instanceof MBDMultiblockMachine proxyController) {
+                for (var trait : proxyController.getAdditionalTraits()) {
+                    if (trait instanceof RedstoneSignalCapabilityTrait redstoneTrait &&
+                            getControllerRedstoneProxyIO(redstoneTrait, direction).support(IO.OUT)) {
+                        signal = Math.max(signal, redstoneTrait.getOutputSignal(direction));
+                    }
+                }
+            }
+        }
+        return signal;
+    }
+
     @Override
     public void internalServerTick() {
         super.internalServerTick();
@@ -221,9 +318,9 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
                 for (var controller : getControllers()) {
                     if (controller instanceof MBDMultiblockMachine proxyController) {
                         for (var trait : proxyController.getAdditionalTraits()) {
-                            if (trait instanceof IProxyAutoIOTrait autoIOTrait && trait.getDefinition().getName().contains(proxy.traitNameFilter())) {
+                            if (trait instanceof IProxyAutoIOTrait autoIOTrait && proxy.matchesTraitName(trait.getDefinition().getName())) {
                                 for (var side : Direction.values()) {
-                                    var io =  proxy.autoIO().getIO(front, side);
+                                    var io = proxy.autoIO().getIO(front, side);
                                     if (io != IO.NONE) {
                                         autoIOTrait.handleAutoIO(pos, side, io);
                                     }
@@ -233,6 +330,90 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
                     }
                 }
             }
+        }
+        syncProxiedTraitRenderItems();
+    }
+
+    @NotNull
+    public List<ItemStack> getProxiedTraitRenderItems(String traitName) {
+        return proxiedTraitRenderItems.getOrDefault(traitName, Collections.emptyList());
+    }
+
+    private void syncProxiedTraitRenderItems() {
+        if (isRemote()) return;
+        var tag = serializeProxiedTraitRenderItems();
+        if (!tag.equals(lastProxiedTraitRenderItemsTag)) {
+            lastProxiedTraitRenderItemsTag = tag.copy();
+            applyProxiedTraitRenderItems(tag);
+            rpcToTracking("applyProxiedTraitRenderItems", tag);
+        }
+    }
+
+    private CompoundTag serializeProxiedTraitRenderItems() {
+        var tag = new CompoundTag();
+        var proxiedTraits = new ListTag();
+        var partSettings = getDefinition().partSettings();
+        if (partSettings != null) {
+            for (var controller : getControllers()) {
+                if (controller instanceof MBDMultiblockMachine proxyController) {
+                    collectProxiedTraitRenderItems(proxyController, partSettings, proxiedTraits);
+                }
+            }
+        }
+        tag.put("Traits", proxiedTraits);
+        return tag;
+    }
+
+    private void collectProxiedTraitRenderItems(MBDMultiblockMachine proxyController, ConfigPartSettings partSettings, ListTag proxiedTraits) {
+        for (var proxyControllerCapability : partSettings.proxyControllerCapabilities()) {
+            for (var trait : proxyController.getAdditionalTraits()) {
+                if (trait instanceof ItemSlotCapabilityTrait itemTrait && proxyControllerCapability.matchesTraitName(trait.getDefinition().getName())) {
+                    var items = new ListTag();
+                    for (var slot = 0; slot < itemTrait.storage.getSlots(); slot++) {
+                        var stack = itemTrait.storage.getStackInSlot(slot);
+                        if (!stack.isEmpty()) {
+                            var itemTag = new CompoundTag();
+                            itemTag.putInt("Slot", slot);
+                            stack.save(itemTag);
+                            itemTag.putInt("CountInt", stack.getCount());
+                            items.add(itemTag);
+                        }
+                    }
+                    if (!items.isEmpty()) {
+                        var traitTag = new CompoundTag();
+                        traitTag.putString("Name", trait.getDefinition().getName());
+                        traitTag.put("Items", items);
+                        proxiedTraits.add(traitTag);
+                    }
+                }
+            }
+        }
+    }
+
+    @RPCMethod
+    public void applyProxiedTraitRenderItems(CompoundTag tag) {
+        proxiedTraitRenderItems.clear();
+        var traits = tag.getList("Traits", Tag.TAG_COMPOUND);
+        for (var i = 0; i < traits.size(); i++) {
+            var traitTag = traits.getCompound(i);
+            var items = new ArrayList<ItemStack>();
+            var itemTags = traitTag.getList("Items", Tag.TAG_COMPOUND);
+            for (var j = 0; j < itemTags.size(); j++) {
+                var itemTag = itemTags.getCompound(j);
+                var stack = ItemStack.of(itemTag);
+                if (!stack.isEmpty() && itemTag.contains("CountInt", Tag.TAG_INT)) {
+                    stack.setCount(itemTag.getInt("CountInt"));
+                }
+                if (!stack.isEmpty()) {
+                    items.add(stack);
+                }
+            }
+            if (!items.isEmpty()) {
+                proxiedTraitRenderItems.computeIfAbsent(traitTag.getString("Name"), ignored -> new ArrayList<>()).addAll(items);
+            }
+        }
+        if (isRemote()) {
+            scheduleRenderUpdate();
         }
     }
 
@@ -250,7 +431,7 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
                 for (var proxyControllerCapability : getDefinition().partSettings().proxyControllerCapabilities()) {
                     var io = proxyControllerCapability.capabilityIO().getIO(front, side);
                     for (var trait : proxyController.getAdditionalTraits()) {
-                        if (trait.getDefinition().getName().contains(proxyControllerCapability.traitNameFilter())) {
+                        if (proxyControllerCapability.matchesTraitName(trait.getDefinition().getName())) {
                             for (var capabilityProviderTrait : trait.getCapabilityProviderTraits()) {
                                 if (capabilityProviderTrait.getCapability() == cap) {
                                     results.add((T) capabilityProviderTrait.getCapContent(io));
@@ -265,7 +446,7 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
                     for (var trait : proxyController.getAdditionalTraits()) {
                         for (var capabilityProviderTrait : trait.getCapabilityProviderTraits()) {
                             if (capabilityProviderTrait.getCapability() == cap) {
-                                return LazyOptional.of(() -> (T) ((ICapabilityProviderTrait)capabilityProviderTrait).mergeContents(results));
+                                return LazyOptional.of(() -> (T) ((ICapabilityProviderTrait) capabilityProviderTrait).mergeContents(results));
                             }
                         }
                     }
