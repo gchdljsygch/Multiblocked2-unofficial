@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.integration.geckolib;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.MachineCustomKeyframeEvent;
 import lombok.Getter;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.MinecraftForge;
 import software.bernie.geckolib.core.animatable.GeoAnimatable;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
@@ -13,16 +14,29 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 import software.bernie.geckolib.util.RenderUtils;
 
 public class AnimatableMachine implements GeoAnimatable {
+    private static final double PAUSED_RENDER_GAP_TICKS = 20;
+    private static final double MAX_PAUSED_GAME_TICK_GAP = 1;
+
     @Getter
     private final AnimatableInstanceCache animatableInstanceCache = GeckoLibUtil.createInstanceCache(this, false);
     @Getter
     private final MBDMachine machine;
     @Getter
     private final GeckolibRenderer renderer;
+    @Getter
+    private final GeckolibRendererModel model;
+    private double lastGameTick = -1;
+    private double lastRenderTick = -1;
+    private boolean wasPaused = false;
 
     public AnimatableMachine(MBDMachine machine, GeckolibRenderer renderer) {
         this.machine = machine;
         this.renderer = renderer;
+        this.model = new GeckolibRendererModel(renderer);
+    }
+
+    public boolean prepareForRender() {
+        return updateAnimationTick();
     }
 
     @Override
@@ -50,5 +64,32 @@ public class AnimatableMachine implements GeoAnimatable {
     @Override
     public double getTick(Object object) {
         return RenderUtils.getCurrentTick();
+    }
+
+    private boolean updateAnimationTick() {
+        var level = machine.getLevel();
+        if (level == null) {
+            return false;
+        }
+        var currentRenderTick = RenderUtils.getCurrentTick();
+        var currentTick = level.getGameTime();
+        if (lastGameTick < 0) {
+            lastGameTick = currentTick;
+            lastRenderTick = currentRenderTick;
+            wasPaused = Minecraft.getInstance().isPaused();
+        } else {
+            var minecraft = Minecraft.getInstance();
+            var isPaused = minecraft.isPaused();
+            var gameTickGap = currentTick - lastGameTick;
+            var renderTickGap = currentRenderTick - lastRenderTick;
+            var hadPausedRenderGap = renderTickGap > PAUSED_RENDER_GAP_TICKS && gameTickGap <= MAX_PAUSED_GAME_TICK_GAP;
+            lastGameTick = currentTick;
+            lastRenderTick = currentRenderTick;
+            if ((wasPaused && !isPaused) || (!isPaused && hadPausedRenderGap)) {
+                return true;
+            }
+            wasPaused = isPaused;
+        }
+        return false;
     }
 }

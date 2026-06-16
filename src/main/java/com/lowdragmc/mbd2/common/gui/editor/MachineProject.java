@@ -2,7 +2,6 @@ package com.lowdragmc.mbd2.common.gui.editor;
 
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.client.renderer.impl.IModelRenderer;
-import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurableWidget;
 import com.lowdragmc.lowdraglib.gui.editor.data.IProject;
@@ -10,7 +9,6 @@ import com.lowdragmc.lowdraglib.gui.editor.data.Resources;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.*;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
 import com.lowdragmc.lowdraglib.gui.texture.ResourceBorderTexture;
-import com.lowdragmc.lowdraglib.gui.texture.UIResourceTexture;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.gui.widget.custom.PlayerInventoryWidget;
 import com.lowdragmc.lowdraglib.utils.Position;
@@ -21,6 +19,7 @@ import com.lowdragmc.mbd2.common.gui.editor.machine.MachineTraitPanel;
 import com.lowdragmc.mbd2.common.gui.editor.machine.MachineUIPanel;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
+import com.lowdragmc.mbd2.utils.UIResourceRendererContext;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import net.minecraft.nbt.CompoundTag;
@@ -101,9 +100,9 @@ public class MachineProject implements IProject {
     public CompoundTag serializeNBT() {
         var tag = new CompoundTag();
         tag.put("resources", resources.serializeNBT());
-        UIResourceRenderer.setCurrentResource((Resource<IRenderer>) resources.resources.get(IRendererResource.RESOURCE_NAME), true);
-        tag.put("definition", definition.serializeNBT());
-        UIResourceTexture.clearCurrentResource();
+        try (var ignored = UIResourceRendererContext.push(getRendererResource(), true)) {
+            tag.put("definition", definition.serializeNBT());
+        }
         tag.put("ui", IConfigurableWidget.serializeNBT(this.ui, resources, true));
         return tag;
     }
@@ -121,11 +120,16 @@ public class MachineProject implements IProject {
             this.definition = createDefinition();
             this.definition.loadFactory();
         }
-        UIResourceRenderer.setCurrentResource((Resource<IRenderer>) resources.resources.get(IRendererResource.RESOURCE_NAME), true);
-        this.definition.deserializeNBT(tag.getCompound("definition"));
-        UIResourceTexture.clearCurrentResource();
+        try (var ignored = UIResourceRendererContext.push(getRendererResource(), true)) {
+            this.definition.deserializeNBT(tag.getCompound("definition"));
+        }
         this.ui = new WidgetGroup();
         IConfigurableWidget.deserializeNBT(this.ui, tag.getCompound("ui"), resources, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Resource<IRenderer> getRendererResource() {
+        return (Resource<IRenderer>) resources.resources.get(IRendererResource.RESOURCE_NAME);
     }
 
     @Override

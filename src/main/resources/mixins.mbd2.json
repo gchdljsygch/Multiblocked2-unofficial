@@ -15,10 +15,15 @@
     "client.LDLibParameterPanelWidgetTypeI18nMixin",
     "client.LDLibSelectorConfiguratorI18nMixin",
     "client.LDLibTipsI18nFallbackMixin",
+    "client.MBDWorkspaceResourcePackMixin",
     "client.ModelManagerAccessor",
     "lowdraglib.DrawerHelperMixin",
     "lowdraglib.IModelRendererFusionMixin",
+    "lowdraglib.IRendererResourceContainerMixin",
+    "lowdraglib.RendererBlockRendererMixin",
+    "lowdraglib.ResourceContainerMixin",
     "lowdraglib.SceneWidgetRenderedCoreMixin",
+    "lowdraglib.WorldSceneRendererRenderMixin",
     "fusion.ConnectingBakedModelMixin"
   ],
   "mixins": [
@@ -44,6 +49,7 @@
     "lowdraglib.PhantomFluidWidgetMixin",
     "lowdraglib.PhantomSlotWidgetMixin",
     "lowdraglib.PhantomTankWidgetMixin",
+    "lowdraglib.StaticResourceMixin",
     "lowdraglib.LDLibKubeJSPluginMixin",
     "lowdraglib.SlotWidgetMixin",
     "lowdraglib.TextFormattingUtilMixin",

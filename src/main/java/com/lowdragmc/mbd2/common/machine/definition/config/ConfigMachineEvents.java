@@ -120,7 +120,8 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
                     machineEditor.getTabPages().tabs.values().stream()
                             .filter(MachineEventsPanel.class::isInstance)
                             .map(MachineEventsPanel.class::cast)
-                            .findAny().orElse(null) : null;
+                            .filter(eventPanel -> eventPanel.handlesEventConfig(this))
+                            .findFirst().orElse(null) : null;
             removeButton.setOnPressCallback(cd -> {
                 var removed = eventGraphs.remove(clazz);
                 updateRemoveButtonStyle.run();

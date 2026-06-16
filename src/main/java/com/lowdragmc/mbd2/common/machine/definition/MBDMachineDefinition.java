@@ -3,7 +3,6 @@ package com.lowdragmc.mbd2.common.machine.definition;
 import com.google.common.collect.Queues;
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
-import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IConfigurable;
@@ -31,6 +30,7 @@ import com.lowdragmc.mbd2.common.trait.IUIProviderTrait;
 import com.lowdragmc.mbd2.integration.emi.MBDRecipeTypeEmiCategory;
 import com.lowdragmc.mbd2.integration.jei.MBDRecipeTypeCategory;
 import com.lowdragmc.mbd2.integration.rei.MBDRecipeTypeDisplayCategory;
+import com.lowdragmc.mbd2.utils.UIResourceRendererContext;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
 import dev.emi.emi.api.EmiApi;
 import lombok.Getter;
@@ -218,13 +218,13 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         this.projectFile = file;
         var rendererResource = new IRendererResource();
         rendererResource.deserializeNBT(projectTag.getCompound("resources").getCompound(IRendererResource.RESOURCE_NAME));
-        UIResourceRenderer.setCurrentResource(rendererResource, false);
         var definitionTag = projectTag.getCompound("definition");
-        id = new ResourceLocation(definitionTag.getString("id"));
-        blockProperties.deserializeNBT(definitionTag.getCompound("blockProperties"));
-        itemProperties.deserializeNBT(definitionTag.getCompound("itemProperties"));
-        stateMachine.deserializeNBT(definitionTag.getCompound("stateMachine"));
-        UIResourceRenderer.clearCurrentResource();
+        try (var ignored = UIResourceRendererContext.push(rendererResource, false)) {
+            id = new ResourceLocation(definitionTag.getString("id"));
+            blockProperties.deserializeNBT(definitionTag.getCompound("blockProperties"));
+            itemProperties.deserializeNBT(definitionTag.getCompound("itemProperties"));
+            stateMachine.deserializeNBT(definitionTag.getCompound("stateMachine"));
+        }
         postTask.add(() -> {
             machineSettings.deserializeNBT(definitionTag.getCompound("machineSettings"));
             if (definitionTag.contains("recipeLogicSettings")) {

@@ -7,6 +7,8 @@ import com.lowdragmc.mbd2.api.entity.IMachineEntity;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.EntityMachineDefinition;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineRemovedEvent;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineSpawnedEvent;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDEntityMachineEventDispatcher;
 import lombok.Getter;
 import net.minecraft.core.Direction;
@@ -20,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,8 +83,8 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
 
     @Override
     public void remove(RemovalReason reason) {
-        if (!level().isClientSide && MBD2.isKubeJSLoaded() && metaMachine instanceof MBDEntityMachine machine) {
-            MBDEntityMachineEventDispatcher.postRemoved(machine, this, reason);
+        if (!level().isClientSide && metaMachine instanceof MBDEntityMachine machine) {
+            MinecraftForge.EVENT_BUS.post(new EntityMachineRemovedEvent(machine, this, reason).postCustomEvent());
         }
         removeMachine(reason);
         super.remove(reason);
@@ -90,8 +93,8 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
-        if (!level().isClientSide && MBD2.isKubeJSLoaded() && metaMachine instanceof MBDEntityMachine machine) {
-            MBDEntityMachineEventDispatcher.postSpawned(machine, this);
+        if (!level().isClientSide && metaMachine instanceof MBDEntityMachine machine) {
+            MinecraftForge.EVENT_BUS.post(new EntityMachineSpawnedEvent(machine, this).postCustomEvent());
         }
     }
 

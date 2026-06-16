@@ -52,32 +52,38 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
     @Override
     public void renderItem(ItemStack stack, ItemDisplayContext transformType, boolean leftHand, PoseStack poseStack, MultiBufferSource bufferSource, int combinedLight, int combinedOverlay, BakedModel model) {
         IItemRendererProvider.disabled.set(true);
-        baseRenderer.renderItem(stack, transformType, leftHand, poseStack, bufferSource, combinedLight, combinedOverlay, model);
-        CreateKineticMachineDefinition definition = null;
-        if (stack.getItem() instanceof MBDMachineItem item && item.getDefinition() instanceof CreateKineticMachineDefinition createKineticMachineDefinition) {
-            definition = createKineticMachineDefinition;
-        } else if (IRendererSlotTexture.CURRENT_MACHINE_DEFINITION instanceof CreateKineticMachineDefinition createKineticMachineDefinition) {
-            definition = createKineticMachineDefinition;
-        }
-
-        if (definition != null && stack.getItem() instanceof BlockItem blockItem) {
-            poseStack.pushPose();
-            ForgeHooksClient.handleCameraTransforms(poseStack, rotationModel, transformType, leftHand);
-            poseStack.translate(-0.5, -0.5, -0.5);
-            var rotationFacing = definition.kineticMachineSettings().getRotationFacing(Direction.NORTH);
-            var axis = rotationFacing.getAxis();
-            var angle = 3.1415927f * 0.3f;
-            var state = blockItem.getBlock().defaultBlockState();
-            var superByteBuffer = SuperByteBufferCache.getInstance().get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
-                    () -> SuperBufferFactory.getInstance().createForBlock(rotationModel, state, CachedBuffers.rotateToFaceVertical(rotationFacing).get()));
-            superByteBuffer.light(combinedLight);
-            superByteBuffer.rotateCentered(angle, Direction.get(Direction.AxisDirection.POSITIVE, axis));
-            for (var renderType : rotationModel.getRenderTypes(state, RandomSource.create(49), ModelData.EMPTY)) {
-                superByteBuffer.renderInto(poseStack, bufferSource.getBuffer(renderType));
+        try {
+            baseRenderer.renderItem(stack, transformType, leftHand, poseStack, bufferSource, combinedLight, combinedOverlay, model);
+            CreateKineticMachineDefinition definition = null;
+            if (stack.getItem() instanceof MBDMachineItem item && item.getDefinition() instanceof CreateKineticMachineDefinition createKineticMachineDefinition) {
+                definition = createKineticMachineDefinition;
+            } else if (IRendererSlotTexture.CURRENT_MACHINE_DEFINITION instanceof CreateKineticMachineDefinition createKineticMachineDefinition) {
+                definition = createKineticMachineDefinition;
             }
-            poseStack.popPose();
+
+            if (definition != null && stack.getItem() instanceof BlockItem blockItem) {
+                poseStack.pushPose();
+                try {
+                    ForgeHooksClient.handleCameraTransforms(poseStack, rotationModel, transformType, leftHand);
+                    poseStack.translate(-0.5, -0.5, -0.5);
+                    var rotationFacing = definition.kineticMachineSettings().getRotationFacing(Direction.NORTH);
+                    var axis = rotationFacing.getAxis();
+                    var angle = 3.1415927f * 0.3f;
+                    var state = blockItem.getBlock().defaultBlockState();
+                    var superByteBuffer = SuperByteBufferCache.getInstance().get(DIRECTIONAL_PARTIAL, Pair.of(rotationFacing, rotationModel),
+                            () -> SuperBufferFactory.getInstance().createForBlock(rotationModel, state, CachedBuffers.rotateToFaceVertical(rotationFacing).get()));
+                    superByteBuffer.light(combinedLight);
+                    superByteBuffer.rotateCentered(angle, Direction.get(Direction.AxisDirection.POSITIVE, axis));
+                    for (var renderType : rotationModel.getRenderTypes(state, RandomSource.create(49), ModelData.EMPTY)) {
+                        superByteBuffer.renderInto(poseStack, bufferSource.getBuffer(renderType));
+                    }
+                } finally {
+                    poseStack.popPose();
+                }
+            }
+        } finally {
+            IItemRendererProvider.disabled.set(false);
         }
-        IItemRendererProvider.disabled.set(false);
     }
 
     @Override
@@ -106,7 +112,8 @@ public record KineticInstanceRenderer(IRenderer baseRenderer, BakedModel rotatio
         if (machineOptional.isEmpty()) return;
         var machine = machineOptional.get();
         if (machine.getDefinition() instanceof CreateKineticMachineDefinition definition) {
-            if (VisualizationManager.supportsVisualization(blockEntity.getLevel()) && definition.kineticMachineSettings.useFlywheel()) return;
+            if (VisualizationManager.supportsVisualization(blockEntity.getLevel()) && definition.kineticMachineSettings.useFlywheel())
+                return;
             var state = blockEntity.getBlockState();
             var rotationFacing = definition.kineticMachineSettings().getRotationFacing(machine.getFrontFacing().orElse(Direction.NORTH));
             var axis = rotationFacing.getAxis();

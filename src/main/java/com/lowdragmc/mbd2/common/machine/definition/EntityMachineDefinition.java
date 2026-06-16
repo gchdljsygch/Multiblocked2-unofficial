@@ -4,10 +4,14 @@ import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
+import com.lowdragmc.lowdraglib.gui.editor.configurator.ConfiguratorGroup;
+import com.lowdragmc.lowdraglib.gui.editor.data.resource.IRendererResource;
+import com.lowdragmc.mbd2.client.renderer.MBDItemRenderer;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.entity.IMachineEntity;
 import com.lowdragmc.mbd2.client.renderer.EntityMachineRenderer;
+import com.lowdragmc.mbd2.client.renderer.MBDBlockRenderer;
 import com.lowdragmc.mbd2.common.entity.MBDEntityMachine;
 import com.lowdragmc.mbd2.common.entity.RegisteredMBDLivingMachineEntity;
 import com.lowdragmc.mbd2.common.entity.RegisteredMBDMachineEntity;
@@ -15,6 +19,7 @@ import com.lowdragmc.mbd2.common.item.EntityMachineItem;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
 import com.lowdragmc.mbd2.common.trait.TraitDefinition;
+import com.lowdragmc.mbd2.utils.UIResourceRendererContext;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -30,6 +35,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.registries.RegisterEvent;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -66,6 +72,11 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
     @Configurable(name = "config.entity_machine.update_interval", tips = "config.require_restart")
     @NumberRange(range = {1, Integer.MAX_VALUE})
     private int updateInterval = 3;
+    @Persisted(subPersisted = true)
+    @Configurable(name = "config.entity_machine.model", subConfigurable = true, tips = "config.entity_machine.model.tooltip", collapse = false)
+    private final EntityMachineModelSettings entityModelSettings;
+    @Persisted(subPersisted = true)
+    private final ConfigEntityAISettings entityAISettings = new ConfigEntityAISettings();
 
     private Predicate<TraitDefinition> entityTraitFilter = MBDEntityMachine::isDefaultEntitySafeTrait;
     private EntityType<?> entityType;
@@ -82,12 +93,14 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
                                    @Nullable ConfigMachineSettingsFactory machineSettingsFactory,
                                    @Nullable ConfigRecipeLogicSettings recipeLogicSettings) {
         super(id, rootState, blockProperties, itemProperties, machineSettingsFactory, recipeLogicSettings, null);
+        var defaultRenderer = stateMachine().getRootState().renderer().getValue();
+        entityModelSettings = new EntityMachineModelSettings(defaultRenderer == null ? IRenderer.EMPTY : defaultRenderer);
     }
 
     public static EntityMachineDefinition createDefault() {
         return new EntityMachineDefinition(
                 MBD2.id("dummy"),
-                StateMachine.createDefault(MachineState::builder),
+                StateMachine.createSingleDefault(MachineState::builder, IRenderer.EMPTY),
                 ConfigBlockProperties.builder().rotationState(com.lowdragmc.mbd2.api.block.RotationState.NONE).build(),
                 ConfigItemProperties.builder().build(),
                 () -> ConfigMachineSettings.builder().build(),
@@ -101,6 +114,15 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
     @Override
     public boolean allowPartSettings() {
         return false;
+    }
+
+    @Override
+    public void buildConfigurator(ConfiguratorGroup father) {
+        super.buildConfigurator(father);
+        father.getConfigurators().stream()
+                .filter(configurator -> "config.definition.block_properties".equals(configurator.getName()))
+                .findFirst()
+                .ifPresent(father::removeConfigurator);
     }
 
     @Override
@@ -125,6 +147,22 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         }
         if (definitionTag.contains("updateInterval")) {
             updateInterval = definitionTag.getInt("updateInterval");
+        }
+        if (definitionTag.contains("entityModelSettings")) {
+            var rendererResource = new IRendererResource();
+            rendererResource.deserializeNBT(projectTag.getCompound("resources").getCompound(IRendererResource.RESOURCE_NAME));
+            try (var ignored = UIResourceRendererContext.push(rendererResource, false)) {
+                entityModelSettings.deserializeNBT(definitionTag.getCompound("entityModelSettings"));
+            }
+        } else if (entityModelSettings.getRenderer() == IRenderer.EMPTY) {
+            var stateRenderer = stateMachine().getRootState().renderer();
+            if (stateRenderer.isEnable() && stateRenderer.getValue() != null) {
+                entityModelSettings.renderer().setEnable(true);
+                entityModelSettings.renderer().setValue(stateRenderer.getValue());
+            }
+        }
+        if (definitionTag.contains("entityAISettings")) {
+            entityAISettings.deserializeNBT(definitionTag.getCompound("entityAISettings"));
         }
         return this;
     }
@@ -172,8 +210,28 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
                 .build(id().toString());
     }
 
+    public Entity createPreviewEntity(Level level) {
+        if (entityKind == EntityKind.LIVING) {
+            return new RegisteredMBDLivingMachineEntity(EntityType.ARMOR_STAND, level, this);
+        }
+        return new RegisteredMBDMachineEntity(EntityType.MARKER, level, this);
+    }
+
     public Item createItem() {
         return new EntityMachineItem(this, itemProperties().apply(new Item.Properties()));
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer createBlockRenderer() {
+        return new MBDBlockRenderer(blockProperties::useAO, this::entityRenderer);
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer createItemRenderer() {
+        return new MBDItemRenderer(itemProperties()::useBlockLight, itemProperties()::isGui3d,
+                () -> entityModelSettings.getItemRenderer(entityModelSettings.getRenderer()));
     }
 
     @Override
@@ -214,6 +272,53 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
 
     public float entityHeight() {
         return entityHeight;
+    }
+
+    public EntityMachineModelSettings entityModelSettings() {
+        return entityModelSettings;
+    }
+
+    public ConfigEntityAISettings entityAISettings() {
+        return entityAISettings;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer entityRenderer() {
+        return getEntityStateBlockRenderer(stateMachine().getRootState());
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getEntityStateRenderer(MachineState state, Direction frontFacing) {
+        return getEntityStateBlockRenderer(state);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getEntityStateBlockRenderer(MachineState state) {
+        var stateRenderer = findExplicitEntityStateRenderer(state);
+        if (stateRenderer != null) {
+            return stateRenderer;
+        }
+        var entityRenderer = entityModelSettings.getRenderer();
+        if (entityRenderer != IRenderer.EMPTY) {
+            return entityRenderer;
+        }
+        return state.getRenderer();
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @Nullable
+    private IRenderer findExplicitEntityStateRenderer(@Nullable MachineState state) {
+        var current = state;
+        while (current != null) {
+            if (!current.isRoot()) {
+                var renderer = current.renderer();
+                if (renderer.isEnable() && renderer.getValue() != null) {
+                    return renderer.getValue();
+                }
+            }
+            current = current.parent();
+        }
+        return null;
     }
 
     @Override

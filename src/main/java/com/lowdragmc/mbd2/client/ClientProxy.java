@@ -8,6 +8,7 @@ import net.createmod.catnip.render.SuperByteBufferCache;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent.RegisterRenderers;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -34,7 +35,13 @@ public class ClientProxy extends CommonProxy {
 
     @SubscribeEvent
     public void clientSetup(final FMLClientSetupEvent e) {
-        e.enqueueWork(()-> ItemProperties.register(MBDRegistries.GADGETS_ITEM(), MBD2.id("mode"),
+        e.enqueueWork(() -> ItemProperties.register(MBDRegistries.GADGETS_ITEM(), MBD2.id("mode"),
                 (itemStack, clientWorld, entity, seed) -> itemStack.getDamageValue()));
+    }
+
+    @SubscribeEvent
+    public void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
+        WorkspaceResourceHelper.findWorkspaceModelFiles().forEach(event::register);
+        WorkspaceResourceHelper.findProjectReferencedModels().forEach(event::register);
     }
 }

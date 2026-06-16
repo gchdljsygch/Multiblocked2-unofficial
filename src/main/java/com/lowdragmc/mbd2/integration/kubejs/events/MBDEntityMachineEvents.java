@@ -2,6 +2,10 @@ package com.lowdragmc.mbd2.integration.kubejs.events;
 
 import com.lowdragmc.mbd2.common.entity.MBDEntityMachine;
 import com.lowdragmc.mbd2.common.machine.definition.EntityMachineDefinition;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineFixedTickEvent;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineRemovedEvent;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineSpawnedEvent;
+import com.lowdragmc.mbd2.common.machine.definition.config.event.EntityMachineTickEvent;
 import dev.latvian.mods.kubejs.entity.EntityEventJS;
 import dev.latvian.mods.kubejs.event.EventGroup;
 import lombok.Getter;
@@ -37,6 +41,10 @@ public class MBDEntityMachineEvents {
         public EntityMachineSpawnedEventJS(MBDEntityMachine machine, Entity entity) {
             super(machine, entity);
         }
+
+        public EntityMachineSpawnedEventJS(EntityMachineSpawnedEvent event) {
+            this(event.getMachine(), event.entity);
+        }
     }
 
     @Getter
@@ -46,6 +54,10 @@ public class MBDEntityMachineEvents {
         public EntityMachineRemovedEventJS(MBDEntityMachine machine, Entity entity, Entity.RemovalReason reason) {
             super(machine, entity);
             this.reason = reason;
+        }
+
+        public EntityMachineRemovedEventJS(EntityMachineRemovedEvent event) {
+            this(event.getMachine(), event.entity, event.reason);
         }
     }
 
@@ -62,6 +74,28 @@ public class MBDEntityMachineEvents {
 
         public ItemStack getItem() {
             return player.getItemInHand(hand);
+        }
+    }
+
+    public static class EntityMachineTickEventJS extends EntityMachineEventJS {
+        public EntityMachineTickEventJS(EntityMachineTickEvent event) {
+            super(event.getMachine(), event.entity);
+        }
+    }
+
+    @Getter
+    public static class EntityMachineFixedTickEventJS extends EntityMachineEventJS {
+        public final int interval;
+        public final long timer;
+
+        public EntityMachineFixedTickEventJS(EntityMachineFixedTickEvent event) {
+            super(event.getMachine(), event.entity);
+            this.interval = event.interval;
+            this.timer = event.timer;
+        }
+
+        public boolean every(int interval) {
+            return timer % Math.max(1, interval) == 0;
         }
     }
 }

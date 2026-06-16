@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.gui.graphprocessor.data.BaseGraph;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import com.lowdragmc.mbd2.common.gui.editor.MachineProject;
+import com.lowdragmc.mbd2.common.machine.definition.config.ConfigMachineEvents;
 import com.lowdragmc.mbd2.common.graphprocessor.MachineEventGraphView;
 import lombok.Getter;
 
@@ -33,6 +34,11 @@ public class MachineEventsPanel extends WidgetGroup {
     public void closeEventGraphEditor() {
         clearAllWidgets();
         currentGraph = null;
+    }
+
+    public boolean handlesEventConfig(ConfigMachineEvents config) {
+        return editor.getCurrentProject() instanceof MachineProject project &&
+                project.getDefinition().machineEvents() == config;
     }
 
     /**

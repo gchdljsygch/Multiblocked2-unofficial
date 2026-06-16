@@ -101,16 +101,16 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
     @Configurable(name = "geckolib_renderer.scale_height")
     @NumberRange(range = {0, 10000}, wheel = 0.1f)
     protected float scaleHeight = 1;
-    @Configurable(name = "geckolib_renderer.use_glowing_layer", tips={
+    @Configurable(name = "geckolib_renderer.use_glowing_layer", tips = {
             "geckolib_renderer.use_glowing_layer.tips.0",
             "geckolib_renderer.use_glowing_layer.tips.1",
     })
     protected boolean useGlowingLayer = false;
-    @Configurable(name = "geckolib_renderer.use_translucent", tips="geckolib_renderer.use_translucent.tips")
+    @Configurable(name = "geckolib_renderer.use_translucent", tips = "geckolib_renderer.use_translucent.tips")
     protected boolean useTranslucent = false;
-    @Configurable(name = "geckolib_renderer.use_entity_gui_lighting", tips="geckolib_renderer.use_entity_gui_lighting.tips")
+    @Configurable(name = "geckolib_renderer.use_entity_gui_lighting", tips = "geckolib_renderer.use_entity_gui_lighting.tips")
     protected boolean useEntityGuiLighting = false;
-    @Configurable(name = "geckolib_renderer.schedule_state_anim", tips={
+    @Configurable(name = "geckolib_renderer.schedule_state_anim", tips = {
             "geckolib_renderer.schedule_state_anim.tips.0",
             "geckolib_renderer.schedule_state_anim.tips.1",
             "geckolib_renderer.schedule_state_anim.tips.2",
@@ -197,34 +197,56 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         this.animatable = staticAnimatable;
         this.currentItemStack = stack;
         this.renderPerspective = transformType;
-        poseStack.pushPose();
-        poseStack.translate(0, -0.25, 0);
-        ForgeHooksClient.handleCameraTransforms(poseStack, getItemTransformModel(), transformType, leftHand);
-        if (transformType == ItemDisplayContext.GUI) {
-            renderInGui(transformType, poseStack, bufferSource, packedLight, packedOverlay);
-        }
-        else {
-            var renderType = getRenderType(this.animatable, getTextureLocation(this.animatable), bufferSource, Minecraft.getInstance().getFrameTime());
-            var buffer = ItemRenderer.getFoilBufferDirect(bufferSource, renderType, false, this.currentItemStack != null && this.currentItemStack.hasFoil());
+        var posePushed = false;
+        try {
+            poseStack.pushPose();
+            posePushed = true;
+            poseStack.translate(0, -0.25, 0);
+            ForgeHooksClient.handleCameraTransforms(poseStack, getItemTransformModel(), transformType, leftHand);
+            if (transformType == ItemDisplayContext.GUI) {
+                renderInGui(transformType, poseStack, bufferSource, packedLight, packedOverlay);
+            } else {
+                var renderType = getRenderType(this.animatable, getTextureLocation(this.animatable), bufferSource, Minecraft.getInstance().getFrameTime());
+                var buffer = ItemRenderer.getFoilBufferDirect(bufferSource, renderType, false, this.currentItemStack != null && this.currentItemStack.hasFoil());
 
-            defaultRender(poseStack, this.animatable, bufferSource, renderType, buffer,
-                    0, Minecraft.getInstance().getFrameTime(), packedLight);
+                defaultRender(poseStack, this.animatable, bufferSource, renderType, buffer,
+                        0, Minecraft.getInstance().getFrameTime(), packedLight);
+            }
+        } finally {
+            if (posePushed) {
+                poseStack.popPose();
+            }
+            IItemRendererProvider.disabled.set(false);
+            this.currentItemStack = null;
         }
-        poseStack.popPose();
-        IItemRendererProvider.disabled.set(false);
-        this.currentItemStack = null;
     }
 
     public GeoAnimatable getAnimatableFromMachine(MBDMachine machine) {
-        GeoAnimatable animatable;
-        if (machine.getAnimatableMachine().get(this) instanceof GeoAnimatable geoAnimatable) {
-            animatable = geoAnimatable;
-        } else {
-            var animatableMachine = new AnimatableMachine(machine, this);
-            machine.getAnimatableMachine().put(this, animatableMachine);
-            animatable = animatableMachine;
+        var cached = machine.getAnimatableMachine().get(this);
+        if (cached instanceof GeoAnimatable geoAnimatable) {
+            return geoAnimatable;
         }
-        return animatable;
+
+        var animatableMachine = new AnimatableMachine(machine, this);
+        machine.getAnimatableMachine().put(this, animatableMachine);
+        return animatableMachine;
+    }
+
+    private GeoAnimatable getRenderAnimatableFromMachine(MBDMachine machine) {
+        var cached = machine.getAnimatableMachine().get(this);
+        if (cached instanceof AnimatableMachine animatableMachine) {
+            if (!animatableMachine.prepareForRender()) {
+                return animatableMachine;
+            }
+            machine.getAnimatableMachine().remove(this);
+        } else if (cached instanceof GeoAnimatable geoAnimatable) {
+            return geoAnimatable;
+        }
+
+        var animatableMachine = new AnimatableMachine(machine, this);
+        machine.getAnimatableMachine().put(this, animatableMachine);
+        animatableMachine.prepareForRender();
+        return animatableMachine;
     }
 
     @Override
@@ -234,7 +256,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
             return;
         }
         if (IMachine.ofMachine(blockEntity).orElse(null) instanceof MBDMachine machine) {
-            this.animatable = getAnimatableFromMachine(machine);
+            this.animatable = getRenderAnimatableFromMachine(machine);
         } else {
             this.animatable = staticAnimatable;
         }
@@ -259,7 +281,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         var animations = tag.getList("animations", Tag.TAG_COMPOUND);
         animations.forEach(nbt -> {
             var animation = new Animation();
-            animation.deserializeNBT((CompoundTag)nbt);
+            animation.deserializeNBT((CompoundTag) nbt);
             this.animations.add(animation);
         });
     }
@@ -298,6 +320,9 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
 
     @Override
     public GeoModel<GeoAnimatable> getGeoModel() {
+        if (this.animatable instanceof AnimatableMachine machine) {
+            return machine.getModel();
+        }
         return this.model;
     }
 
@@ -325,7 +350,8 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
     @Override
     public void preRender(PoseStack poseStack, GeoAnimatable animatable, BakedGeoModel model, MultiBufferSource bufferSource, VertexConsumer buffer, boolean isReRender, float partialTick, int packedLight, int packedOverlay, float red, float green, float blue,
                           float alpha) {
-        this.blockRenderTranslations = new Matrix4f(poseStack.last().pose());;
+        this.blockRenderTranslations = new Matrix4f(poseStack.last().pose());
+        ;
 
         scaleModelForRender(this.scaleWidth, this.scaleHeight, poseStack, animatable, model, isReRender, partialTick, packedLight, packedOverlay);
     }
@@ -415,8 +441,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
     protected void setupLightingForGuiRender() {
         if (this.useEntityGuiLighting) {
             Lighting.setupForEntityInInventory();
-        }
-        else {
+        } else {
             Lighting.setupForFlatItems();
         }
     }
@@ -431,7 +456,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         setupLightingForGuiRender();
 
         var defaultBufferSource = bufferSource instanceof MultiBufferSource.BufferSource bufferSource2 ?
-                bufferSource2 : ((LevelRendererAccessor)Minecraft.getInstance().levelRenderer).getRenderBuffers().bufferSource();
+                bufferSource2 : ((LevelRendererAccessor) Minecraft.getInstance().levelRenderer).getRenderBuffers().bufferSource();
         var renderType = getRenderType(this.animatable, getTextureLocation(this.animatable), defaultBufferSource, Minecraft.getInstance().getFrameTime());
         var buffer = ItemRenderer.getFoilBufferDirect(bufferSource, renderType, true, this.currentItemStack != null && this.currentItemStack.hasFoil());
 
@@ -448,6 +473,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
     /**
      * Update the current frame of a {@link AnimatableTexture potentially animated} texture used by this GeoRenderer.<br>
      * This should only be called immediately prior to rendering, and only
+     *
      * @see AnimatableTexture#setAndUpdate
      */
     @Override
@@ -606,7 +632,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         father.addConfigurators(modelPathGroup, animationPathGroup, texturePathGroup, itemTransformModelGroup);
     }
 
-    private static ResourceLocation getResourceFromFile(File path, File r){
+    private static ResourceLocation getResourceFromFile(File path, File r) {
         var id = path.getPath().replace('\\', '/').split("assets/")[1].split("/")[0];
         return new ResourceLocation(id, r.getPath().replace(path.getPath(), "").replace('\\', '/').substring(1));
     }

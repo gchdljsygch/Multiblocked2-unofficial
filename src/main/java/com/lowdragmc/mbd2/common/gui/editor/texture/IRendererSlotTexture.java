@@ -8,6 +8,7 @@ import com.lowdragmc.lowdraglib.gui.texture.ResourceTexture;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import com.lowdragmc.mbd2.common.gui.editor.MachineProject;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
+import com.lowdragmc.mbd2.MBD2;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import lombok.Getter;
@@ -28,8 +29,10 @@ import java.util.function.Supplier;
 public class IRendererSlotTexture implements IGuiTexture {
     @Nullable
     public static MBDMachineDefinition CURRENT_MACHINE_DEFINITION;
+    private static boolean loggedRenderFailure;
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private Supplier<IRenderer> rendererSupplier;
     @Setter
     private IGuiTexture slotTexture = new ResourceTexture("ldlib:textures/gui/slot.png");
@@ -51,8 +54,8 @@ public class IRendererSlotTexture implements IGuiTexture {
         var pose = graphics.pose();
 
         pose.pushPose();
-        pose.scale(itemW / 16.0F, (float)itemH / 16.0F, 1.0F);
-        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float)itemH, -200.0F);
+        pose.scale(itemW / 16.0F, (float) itemH / 16.0F, 1.0F);
+        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float) itemH, -200.0F);
 
         RenderSystem.setShaderColor(1, 1, 1, 1);
         RenderSystem.enableDepthTest();
@@ -62,16 +65,18 @@ public class IRendererSlotTexture implements IGuiTexture {
         pose.translate(0.0F, 0.0F, 232.0F);
 
         pose.pushPose();
-        pose.translate(8, 8, (float)(150));
+        pose.translate(8, 8, (float) (150));
 
+        var previousMachineDefinition = CURRENT_MACHINE_DEFINITION;
+        var buffers = graphics.bufferSource();
+        boolean flatLighting = false;
         try {
             pose.mulPoseMatrix((new Matrix4f()).scaling(1.0F, -1.0F, 1.0F));
             pose.scale(16.0F, 16.0F, 16.0F);
-            boolean flag = !renderer.useBlockLight(ItemStack.EMPTY);
-            if (flag) {
+            flatLighting = !renderer.useBlockLight(ItemStack.EMPTY);
+            if (flatLighting) {
                 Lighting.setupForFlatItems();
             }
-            var buffers = graphics.bufferSource();
 
             if (Editor.INSTANCE instanceof MachineEditor editor && editor.getCurrentProject() instanceof MachineProject project) {
                 CURRENT_MACHINE_DEFINITION = project.getDefinition();
@@ -79,16 +84,22 @@ public class IRendererSlotTexture implements IGuiTexture {
             renderer.renderItem(
                     Items.RED_STAINED_GLASS.getDefaultInstance(), ItemDisplayContext.GUI, false, pose, buffers, 15728880, OverlayTexture.NO_OVERLAY,
                     Minecraft.getInstance().getModelManager().getModel(LDLib.location("block/renderer_model")));
-            CURRENT_MACHINE_DEFINITION = null;
-            // flush
+        } catch (Throwable exception) {
+            logRenderFailure(exception);
+        } finally {
+            CURRENT_MACHINE_DEFINITION = previousMachineDefinition;
             RenderSystem.disableDepthTest();
-            buffers.endBatch();
+            try {
+                buffers.endBatch();
+            } catch (Throwable ignored) {
+            }
             RenderSystem.enableDepthTest();
-
-            if (flag) {
+            if (flatLighting) {
                 Lighting.setupFor3DItems();
             }
-        } catch (Throwable ignored) {}
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.enableBlend();
+        }
 
         pose.popPose();
 
@@ -102,4 +113,12 @@ public class IRendererSlotTexture implements IGuiTexture {
         pose.popPose();
     }
 
+    private static void logRenderFailure(Throwable exception) {
+        if (!loggedRenderFailure) {
+            loggedRenderFailure = true;
+            MBD2.LOGGER.warn("MBD2 renderer slot preview failed; skipped this preview frame.", exception);
+            return;
+        }
+        MBD2.LOGGER.debug("MBD2 renderer slot preview failed", exception);
+    }
 }

@@ -26,26 +26,35 @@ public class EntityMachineRenderer extends EntityRenderer<Entity> {
 
     @Override
     public void render(Entity entity, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
+        renderMachine(entity, partialTick, poseStack, buffer, packedLight);
+        super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);
+    }
+
+    public static void renderMachine(Entity entity, float partialTick, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         if (entity instanceof IMachineEntity machineEntity && machineEntity.getMetaMachine() instanceof MBDEntityMachine machine) {
             var holder = machine.entityHolder();
-            var renderer = machine.getRealRenderer(machine.getFrontFacing().orElse(Direction.NORTH));
+            var renderer = machine.getRealRenderer();
+            var pos = holder.getBlockPos();
+            var state = holder.getBlockState();
             poseStack.pushPose();
             poseStack.translate(-0.5D, 0.0D, -0.5D);
             var consumer = buffer.getBuffer(RenderType.cutout());
             var pose = poseStack.last();
             var random = RandomSource.create(machine.getOffset());
-            for (var side : Direction.values()) {
-                for (var quad : renderer.renderModel(entity.level(), entity.blockPosition(), holder.getBlockState(), side, random)) {
+            try {
+                for (var side : Direction.values()) {
+                    for (var quad : renderer.renderModel(entity.level(), pos, state, side, random)) {
+                        consumer.putBulkData(pose, quad, 1, 1, 1, packedLight, OverlayTexture.NO_OVERLAY);
+                    }
+                }
+                for (var quad : renderer.renderModel(entity.level(), pos, state, null, random)) {
                     consumer.putBulkData(pose, quad, 1, 1, 1, packedLight, OverlayTexture.NO_OVERLAY);
                 }
+                renderer.render(holder, partialTick, poseStack, buffer, packedLight, OverlayTexture.NO_OVERLAY);
+            } finally {
+                poseStack.popPose();
             }
-            for (var quad : renderer.renderModel(entity.level(), entity.blockPosition(), holder.getBlockState(), null, random)) {
-                consumer.putBulkData(pose, quad, 1, 1, 1, packedLight, OverlayTexture.NO_OVERLAY);
-            }
-            renderer.render(holder, partialTick, poseStack, buffer, packedLight, OverlayTexture.NO_OVERLAY);
-            poseStack.popPose();
         }
-        super.render(entity, entityYaw, partialTick, poseStack, buffer, packedLight);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.common.entity;
 
+import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.common.gui.factory.EntityMachineUIFactory;
@@ -14,12 +15,15 @@ import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTraitDe
 import com.lowdragmc.mbd2.common.trait.item.ItemSlotCapabilityTraitDefinition;
 import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTraitDefinition;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -33,6 +37,24 @@ public class MBDEntityMachine extends MBDMachine {
     @Override
     public EntityMachineDefinition getDefinition() {
         return (EntityMachineDefinition) super.getDefinition();
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public IRenderer getRealRenderer(Direction frontFacing) {
+        var state = getMachineState();
+        var blockRenderer = getDynamicBlockRenderer();
+        if (blockRenderer == null) {
+            return getDefinition().getEntityStateRenderer(state, frontFacing);
+        }
+        return blockRenderer;
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public Optional<ResourceLocation> getBlockModelLocationForRendering() {
+        var renderer = getDynamicBlockRenderer();
+        return getModelLocation(renderer == null ? getDefinition().getEntityStateBlockRenderer(getMachineState()) : renderer);
     }
 
     @Override

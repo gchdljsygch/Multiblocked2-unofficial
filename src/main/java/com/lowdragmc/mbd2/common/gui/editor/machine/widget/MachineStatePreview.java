@@ -60,13 +60,7 @@ public class MachineStatePreview extends DraggableWidgetGroup {
         scene.createScene(level);
         scene.getRenderer().setOnLookingAt(null); // better performance
         scene.setRenderedCore(Collections.singleton(BlockPos.ZERO), null);
-        level.addBlock(BlockPos.ZERO, BlockInfo.fromBlock(MBDRegistries.FAKE_MACHINE().block()));
-        Optional.ofNullable(level.getBlockEntity(BlockPos.ZERO)).ifPresent(blockEntity -> {
-            if (blockEntity instanceof MachineBlockEntity holder && panel.getEditor().getCurrentProject() instanceof MachineProject project) {
-                holder.setMachine(this.previewMachine = project.getDefinition().createMachine(holder));
-                previewMachine.setMachineState(state.name());
-            }
-        });
+        setupPreviewScene(scene, level);
 
         setSelectedTexture(ColorPattern.GREEN.borderTexture(1).setRadius(5.0F));
         // accept dragging renderer
@@ -85,6 +79,16 @@ public class MachineStatePreview extends DraggableWidgetGroup {
                         state.renderer().setValue(renderer);
                     }
                 });
+    }
+
+    protected void setupPreviewScene(SceneWidget scene, TrackedDummyWorld level) {
+        level.addBlock(BlockPos.ZERO, BlockInfo.fromBlock(MBDRegistries.FAKE_MACHINE().block()));
+        Optional.ofNullable(level.getBlockEntity(BlockPos.ZERO)).ifPresent(blockEntity -> {
+            if (blockEntity instanceof MachineBlockEntity holder && panel.getEditor().getCurrentProject() instanceof MachineProject project) {
+                holder.setMachine(this.previewMachine = project.getDefinition().createMachine(holder));
+                previewMachine.setMachineState(state.name());
+            }
+        });
     }
 
     public void collapse() {

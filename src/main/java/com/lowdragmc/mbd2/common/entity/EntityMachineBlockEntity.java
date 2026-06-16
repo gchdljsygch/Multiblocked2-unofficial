@@ -5,6 +5,7 @@ import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.capability.MBDCapabilities;
 import com.lowdragmc.mbd2.api.entity.IMachineEntity;
 import com.lowdragmc.mbd2.api.machine.IMachine;
+import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
@@ -71,7 +72,8 @@ public class EntityMachineBlockEntity extends BlockEntity implements IMachineBlo
 
     @Override
     public BlockState getBlockState() {
-        return VIRTUAL_STATE;
+        var block = MBDRegistries.FAKE_MACHINE().block();
+        return block == null ? VIRTUAL_STATE : block.defaultBlockState();
     }
 
     @Override

@@ -432,21 +432,21 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
             definition.machineSettings().traitDefinitions().stream()
                     .filter(this::canLoadTrait)
                     .sorted((a, b) -> b.getPriority() - a.getPriority()).forEach(traitDefinition -> {
-                ITrait trait;
-                try {
-                    trait = traitDefinition.createTrait(this);
-                } catch (RuntimeException | LinkageError error) {
-                    reportTraitLoadFailure(traitDefinition, error);
-                    return;
-                }
-                additionalTraits.add(trait);
-                if (trait instanceof IManaged managed) {
-                    for (IRef ref : managed.getSyncStorage().getPersistedFields()) {
-                        ref.setPersistedPrefixName("trait." + traitDefinition.getName());
-                    }
-                    multiManagedStorage.attach(managed.getSyncStorage());
-                }
-            });
+                        ITrait trait;
+                        try {
+                            trait = traitDefinition.createTrait(this);
+                        } catch (RuntimeException | LinkageError error) {
+                            reportTraitLoadFailure(traitDefinition, error);
+                            return;
+                        }
+                        additionalTraits.add(trait);
+                        if (trait instanceof IManaged managed) {
+                            for (IRef ref : managed.getSyncStorage().getPersistedFields()) {
+                                ref.setPersistedPrefixName("trait." + traitDefinition.getName());
+                            }
+                            multiManagedStorage.attach(managed.getSyncStorage());
+                        }
+                    });
             initCapabilitiesProxy();
         }
     }
@@ -655,7 +655,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @OnlyIn(Dist.CLIENT)
     @Nullable
-    private IRenderer getDynamicBlockRenderer() {
+    protected IRenderer getDynamicBlockRenderer() {
         if (Objects.equals(lastDynamicBlockModel, dynamicBlockModel)) {
             return dynamicBlockRenderer;
         }
@@ -666,7 +666,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @OnlyIn(Dist.CLIENT)
     @Nullable
-    private IRenderer getDynamicFrontRenderer() {
+    protected IRenderer getDynamicFrontRenderer() {
         if (Objects.equals(lastDynamicFrontModel, dynamicFrontModel)) {
             return dynamicFrontRenderer;
         }
@@ -700,7 +700,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     }
 
     @OnlyIn(Dist.CLIENT)
-    private Optional<ResourceLocation> getModelLocation(IRenderer renderer) {
+    protected Optional<ResourceLocation> getModelLocation(IRenderer renderer) {
         if (renderer instanceof IModelRenderer modelRenderer) {
             return Optional.ofNullable(modelRenderer.getModelLocation());
         }
@@ -1329,7 +1329,9 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                             .get(controllerName);
                     if (controller != null) {
                         controller.setAnimationSpeed(Math.max(speed, 0));
-                        controller.tryTriggerAnimation(animName);
+                        if (controller.tryTriggerAnimation(animName)) {
+                            controller.forceAnimationReset();
+                        }
                     }
                 }
             } else {
