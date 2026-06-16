@@ -46,6 +46,17 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.*;
 
+/**
+ * Compiled multiblock structure pattern used for validation, preview rendering,
+ * and player auto-building.
+ *
+ * <p>The business goal is to turn a symbolic pattern definition into concrete
+ * world checks around a controller position. Pattern checks may be called from
+ * async controller logic, so predicates and state updates used during checking
+ * should stay read-only with respect to world and machine state. Auto-build is
+ * different: it is an interactive world mutation path and must run on the normal
+ * player/server interaction thread.</p>
+ */
 public class BlockPattern {
 
     static Direction[] FACINGS = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST, Direction.UP, Direction.DOWN};
@@ -59,6 +70,20 @@ public class BlockPattern {
     protected final int[] centerOffset; // x, y, z, minZ, maxZ
     private Direction mbd2$baseFacing = Direction.NORTH;
 
+    /**
+     * Creates a compiled pattern.
+     *
+     * <p>Preconditions: {@code predicatesIn} is indexed as {@code [z][y][x]},
+     * {@code structureDir} has three orthogonal relative directions, and
+     * {@code centerOffset} contains controller offsets as
+     * {@code [x, y, z, minZ, maxZ]}. Side effects: stores the supplied arrays by
+     * reference.</p>
+     *
+     * @param predicatesIn     predicate grid for every pattern position
+     * @param structureDir     mapping from pattern axes to controller-relative axes
+     * @param aisleRepetitions min/max repetition count for each z-slice
+     * @param centerOffset     controller location and repeat-search bounds
+     */
     public BlockPattern(TraceabilityPredicate[][][] predicatesIn, RelativeDirection[] structureDir, int[][] aisleRepetitions, int[] centerOffset) {
         this.blockMatches = predicatesIn;
         this.fingerLength = predicatesIn.length;
@@ -81,10 +106,24 @@ public class BlockPattern {
         this.centerOffset = centerOffset;
     }
 
+    /**
+     * Returns the base horizontal facing used when rotating preview and
+     * auto-build block states.
+     *
+     * @return horizontal base facing; defaults to north
+     */
     public Direction mbd2$getBaseFacing() {
         return mbd2$baseFacing;
     }
 
+    /**
+     * Sets the base horizontal facing for pattern state rotation.
+     *
+     * <p>Side effects: vertical or {@code null} values reset the base facing to
+     * north.</p>
+     *
+     * @param facing horizontal facing encoded in the pattern definition
+     */
     public void mbd2$setBaseFacing(Direction facing) {
         if (facing == null || facing.getAxis() == Direction.Axis.Y) {
             this.mbd2$baseFacing = Direction.NORTH;
@@ -93,6 +132,14 @@ public class BlockPattern {
         this.mbd2$baseFacing = facing;
     }
 
+    /**
+     * Estimates the maximum number of block positions covered by this pattern.
+     *
+     * <p>Business goal: let controllers scale async check frequency for large
+     * multiblocks. Side effects: none.</p>
+     *
+     * @return estimated block count, clamped to {@link Integer#MAX_VALUE}
+     */
     public int getEstimatedBlockCount() {
         if (fingerLength <= 0 || thumbLength <= 0 || palmLength <= 0) {
             return 0;
@@ -109,11 +156,36 @@ public class BlockPattern {
         return blocks > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) blocks;
     }
 
+    /**
+     * Checks this pattern at the state's controller position without requiring a
+     * controller capability.
+     *
+     * <p>Side effects: mutates {@code worldState}'s transient match context,
+     * error, cache, and matched-pattern fields.</p>
+     *
+     * @param worldState world state whose {@code controllerPos} is used as the
+     *                   center
+     * @param facing     pattern facing to test
+     * @return {@code true} when the pattern matches
+     */
     public boolean checkPatternAtWithoutController(MultiblockState worldState, Direction facing) {
         var centerPos = worldState.controllerPos;
         return checkPatternAt(worldState, centerPos, facing, false);
     }
 
+    /**
+     * Checks this pattern around the controller recorded in the world state.
+     *
+     * <p>Business goal: test the controller's valid front direction, or all
+     * horizontal directions for non-facing controllers. Side effects: clears any
+     * previous matched pattern and updates {@code worldState} with match data,
+     * errors, part sets, IO maps, and optional predicate caches.</p>
+     *
+     * @param worldState    mutable state object reused during pattern checks
+     * @param savePredicate {@code true} to store the predicate matched at each
+     *                      cached position for later diagnostics/rendering
+     * @return {@code true} when any allowed facing matches
+     */
     public boolean checkPatternAt(MultiblockState worldState, boolean savePredicate) {
         worldState.setMatchedPattern(null);
         IMultiController controller = worldState.getController();
@@ -133,6 +205,24 @@ public class BlockPattern {
         return false;
     }
 
+    /**
+     * Checks this pattern at an explicit center and facing.
+     *
+     * <p>Preconditions: callers must coordinate external synchronization when
+     * sharing {@code worldState}; controllers normally use their pattern lock.
+     * This method may be used by async pattern logic, so predicates should not
+     * perform world mutation. Side effects: resets and repopulates match context,
+     * count maps, position cache, matched pattern, IO data, part discovery, and
+     * error state.</p>
+     *
+     * @param worldState    mutable state object for world access and diagnostics
+     * @param centerPos     absolute controller/anchor position
+     * @param facing        tested controller front direction
+     * @param savePredicate {@code true} to remember predicates per cached
+     *                      position
+     * @return {@code true} when all repeated aisles, predicates, and count limits
+     * match
+     */
     public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate) {
         boolean findFirstAisle = false;
         int minZ = -centerOffset[4];
@@ -229,6 +319,20 @@ public class BlockPattern {
         return true;
     }
 
+    /**
+     * Attempts to place missing structure blocks for a player.
+     *
+     * <p>Business goal: help players build the minimum repeated version of a
+     * multiblock from inventory, bound item/fluid handlers, or creative access.
+     * Preconditions: call from a normal player interaction context on the world
+     * thread. Side effects: may consume player inventory, drain bound handlers,
+     * place blocks or fluids, schedule slow-build placements, award placement
+     * criteria/stats through the placement executor, and temporarily restore
+     * existing machine/block states after placement planning.</p>
+     *
+     * @param player     player requesting auto-build
+     * @param worldState pattern state for the target controller
+     */
     public void autoBuild(Player player, MultiblockState worldState) {
         Level world = player.level();
         int minZ = -centerOffset[4];
@@ -493,6 +597,16 @@ public class BlockPattern {
         });
     }
 
+    /**
+     * Pattern-index overload for callers that select from multiple patterns.
+     *
+     * <p>The current implementation ignores {@code patternIndex} because a
+     * {@link BlockPattern} instance already represents one compiled pattern.</p>
+     *
+     * @param player       player requesting auto-build
+     * @param worldState   pattern state for the target controller
+     * @param patternIndex selected pattern index from a higher-level pattern list
+     */
     public void autoBuild(Player player, MultiblockState worldState, int patternIndex) {
         autoBuild(player, worldState);
     }
@@ -575,6 +689,17 @@ public class BlockPattern {
         return PatternStateRotation.horizontalRotation(base, currentFacing);
     }
 
+    /**
+     * Builds a preview block grid for a set of aisle repetitions.
+     *
+     * <p>Side effects: none on the world. Candidate suppliers may be evaluated,
+     * and block states are rotated from the pattern base facing toward north so
+     * the preview has a consistent orientation.</p>
+     *
+     * @param repetition repetition count per aisle; each entry should be within
+     *                   the aisle's min/max range
+     * @return dense preview grid indexed by normalized x/y/z coordinates
+     */
     public BlockInfo[][][] getPreview(int[] repetition) {
         Rotation previewRotation = PatternStateRotation.horizontalRotation(mbd2$getBaseFacing(), Direction.NORTH);
         Map<SimplePredicate, Integer> cacheGlobal = new HashMap<>();
@@ -770,6 +895,15 @@ public class BlockPattern {
     }
 
 
+    /**
+     * Converts pattern-relative coordinates into facing-aware world offsets.
+     *
+     * @param x      pattern x coordinate
+     * @param y      pattern y coordinate
+     * @param z      pattern z coordinate
+     * @param facing controller facing used to resolve relative directions
+     * @return relative block offset from the controller/anchor position
+     */
     private BlockPos setActualRelativeOffset(int x, int y, int z, Direction facing) {
         int[] c0 = new int[]{x, y, z}, c1 = new int[3];
         for (int i = 0; i < 3; i++) {

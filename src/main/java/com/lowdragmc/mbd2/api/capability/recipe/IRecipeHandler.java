@@ -11,38 +11,59 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author KilaBash
- * @date 2023/2/20
- * @implNote IRecipeHandler
+ * Handles one recipe capability for matching and committing recipe IO.
+ *
+ * <p>The business goal is to let recipe logic pass capability-specific content
+ * through one or more handlers until all content is satisfied. Implementations
+ * must treat {@code simulate=true} as a no-commit check and should only mutate
+ * inventories, tanks, energy stores, worlds, or internal counters when
+ * {@code simulate=false}. Calls normally happen on the logical server thread,
+ * but recipe search may simulate handlers from background threads when async
+ * search is enabled; implementations that are not thread-safe should make
+ * simulation read-only and externally synchronized.</p>
  */
 public interface IRecipeHandler<K> {
 
     /**
-     * matching or handling the given recipe.
-     * <br/>
-     * Note: it's not always thread-safe.
-     * In general, it will be called in the main thread if and only if simulate is true.
+     * Matches or commits capability content for a recipe.
      *
-     * @param io       the IO type of this recipe. always be one of the {@link IO#IN} or {@link IO#OUT}
-     * @param recipe   recipe.
-     * @param left     left contents for to be handled.
-     * @param slotName specific slot name.
-     * @param simulate simulate.
-     * @return left contents for continue handling by other proxies.
-     * <br>
-     * null - nothing left. handling successful/finish. you should always return null as a handling-done mark.
+     * <p>Side effects depend on {@code simulate}. In commit mode, input handlers
+     * may consume resources and output handlers may insert or emit resources. The
+     * returned list represents content that this handler could not satisfy and
+     * should be offered to later handlers.</p>
+     *
+     * @param io       recipe IO direction; always {@link IO#IN} or {@link IO#OUT}
+     *                 during normal recipe handling
+     * @param recipe   recipe being matched or handled
+     * @param left     mutable or immutable content list remaining for this
+     *                 capability; entries use this handler's content type
+     * @param slotName optional slot name requested by recipe content; {@code null}
+     *                 means any compatible slot/group is acceptable
+     * @param simulate {@code true} to check availability without committing
+     *                 mutations; {@code false} to perform IO
+     * @return remaining unsatisfied content for other handlers, or {@code null}
+     * when all content is satisfied. Returning {@code null} is the success marker
      */
     List<K> handleRecipeInner(IO io, MBDRecipe recipe, List<K> left, @Nullable String slotName, boolean simulate);
 
     /**
-     * Slot name, it makes sense if recipe contents specify a slot name.
+     * Returns slot names handled by this proxy.
+     *
+     * @return accepted slot names; empty means the handler is not restricted by
+     * slot name
      */
     default Set<String> getSlotNames() {
         return Collections.emptySet();
     }
 
     /**
-     * Whether the content of same capability can only be handled distinct.
+     * Returns whether this handler requires distinct content matching.
+     *
+     * <p>Distinct handlers should be considered separately during matching so
+     * one handler does not satisfy multiple mutually exclusive content entries.</p>
+     *
+     * @return {@code true} when content of the same capability must be handled
+     * distinctly
      */
     default boolean isDistinct() {
         return false;
@@ -50,61 +71,104 @@ public interface IRecipeHandler<K> {
 
     /**
      * Recipe group id for isolating recipe matching between handlers.
+     *
+     * @return primary recipe group id; defaults to
+     * {@link RecipeGroup#DEFAULT}
      */
     default String getRecipeGroup() {
         return RecipeGroup.DEFAULT;
     }
 
+    /**
+     * Returns all recipe groups accepted by this handler.
+     *
+     * @return non-empty set of recipe group ids; defaults to the single primary
+     * group
+     */
     default Set<String> getRecipeGroups() {
         return Set.of(getRecipeGroup());
     }
 
     /**
-     * Refer to the recipe capability.
+     * Returns the capability type handled by this proxy.
+     *
+     * @return capability descriptor for content type {@code K}
      */
     RecipeCapability<K> getRecipeCapability();
 
     /**
-     * Copy the content. (deep copy)
+     * Copies handler content before matching or committing.
+     *
+     * <p>Side effects: delegates to the capability serializer. Handlers may
+     * override this when their content needs implementation-specific deep-copy
+     * semantics.</p>
+     *
+     * @param content source content object
+     * @return copied content value
      */
     @SuppressWarnings("unchecked")
     default K copyContent(Object content) {
-        return getRecipeCapability().copyInner((K)content);
+        return getRecipeCapability().copyInner((K) content);
     }
 
     /**
-     * Handle the recipe. you don't need to override/call this method.
+     * Copies generic content and delegates to
+     * {@link #handleRecipeInner(IO, MBDRecipe, List, String, boolean)}.
+     *
+     * @param io       recipe IO direction
+     * @param recipe   recipe being handled
+     * @param left     generic content list
+     * @param slotName optional requested slot name
+     * @param simulate {@code true} for no-commit matching
+     * @return remaining unsatisfied content, or {@code null} on success
      */
     default List<K> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate) {
         return handleRecipeInner(io, recipe, left.stream().map(this::copyContent).collect(Collectors.toList()), slotName, simulate);
     }
 
+    /**
+     * Handles content with an explicit recipe-group filter.
+     *
+     * <p>Default side effects and return semantics match
+     * {@link #handleRecipe(IO, MBDRecipe, List, String, boolean)}. Handlers that
+     * support multiple groups can override this to isolate matching by group.</p>
+     *
+     * @param io          recipe IO direction
+     * @param recipe      recipe being handled
+     * @param left        generic content list
+     * @param slotName    optional requested slot name
+     * @param simulate    {@code true} for no-commit matching
+     * @param recipeGroup optional group id requested by the recipe
+     * @return remaining unsatisfied content, or {@code null} on success
+     */
     default List<K> handleRecipe(IO io, MBDRecipe recipe, List<?> left, @Nullable String slotName, boolean simulate, @Nullable String recipeGroup) {
         return handleRecipe(io, recipe, left, slotName, simulate);
     }
 
     /**
-     * It will be executed once {@link RecipeLogic#getStatus()} is entering working.
-     * e.g.
-     * <br/>
-     * idle -> working.
-     * <br/>
-     * waiting -> working.
-     * <br/>
-     * ...
+     * Called when recipe logic enters the working state.
+     *
+     * <p>Trigger examples include idle-to-working and waiting-to-working
+     * transitions. Side effects are implementation-specific setup for active
+     * recipe IO.</p>
+     *
+     * @param holder capability holder whose recipe started working
+     * @param io     handler side used by the recipe
+     * @param recipe active recipe
      */
     default void preWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
     }
 
     /**
-     * It will be executed once {@link RecipeLogic#getStatus()} is leaving working.
-     * e.g.
-     * <br/>
-     * working -> idle.
-     * <br/>
-     * working -> waiting.
-     * <br/>
-     * ...
+     * Called when recipe logic leaves the working state.
+     *
+     * <p>Trigger examples include working-to-idle, working-to-waiting, and
+     * interruption. Side effects are implementation-specific cleanup for active
+     * recipe IO.</p>
+     *
+     * @param holder capability holder whose recipe stopped working
+     * @param io     handler side used by the recipe
+     * @param recipe recipe that was active
      */
     default void postWorking(IRecipeCapabilityHolder holder, IO io, MBDRecipe recipe) {
     }

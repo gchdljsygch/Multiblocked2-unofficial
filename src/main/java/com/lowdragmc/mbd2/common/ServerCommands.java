@@ -10,11 +10,27 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 
 /**
- * @author KilaBash
- * @date 2023/2/9
- * @implNote ServerCommands
+ * Builds server-side administrative commands for project-backed MBD content.
+ *
+ * <p>The business goal is to let operators reload machine and recipe type
+ * project files without restarting the game. Command builders are pure until
+ * execution; command execution mutates in-memory project definitions and sends
+ * feedback messages through the command source.</p>
  */
 public class ServerCommands {
+    /**
+     * Creates the root {@code /mbd2} command and its reload subcommands.
+     *
+     * <p>Preconditions: called while Forge is registering server commands. The
+     * returned root requires permission level {@code 2}. Side effects on command
+     * execution: {@code reload_machine_projects} clears catalyst candidates and
+     * reloads machine definitions that came from project files;
+     * {@code reload_recipe_type_projects} reloads recipe types that came from
+     * project files and emits status messages.</p>
+     *
+     * @return immutable list of server command roots to register; currently
+     * contains {@code mbd2}
+     */
     public static List<LiteralArgumentBuilder<CommandSourceStack>> createServerCommands() {
         return List.of(
                 Commands.literal("mbd2")

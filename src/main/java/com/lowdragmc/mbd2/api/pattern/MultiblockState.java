@@ -23,6 +23,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Mutable working state for one multiblock controller's pattern checks.
+ *
+ * <p>The business goal is to reuse one state object across structure matching,
+ * cache invalidation, diagnostics, part discovery, and block-change handling.
+ * Pattern checks may run under a controller lock and can be triggered from async
+ * validation; callers must not share the same state object across concurrent
+ * checks without external synchronization.</p>
+ */
 public class MultiblockState {
     public final static PatternError UNLOAD_ERROR = new PatternStringError("mbd2.multiblock.pattern.error.chunk");
     public final static PatternError UNINIT_ERROR = new PatternStringError("mbd2.multiblock.pattern.error.init");
@@ -61,6 +70,12 @@ public class MultiblockState {
     // persist
     public LongOpenHashSet cache;
 
+    /**
+     * Creates pattern state for a controller position in a level.
+     *
+     * @param world level containing the controller and structure blocks
+     * @param controllerPos controller block position
+     */
     public MultiblockState(Level world, BlockPos controllerPos) {
         this.world = world;
         this.controllerPos = controllerPos;
@@ -68,6 +83,13 @@ public class MultiblockState {
         this.matchContext = new PatternMatchContext();
     }
 
+    /**
+     * Clears transient match data before a new pattern check.
+     *
+     * <p>Side effects: resets the match context, global/layer predicate counts,
+     * and cached matched positions. Persistent controller/world references are
+     * preserved.</p>
+     */
     protected void clean() {
         this.matchContext.reset();
         this.globalCount = new HashMap<>();
@@ -75,20 +97,53 @@ public class MultiblockState {
         cache = new LongOpenHashSet();
     }
 
+    /**
+     * Records the facing context for the current pattern check.
+     *
+     * @param facing controller/front facing being tested; {@code null} becomes
+     * north
+     * @param baseFacing pattern base facing used for rotation; {@code null}
+     * becomes north
+     */
     protected void setPatternContext(Direction facing, Direction baseFacing) {
         this.patternFacing = facing == null ? Direction.NORTH : facing;
         this.patternBaseFacing = baseFacing == null ? Direction.NORTH : baseFacing;
     }
 
+    /**
+     * Stores the matched pattern without an explicit multi-pattern index.
+     *
+     * @param matchedPattern matched pattern, or {@code null} when no pattern
+     * matched
+     */
     public void setMatchedPattern(@Nullable BlockPattern matchedPattern) {
         setMatchedPattern(matchedPattern, matchedPattern == null ? -1 : 0);
     }
 
+    /**
+     * Stores the matched pattern and its index in a combined pattern list.
+     *
+     * @param matchedPattern matched pattern, or {@code null} when no pattern
+     * matched
+     * @param matchedPatternIndex index in the owning pattern list; ignored and
+     * normalized to {@code -1} when {@code matchedPattern} is null
+     */
     public void setMatchedPattern(@Nullable BlockPattern matchedPattern, int matchedPatternIndex) {
         this.matchedPattern = matchedPattern;
         this.matchedPatternIndex = matchedPattern == null ? -1 : matchedPatternIndex;
     }
 
+    /**
+     * Moves this state cursor to a pattern position.
+     *
+     * <p>Side effects: clears cached block state and block entity for the
+     * previous position, stores the active predicate, and records an unload error
+     * when the target position is not loaded.</p>
+     *
+     * @param posIn absolute world position being tested
+     * @param predicate predicate associated with the position
+     * @return {@code true} when the position is loaded and ready to test
+     */
     protected boolean update(BlockPos posIn, TraceabilityPredicate predicate) {
         this.pos = posIn;
         this.blockState = null;
@@ -103,12 +158,34 @@ public class MultiblockState {
         return true;
     }
 
+    /**
+     * Tests a single predicate at an explicit position.
+     *
+     * <p>Business goal: support editor diagnostics and targeted checks without
+     * running a full pattern. Side effects: clears transient match state and
+     * updates the cursor, facing context, error, and match context.</p>
+     *
+     * @param pos position to test
+     * @param predicate predicate to evaluate
+     * @param patternFacing facing context for relative predicates
+     * @param patternBaseFacing base facing context for rotated predicates
+     * @return {@code true} when the position is loaded and the predicate matches
+     */
     public boolean testPredicateAt(BlockPos pos, TraceabilityPredicate predicate, Direction patternFacing, Direction patternBaseFacing) {
         clean();
         setPatternContext(patternFacing, patternBaseFacing);
         return update(pos, predicate) && predicate.test(this);
     }
 
+    /**
+     * Resolves the controller for this state.
+     *
+     * <p>Side effects: caches the last resolved controller and sets
+     * {@link #UNLOAD_ERROR} when the controller chunk is not loaded.</p>
+     *
+     * @return controller machine at {@link #controllerPos}, or {@code null} when
+     * missing/unloaded
+     */
     public IMultiController getController() {
         if (world.isLoaded(controllerPos)) {
             var machineOptional = IMachine.ofMachine(world, controllerPos);
@@ -121,10 +198,20 @@ public class MultiblockState {
         return null;
     }
 
+    /**
+     * Returns whether the last check has an error.
+     *
+     * @return {@code true} when {@link #error} is non-null
+     */
     public boolean hasError() {
         return error != null;
     }
 
+    /**
+     * Stores the current pattern error and back-links it to this state.
+     *
+     * @param error error to store, or {@code null} to clear the current error
+     */
     public void setError(PatternError error) {
         this.error = error;
         if (error != null) {
@@ -132,6 +219,13 @@ public class MultiblockState {
         }
     }
 
+    /**
+     * Returns the block state at the current cursor position.
+     *
+     * <p>Side effects: lazily reads and caches the state from the level.</p>
+     *
+     * @return cached block state at {@link #getPos()}
+     */
     public BlockState getBlockState() {
         if (this.blockState == null) {
             this.blockState = this.world.getBlockState(this.pos);
@@ -142,6 +236,14 @@ public class MultiblockState {
         return this.blockState;
     }
 
+    /**
+     * Returns the block entity at the current cursor position when present.
+     *
+     * <p>Side effects: lazily reads and caches the block entity once per cursor
+     * position.</p>
+     *
+     * @return block entity, or {@code null} when the current block has none
+     */
     @Nullable
     public BlockEntity getTileEntity() {
         if (!getBlockState().hasBlockEntity()) {
@@ -155,10 +257,24 @@ public class MultiblockState {
         return this.tileEntity;
     }
 
+    /**
+     * Returns the current cursor position.
+     *
+     * @return immutable copy of the current pattern-test position
+     */
     public BlockPos getPos() {
         return this.pos.immutable();
     }
 
+    /**
+     * Reads the block state adjacent to the current cursor position.
+     *
+     * <p>Side effects: when the cursor is mutable, temporarily moves it and then
+     * restores it before returning.</p>
+     *
+     * @param face adjacent direction
+     * @return neighboring block state
+     */
     public BlockState getOffsetState(Direction face) {
         if (pos instanceof BlockPos.MutableBlockPos) {
             ((BlockPos.MutableBlockPos) pos).move(face);
@@ -169,6 +285,11 @@ public class MultiblockState {
         return world.getBlockState(this.pos.relative(face));
     }
 
+    /**
+     * Adds a position to the structure cache.
+     *
+     * @param pos matched structure position to track for future invalidation
+     */
     public void addPosCache(BlockPos pos) {
         if (cache == null) {
             cache = new LongOpenHashSet();
@@ -176,10 +297,22 @@ public class MultiblockState {
         cache.add(pos.asLong());
     }
 
+    /**
+     * Checks whether a position is in this state's structure cache.
+     *
+     * @param pos position to query
+     * @return {@code true} when cached
+     */
     public boolean isPosInCache(BlockPos pos) {
         return cache != null && cache.contains(pos.asLong());
     }
 
+    /**
+     * Returns cached structure positions.
+     *
+     * @return immutable-style collection copy of cached block positions; empty
+     * when no cache exists
+     */
     public Collection<BlockPos> getCache() {
         if (cache == null) {
             return java.util.Collections.emptyList();
@@ -187,6 +320,20 @@ public class MultiblockState {
         return cache.stream().map(BlockPos::of).collect(Collectors.toList());
     }
 
+    /**
+     * Handles a server-side block-state change inside or near a formed
+     * multiblock.
+     *
+     * <p>Business goal: keep structure mappings fresh after controller or part
+     * changes. Preconditions: should run on the server thread. Side effects: may
+     * invalidate a removed controller, re-check the pattern under the controller
+     * lock, call structure formed/invalid hooks, update saved-data mappings, and
+     * enqueue async rechecks. Proxy part block changes and internally triggered
+     * formation/invalidation changes are ignored.</p>
+     *
+     * @param pos changed block position
+     * @param state new block state
+     */
     public void onBlockStateChanged(BlockPos pos, BlockState state) {
         if (world instanceof ServerLevel serverLevel) {
             if (pos.equals(controllerPos)) {

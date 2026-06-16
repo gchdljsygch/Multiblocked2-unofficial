@@ -15,13 +15,26 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.List;
 
 /**
- * @author KilaBash
- * @date 2022/8/27
- * @implNote ForgeCommonEventListener
+ * Forge-bus client event hooks for commands, preview rendering, and preview
+ * lifetime ticking.
+ *
+ * <p>The business goal is to expose client-only tools and render the in-world
+ * multiblock preview at a stage where it remains visible through transparent
+ * blocks. Handlers run on the logical client/render thread and mutate only
+ * client-side command or preview state.</p>
  */
 @Mod.EventBusSubscriber(modid = MBD2.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 @OnlyIn(Dist.CLIENT)
 public class ForgeClientEventListener {
+    /**
+     * Registers client-only MBD commands.
+     *
+     * <p>Preconditions: called by Forge while client command dispatchers are
+     * being built. Side effects: adds every command returned by
+     * {@link ClientCommands#createClientCommands()} to the active dispatcher.</p>
+     *
+     * @param event client command registration event
+     */
     @SubscribeEvent
     public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
         var dispatcher = event.getDispatcher();
@@ -29,6 +42,16 @@ public class ForgeClientEventListener {
         commands.forEach(dispatcher::register);
     }
 
+    /**
+     * Renders active multiblock previews after block entities have rendered.
+     *
+     * <p>Preconditions: called during level rendering. Only
+     * {@link RenderLevelStageEvent.Stage#AFTER_BLOCK_ENTITIES} is handled. Side
+     * effects: draws preview geometry through
+     * {@link MultiblockInWorldPreviewRenderer}; it does not change world state.</p>
+     *
+     * @param event render stage event containing pose stack, camera, and partial tick
+     */
     @SubscribeEvent
     public static void onRenderLevelStageEvent(RenderLevelStageEvent event) {
         if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) {
@@ -38,6 +61,14 @@ public class ForgeClientEventListener {
         }
     }
 
+    /**
+     * Advances client preview state once per client tick event.
+     *
+     * <p>Side effects: delegates countdown/update work to
+     * {@link MultiblockInWorldPreviewRenderer#onClientTick()}.</p>
+     *
+     * @param event client tick event supplied by Forge
+     */
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         MultiblockInWorldPreviewRenderer.onClientTick();

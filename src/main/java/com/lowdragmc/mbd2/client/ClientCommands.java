@@ -20,13 +20,29 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * @author KilaBash
- * @date 2023/2/9
- * @implNote ClientCommands
+ * Builds client-only commands used by MBD development and editing tools.
+ *
+ * <p>The business goal is to expose local UI tooling without requiring a server
+ * command round trip. Command builders are pure until executed; execution runs
+ * on the client command context and mutates the local Minecraft screen/menu
+ * state.</p>
  */
 @OnlyIn(Dist.CLIENT)
 public class ClientCommands {
 
+    /**
+     * Creates the client command tree for opening the machine editor.
+     *
+     * <p>Preconditions: called while Forge is registering client commands. The
+     * returned command requires permission level {@code 2}; when executed,
+     * Minecraft must have a local player. Side effects on execution: creates a
+     * transient UI holder, initializes a {@link MachineEditor} UI, opens a
+     * {@link ModularUIGuiContainer}, and replaces the player's current container
+     * menu with that screen's menu.</p>
+     *
+     * @return immutable list of client command roots to register; currently
+     * contains {@code mbd2_editor}
+     */
     public static List<LiteralArgumentBuilder<CommandSourceStack>> createClientCommands() {
         return List.of(
                 Commands.literal("mbd2_editor")
@@ -56,7 +72,7 @@ public class ClientCommands {
 
                             Minecraft minecraft = Minecraft.getInstance();
                             LocalPlayer entityPlayer = minecraft.player;
-                            ModularUI uiTemplate  = new ModularUI(holder, entityPlayer).widget(new MachineEditor());
+                            ModularUI uiTemplate = new ModularUI(holder, entityPlayer).widget(new MachineEditor());
                             uiTemplate.initWidgets();
                             ModularUIGuiContainer ModularUIGuiContainer = new ModularUIGuiContainer(uiTemplate, entityPlayer.containerMenu.containerId);
                             minecraft.setScreen(ModularUIGuiContainer);

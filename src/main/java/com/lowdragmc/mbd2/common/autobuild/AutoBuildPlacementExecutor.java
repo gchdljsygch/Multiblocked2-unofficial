@@ -36,10 +36,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Executes concrete block and fluid placements selected by multiblock
+ * auto-build analysis.
+ *
+ * <p>The business goal is to turn a {@link PatternAutoBuildPlacement} into the
+ * same visible result a player would expect from placing a block item or
+ * emptying a bucket, while consuming the correct player inventory or bound
+ * storage source. This class mutates world blocks, player inventory, bound
+ * capabilities, stats, and the supplied placement cache. It must run on the
+ * logical server/game thread that owns those objects.</p>
+ */
 public final class AutoBuildPlacementExecutor {
     private AutoBuildPlacementExecutor() {
     }
 
+    /**
+     * Places one auto-build entry into the world.
+     *
+     * <p>Preconditions: {@code player}, {@code world}, {@code placement}, and
+     * {@code blocks} must be non-null and belong to the same logical context.
+     * {@code placement.found} must represent a block item or bucket item.
+     * Bound handlers may be {@code null} when the placement source is not the
+     * matching bound source. Side effects may include clearing an existing fluid
+     * block, placing a block/fluid, applying expected block state and block
+     * entity data, shrinking player inventory, draining/filling bound handlers,
+     * dropping failed remainders, awarding bucket stats, and updating
+     * {@code blocks} with the placed machine or block state.</p>
+     *
+     * @param player            player whose context and inventory are used for placement
+     * @param world             level where the target position is placed
+     * @param placement         immutable plan entry describing target, source, and
+     *                          expected state
+     * @param blocks            cache of pattern positions to placed machines or block
+     *                          states; updated with the final target state
+     * @param boundItemHandler  external item storage used when
+     *                          {@code placement.source} is {@link PatternAutoBuildPlacement.Source#BOUND_ITEM_HANDLER}
+     * @param boundFluidHandler external fluid storage used when
+     *                          {@code placement.source} is {@link PatternAutoBuildPlacement.Source#BOUND_FLUID_HANDLER}
+     */
     public static void executePlacement(Player player,
                                         Level world,
                                         PatternAutoBuildPlacement placement,
@@ -137,6 +172,18 @@ public final class AutoBuildPlacementExecutor {
         );
     }
 
+    /**
+     * Collects all item handler capabilities exposed by a block entity.
+     *
+     * <p>Business goal: gather every sided and unsided inventory view that
+     * auto-build may consume from. Preconditions: {@code be} must be non-null
+     * and accessed on the owning level thread. Side effects: resolves Forge
+     * capabilities but does not mutate them.</p>
+     *
+     * @param be block entity to inspect
+     * @return new list of resolved item handlers in direction order followed by
+     * the unsided handler; empty when none are present
+     */
     public static List<IItemHandler> collectItemHandlers(BlockEntity be) {
         List<IItemHandler> handlers = new ArrayList<>();
         for (Direction dir : Direction.values()) {
@@ -146,6 +193,17 @@ public final class AutoBuildPlacementExecutor {
         return handlers;
     }
 
+    /**
+     * Collects all fluid handler capabilities exposed by a block entity.
+     *
+     * <p>Preconditions, side effects, and ordering match
+     * {@link #collectItemHandlers(BlockEntity)}, but the lookup targets fluid
+     * storage views.</p>
+     *
+     * @param be block entity to inspect
+     * @return new list of resolved fluid handlers in direction order followed by
+     * the unsided handler; empty when none are present
+     */
     public static List<IFluidHandler> collectFluidHandlers(BlockEntity be) {
         List<IFluidHandler> handlers = new ArrayList<>();
         for (Direction dir : Direction.values()) {

@@ -58,17 +58,36 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * @author KilaBash
- * @date 2023/2/20
- * @implNote MBDRecipeType
+ * Defines one MBD recipe family, including recipe lookup, proxy conversion,
+ * builtin recipes, editor serialization, and XEI recipe UI creation.
+ *
+ * <p>The business goal is to let a machine definition own a cohesive recipe
+ * namespace while still adapting recipes from vanilla or modded
+ * {@link RecipeType}s. Runtime mutation is expected during registry/project
+ * loading, recipe-manager reload, and editor interaction; recipe lookup and UI
+ * construction should run on the thread that owns the current Minecraft or
+ * editor context.</p>
  */
 @Accessors(chain = true)
 @RemapPrefixForJS("kjs$")
 public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<CompoundTag>, IConfigurable {
     public static final MBDRecipeType DUMMY = new MBDRecipeType(MBD2.id("dummy"));
 
+    /**
+     * Factory for viewer widgets representing one recipe.
+     */
     public interface UICreator {
         UICreator DEFAULT = recipe -> new WidgetGroup();
+
+        /**
+         * Creates a root widget for the supplied recipe.
+         *
+         * <p>Side effects depend on the implementation; project-loaded creators
+         * usually deserialize widget trees and bind recipe placeholders.</p>
+         *
+         * @param recipe recipe whose contents and conditions should be shown
+         * @return mutable widget root for recipe viewers
+         */
         WidgetGroup create(MBDRecipe recipe);
     }
 
@@ -126,6 +145,18 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     @Deprecated
     protected final Map<RecipeType<?>, List<MBDRecipe>> proxyRecipes = new HashMap<>();
 
+    /**
+     * Creates a recipe type with optional proxy recipe sources.
+     *
+     * <p>Preconditions: {@code registryName} should be stable and unique in the
+     * recipe-type registry. Side effects: creates the default
+     * {@link MBDRecipeBuilder} template and stores proxy type references.</p>
+     *
+     * @param registryName registry id used for recipes, fuel recipes, and UI
+     * routing
+     * @param proxyRecipes vanilla or modded recipe types that may be adapted into
+     * this MBD type when the recipe manager loads
+     */
     public MBDRecipeType(ResourceLocation registryName, RecipeType<?>... proxyRecipes) {
         this.registryName = registryName;
         recipeBuilder = new MBDRecipeBuilder(registryName, this);
@@ -133,7 +164,18 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     }
 
     /**
-     * This method is used to clear the proxy recipes cache.
+     * Injects builtin recipes and rebuilds the proxy recipe cache after a recipe
+     * manager reload.
+     *
+     * <p>Business goal: make editor-defined recipes and adapted proxy recipes
+     * visible to normal recipe lookup. Preconditions: {@code rawRecipes} is the
+     * mutable recipe-manager map for the current reload and should contain maps
+     * for configured proxy types. Side effects: mutates {@code rawRecipes},
+     * clears and repopulates {@link #proxyRecipes}, and posts proxy-transfer
+     * events through {@link #toMBDrecipe(RecipeType, ResourceLocation, Recipe)}.</p>
+     *
+     * @param rawRecipes recipe manager data keyed first by recipe type and then
+     * by recipe id
      */
     public void onRecipeManagerLoaded(Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> rawRecipes) {
         // append builtin recipes
@@ -155,6 +197,16 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         }
     }
 
+    /**
+     * KubeJS-oriented recipe-manager hook for injecting builtin and proxy
+     * recipes into a flat recipe map.
+     *
+     * <p>Preconditions: {@code recipesByName} is mutable and represents one
+     * recipe-manager reload. Side effects: mutates the map by adding builtin and
+     * adapted proxy recipes, and rebuilds {@link #proxyRecipes}.</p>
+     *
+     * @param recipesByName flat recipe map keyed by recipe id
+     */
     public void onRecipeManagerLoadedKjs(Map<ResourceLocation, Recipe<?>> recipesByName) {
         recipesByName.putAll(builtinRecipes);
         // load proxy recipes
@@ -179,16 +231,30 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         }
     }
 
+    /**
+     * Creates the editor default recipe type.
+     *
+     * @return new recipe type registered under {@code mbd2:recipe_type}
+     */
     public static MBDRecipeType createDefault() {
         return new MBDRecipeType(MBD2.id("recipe_type"));
     }
 
     /**
-     * Create recipeType from project tag for product usage.\
-     * @param file project file.
-     * @param tag project tag.
-     * @param postTask Called when the mod is loaded completed. To make sure all resources are available.
-     *                 <br/> e.g. items, blocks and other registries are ready.
+     * Loads a packaged project recipe type from NBT and defers resource-dependent
+     * UI initialization.
+     *
+     * <p>Business goal: turn an exported editor project into a runtime recipe
+     * type without touching registries before textures, blocks, items, and other
+     * resources are ready. Side effects: records {@code file}, immediately
+     * updates the registry name, and appends a runnable that deserializes recipe
+     * type settings and UI definitions when executed.</p>
+     *
+     * @param file source project file, or {@code null} for in-memory product data
+     * @param tag project NBT containing {@code recipe_type}, resources, and UI
+     * payloads
+     * @param postTask queue that will run after mod loading completes
+     * @return this recipe type for chaining
      */
     public MBDRecipeType loadProductiveTag(@Nullable File file, CompoundTag tag, Deque<Runnable> postTask) {
         this.projectFile = file;
@@ -231,14 +297,21 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     }
 
     /**
-     * Indicate if the recipe type is created from project file.
+     * Returns whether this type came from an external project file.
+     *
+     * @return {@code true} after {@link #loadProductiveTag(File, CompoundTag, Deque)}
+     * was called with a non-null file
      */
     public boolean isCreatedFromProjectFile() {
         return projectFile != null;
     }
 
     /**
-     * Reload recipe type from project file
+     * Reloads this type from its stored project file when available.
+     *
+     * <p>Side effects: reads NBT from disk, reloads recipe type state, and runs
+     * deferred post-load tasks immediately. IO exceptions and missing tags are
+     * ignored to preserve the current in-memory type.</p>
      */
     public void reloadFromProjectFile() {
         if (projectFile != null) {
@@ -258,10 +331,29 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return registryName.toString();
     }
 
+    /**
+     * Builds the synthetic recipe-type id used for fuel recipes.
+     *
+     * @return id in the same namespace as {@link #registryName} with
+     * {@code .fuel} appended to the path
+     */
     public ResourceLocation getFuelRegistryName() {
         return new ResourceLocation(registryName.getNamespace(), registryName.getPath() + ".fuel");
     }
 
+    /**
+     * Searches fuel recipes that can currently run against a holder.
+     *
+     * <p>Preconditions: {@code recipeManager} must be the active manager for the
+     * server/editor context and {@code holder} must expose recipe capability
+     * proxies. Side effects: matching is simulated by recipe capability handlers;
+     * no recipe IO should be committed by this method.</p>
+     *
+     * @param recipeManager manager containing recipes for this type
+     * @param holder machine or other capability holder used for matching
+     * @return matching fuel recipes sorted by ascending priority, or an empty
+     * list when fuel is not required or no proxies are available
+     */
     public List<MBDRecipe> searchFuelRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
         if (!holder.hasProxies() || !isRequireFuelForWorking()) return Collections.emptyList();
         List<MBDRecipe> matches = new ArrayList<>();
@@ -274,6 +366,19 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return matches;
     }
 
+    /**
+     * Searches non-fuel recipes that can currently run against a holder.
+     *
+     * <p>Business goal: provide the candidate list consumed by
+     * {@link RecipeLogic}. Preconditions: capability matching must be safe for
+     * parallel execution because the recipe stream uses {@code parallelStream()}.
+     * Side effects should be limited to simulated matching.</p>
+     *
+     * @param recipeManager manager containing recipes for this type
+     * @param holder machine or other capability holder used for matching
+     * @return matching non-fuel recipes sorted by ascending priority; empty when
+     * the holder has no recipe proxies
+     */
     public List<MBDRecipe> searchRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
         if (!holder.hasProxies()) return Collections.emptyList();
         List<MBDRecipe> matches = recipeManager.getAllRecipesFor(this).parallelStream()
@@ -287,11 +392,32 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     //*****     Recipe Builder    ******//
     //////////////////////////////////////
 
+    /**
+     * Mutates the shared builder template before recipes are created from it.
+     *
+     * <p>Side effects: exposes {@link #recipeBuilder} to the supplied callback;
+     * changes affect future builder copies created by this type.</p>
+     *
+     * @param onPrepare callback that configures the builder template
+     * @return this recipe type for chaining
+     */
     public MBDRecipeType prepareBuilder(Consumer<MBDRecipeBuilder> onPrepare) {
         onPrepare.accept(recipeBuilder);
         return this;
     }
 
+    /**
+     * Creates a recipe builder copy for a concrete id.
+     *
+     * <p>Business goal: keep type-level builder defaults while producing
+     * independent builders for individual recipes. Side effects: none on this
+     * type unless the returned builder is later saved as builtin.</p>
+     *
+     * @param id base recipe id
+     * @param append optional id suffix fragments; each fragment is converted to
+     * lower snake case and appended with underscores
+     * @return mutable builder copy for the computed id
+     */
     public MBDRecipeBuilder recipeBuilder(ResourceLocation id, Object... append) {
         if (append.length > 0) {
             return recipeBuilder.copy(new ResourceLocation(id.getNamespace(),
@@ -300,19 +426,46 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return recipeBuilder.copy(id);
     }
 
+    /**
+     * Creates a recipe builder under this mod namespace.
+     *
+     * @param id path relative to the MBD namespace helper
+     * @param append optional id suffix fragments
+     * @return mutable builder copy for the computed id
+     */
     public MBDRecipeBuilder recipeBuilder(String id, Object... append) {
         return recipeBuilder(MBD2.id(id), append);
     }
 
+    /**
+     * Creates a recipe builder from a lazily supplied item.
+     *
+     * @param item supplier that must return a non-null item-like object
+     * @param append optional id suffix fragments
+     * @return mutable builder copy using the item's generated id
+     */
     public MBDRecipeBuilder recipeBuilder(Supplier<? extends ItemLike> item, Object... append) {
         return recipeBuilder(item.get(), append);
     }
 
+    /**
+     * Creates a recipe builder from an item-like object's description id.
+     *
+     * @param itemLike item-like source used to derive the base id
+     * @param append optional id suffix fragments
+     * @return mutable builder copy for the computed id
+     */
     @HideFromJS
     public MBDRecipeBuilder recipeBuilder(ItemLike itemLike, Object... append) {
         return recipeBuilder(new ResourceLocation(itemLike.asItem().getDescriptionId()), append);
     }
 
+    /**
+     * Creates the KubeJS-facing recipe builder schema.
+     *
+     * @return KubeJS wrapper object when KubeJS is loaded
+     * @throws UnsupportedOperationException when KubeJS integration is absent
+     */
     public Object kjs$recipeBuilder() {
         if (LDLib.isKubejsLoaded()) {
             return new MBDRecipeSchema.MBDRecipeJS(this);
@@ -320,15 +473,49 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         throw new UnsupportedOperationException("KubeJS is not loaded");
     }
 
+    /**
+     * Copies another builder into this type's recipe namespace.
+     *
+     * @param builder builder whose content, duration, data, and conditions should
+     * be reused
+     * @return mutable builder copy with this type assigned and save callback
+     * cleared
+     */
     public MBDRecipeBuilder copyFrom(MBDRecipeBuilder builder) {
         return recipeBuilder.copyFrom(builder);
     }
 
+    /**
+     * Registers a callback invoked when this type's builders save datagen
+     * recipes.
+     *
+     * <p>Side effects: mutates the shared builder template, so the callback
+     * applies to future builder copies.</p>
+     *
+     * @param onBuild callback that receives the builder and datagen consumer
+     * @return this recipe type for chaining
+     */
     public MBDRecipeType onRecipeBuild(BiConsumer<MBDRecipeBuilder, Consumer<FinishedRecipe>> onBuild) {
         recipeBuilder.onSave(onBuild);
         return this;
     }
 
+    /**
+     * Converts an external recipe into this type's recipe model.
+     *
+     * <p>Business goal: allow vanilla or modded recipe types to appear in MBD
+     * machines and recipe viewers. Preconditions: {@code recipeType},
+     * {@code id}, and {@code recipe} must describe the same external recipe.
+     * Side effects: logs transfer failures, builds a temporary recipe builder,
+     * and posts {@link TransferProxyRecipeEvent}; listeners may replace or cancel
+     * the converted recipe.</p>
+     *
+     * @param recipeType original recipe type
+     * @param id original recipe id
+     * @param recipe original recipe instance
+     * @return converted MBD recipe, or {@code null} when conversion produced no
+     * content or an event listener canceled it
+     */
     @Nullable
     public MBDRecipe toMBDrecipe(RecipeType<?> recipeType, ResourceLocation id, Recipe<?> recipe) {
         MBDRecipe result = null;
@@ -379,6 +566,14 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return contents.values().stream().anyMatch(content -> content != null && !content.isEmpty());
     }
 
+    /**
+     * Adds editor configurators for recipe-type-specific settings.
+     *
+     * <p>Side effects: appends controls to {@code father}; those controls mutate
+     * {@link #proxyRecipeTypes} and persisted configurable fields.</p>
+     *
+     * @param father parent configurator group receiving child controls
+     */
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         IConfigurable.super.buildConfigurator(father);
@@ -407,6 +602,12 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     //////////////////////////////////////
     //********    Serialize    *********//
     //////////////////////////////////////
+    /**
+     * Serializes configurable recipe-type state, proxy type ids, and builtin
+     * recipes.
+     *
+     * @return NBT payload suitable for editor/project persistence
+     */
     @Override
     public CompoundTag serializeNBT() {
         var tag = new CompoundTag();
@@ -427,6 +628,17 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return tag;
     }
 
+    /**
+     * Restores configurable recipe-type state, proxy type ids, and builtin
+     * recipes from NBT.
+     *
+     * <p>Preconditions: recipe type ids in the tag should already be registered.
+     * Side effects: clears and repopulates proxy type and builtin recipe
+     * collections, and assigns this type to deserialized builtin recipes.</p>
+     *
+     * @param tag payload produced by {@link #serializeNBT()} or a compatible
+     * project file
+     */
     @Override
     public void deserializeNBT(CompoundTag tag) {
         PersistedParser.deserializeNBT(tag, new HashMap<>(), this.getClass(), this);
@@ -453,6 +665,18 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     //***********     UI    ************//
     //////////////////////////////////////
 
+    /**
+     * Binds standard recipe placeholders inside a recipe viewer widget tree.
+     *
+     * <p>Business goal: let project-authored UI templates display live recipe
+     * duration, conditions, inputs, and outputs. Side effects: mutates matching
+     * child widgets by setting labels, progress tooltips, content, ingredient
+     * bindings, and hover tooltips.</p>
+     *
+     * @param ui root widget containing placeholder widget ids such as
+     * {@code @progress_bar}
+     * @param recipe recipe whose data should be shown
+     */
     public void bindXEIRecipeUI(WidgetGroup ui, MBDRecipe recipe) {
         WidgetUtils.widgetByIdForEach(ui, "^@progress_bar$", ProgressWidget.class,
                 progress -> progress.setHoverTooltips(Component.translatable("recipe.duration.value", recipe.duration)));
@@ -464,6 +688,17 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         bindCapIOUI(ui, recipe.outputs, IO.OUT);
     }
 
+    /**
+     * Binds capability-specific ingredient widgets in a viewer UI.
+     *
+     * <p>Side effects: delegates to capability binders and appends content
+     * tooltips to widgets whose ids match capability, IO side, and content
+     * index or explicit UI name.</p>
+     *
+     * @param ui root widget to search
+     * @param values capability content grouped by capability
+     * @param io content side represented by the widgets
+     */
     private static void bindCapIOUI(WidgetGroup ui, Map<RecipeCapability<?>, List<Content>> values, IO io) {
         ScrollablePreviewSlotsWidget.bindXEIRecipeUI(ui, values, io);
         values.forEach((cap, contents) -> {
@@ -487,6 +722,16 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         });
     }
 
+    /**
+     * Creates the main recipe viewer UI and exposes it to integration events.
+     *
+     * <p>Side effects: runs the configured UI creator, posts
+     * {@link RecipeUIEvent}, and marks the returned root as client-side.</p>
+     *
+     * @param recipe recipe to display
+     * @return client-side root widget after event listeners have had a chance to
+     * replace or mutate it
+     */
     public WidgetGroup createRecipeUI(MBDRecipe recipe) {
         var ui = uiCreator.create(recipe);
         var event = new RecipeUIEvent(this, recipe, ui);
@@ -494,6 +739,16 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         return event.getRoot().setClientSideWidget();
     }
 
+    /**
+     * Creates the fuel recipe viewer UI and exposes it to integration events.
+     *
+     * <p>Side effects: runs the configured fuel UI creator, posts
+     * {@link FuelRecipeUIEvent}, and marks the returned root as client-side.</p>
+     *
+     * @param recipe fuel recipe to display
+     * @return client-side root widget after event listeners have had a chance to
+     * replace or mutate it
+     */
     public WidgetGroup createFuelUI(MBDRecipe recipe) {
         var ui = fuelUICreator.create(recipe);
         var event = new FuelRecipeUIEvent(this, recipe, ui);

@@ -21,18 +21,46 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * @author KilaBash
- * @date 2022/8/27
- * @implNote ForgeCommonEventListener
+ * Forge-bus server/common event hooks for commands, multiblock interaction, and
+ * world shutdown cleanup.
+ *
+ * <p>The business goal is to connect player actions and server lifecycle events
+ * to MBD's runtime multiblock state. Handlers are invoked by Forge on the
+ * appropriate game/server thread and may mutate interaction results, world
+ * blocks, saved multiblock mappings, and async executor state.</p>
  */
 @Mod.EventBusSubscriber(modid = MBD2.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ForgeCommonEventListener {
 
+    /**
+     * Registers server-side MBD commands with Brigadier.
+     *
+     * <p>Preconditions: called by Forge while command dispatchers are being
+     * built. Side effects: adds every command returned by
+     * {@link ServerCommands#createServerCommands()} to the active dispatcher.</p>
+     *
+     * @param event command registration event
+     */
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         ServerCommands.createServerCommands().forEach(event.getDispatcher()::register);
     }
 
+    /**
+     * Handles right-clicks that should open multiblock UIs or transform catalyst
+     * candidate blocks into controllers.
+     *
+     * <p>Business goal: allow players to interact with the visible structure
+     * instead of only the controller, and allow catalyst items to form a
+     * multiblock from a valid controller candidate. Preconditions: called by
+     * Forge for a block right-click. Side effects may deny normal block use,
+     * open a machine UI, replace the clicked block with a controller, invoke
+     * catalyst callbacks, update saved multiblock mappings, or roll back the
+     * block when formation fails.</p>
+     *
+     * @param event right-click interaction event; may be canceled or have use
+     *              results changed
+     */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (MachineInteractionHelper.shouldBypassMachineUI(event.getItemStack())) {
@@ -110,6 +138,15 @@ public class ForgeCommonEventListener {
 
     }
 
+    /**
+     * Releases per-world multiblock async resources when a server level unloads.
+     *
+     * <p>Preconditions: called by Forge for level unload. Client levels are
+     * ignored. Side effects: releases executor services owned by the level's
+     * {@link MultiblockWorldSavedData}.</p>
+     *
+     * @param event level unload event
+     */
     @SubscribeEvent
     public static void onWorldUnLoad(LevelEvent.Unload event) {
         LevelAccessor world = event.getLevel();
@@ -118,6 +155,15 @@ public class ForgeCommonEventListener {
         }
     }
 
+    /**
+     * Releases multiblock async resources for every server level during server
+     * shutdown.
+     *
+     * <p>Side effects: iterates loaded server levels and releases each
+     * {@link MultiblockWorldSavedData} executor service.</p>
+     *
+     * @param event server stopping event
+     */
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         var levels = event.getServer().getAllLevels();

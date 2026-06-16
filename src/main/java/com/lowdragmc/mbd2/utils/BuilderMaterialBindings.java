@@ -17,17 +17,41 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Persists and resolves the per-item state used by the multiblock builder.
+ *
+ * <p>The business goal is to let a builder gadget remember build mode,
+ * selected pattern, and external material sources so auto-build can consume
+ * blocks or fluids without asking the player to reselect those sources.
+ * Mutating methods write directly to the supplied {@link ItemStack}'s NBT;
+ * callers should invoke them on the logical game thread that owns the stack and
+ * level. The helper itself keeps no shared mutable state.</p>
+ */
 public final class BuilderMaterialBindings {
     private static final String KEY_ITEM_DIM = "mbd2_bind_item_dim";
     private static final String KEY_ITEM_POS = "mbd2_bind_item_pos";
     private static final String KEY_FLUID_DIM = "mbd2_bind_fluid_dim";
     private static final String KEY_FLUID_POS = "mbd2_bind_fluid_pos";
+    /**
+     * NBT key used to store whether the builder should schedule placements over
+     * multiple server ticks instead of placing everything in one pass.
+     */
     public static final String KEY_SLOW_BUILD = "mbd2_slow_build";
     private static final String KEY_PATTERN_INDEX = "mbd2_pattern_index";
 
     private BuilderMaterialBindings() {
     }
 
+    /**
+     * Finds the builder gadget currently held by a player.
+     *
+     * <p>Preconditions: the player must be non-null and its hand stacks must be
+     * readable on the owning game thread. Side effects: none.</p>
+     *
+     * @param player player whose main hand is checked before the off hand
+     * @return the first held multiblock builder, or {@link ItemStack#EMPTY} when
+     * no held stack is a builder; never {@code null}
+     */
     public static ItemStack findBuilderStack(Player player) {
         ItemStack main = player.getMainHandItem();
         if (isBuilder(main)) return main;
@@ -36,23 +60,65 @@ public final class BuilderMaterialBindings {
         return ItemStack.EMPTY;
     }
 
+    /**
+     * Tests whether a stack is the multiblock-builder mode of {@link MBDGadgetsItem}.
+     *
+     * <p>Preconditions: none; {@code null} and empty stacks are accepted. Side
+     * effects: none. Thread safety follows the supplied stack's owner.</p>
+     *
+     * @param stack candidate stack to inspect
+     * @return {@code true} only when the stack is a gadget item configured as a
+     * multiblock builder
+     */
     public static boolean isBuilder(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         if (!(stack.getItem() instanceof MBDGadgetsItem gadgets)) return false;
         return gadgets.isMultiblockBuilder(stack);
     }
 
+    /**
+     * Reads the builder's slow-build flag used to choose between immediate and
+     * scheduled auto-build placement.
+     *
+     * <p>Invalid or empty stacks are treated as disabled. Side effects: none;
+     * the stack tag is read but not created.</p>
+     *
+     * @param builder stack expected to be a multiblock builder
+     * @return {@code true} when the builder stores the slow-build flag,
+     * otherwise {@code false}
+     */
     public static boolean isSlowBuild(ItemStack builder) {
         if (!isBuilder(builder)) return false;
         var tag = builder.getTag();
         return tag != null && tag.getBoolean(KEY_SLOW_BUILD);
     }
 
+    /**
+     * Stores whether a builder should place matched pattern entries gradually.
+     *
+     * <p>Preconditions: the stack must be a live builder stack owned by the
+     * calling game thread. Non-builder stacks are ignored. Side effects: creates
+     * or updates the builder NBT tag.</p>
+     *
+     * @param builder   builder stack whose mode is updated
+     * @param slowBuild {@code true} to use the server tick scheduler,
+     *                  {@code false} to place the full plan immediately
+     */
     public static void setSlowBuild(ItemStack builder, boolean slowBuild) {
         if (!isBuilder(builder)) return;
         builder.getOrCreateTag().putBoolean(KEY_SLOW_BUILD, slowBuild);
     }
 
+    /**
+     * Reads the selected multiblock pattern index from a builder stack.
+     *
+     * <p>Preconditions: none beyond stack ownership. Side effects: none. Stored
+     * negative values are normalized because pattern selection is zero-based.</p>
+     *
+     * @param builder stack expected to carry builder configuration
+     * @return selected pattern index in the range {@code [0, Integer.MAX_VALUE]},
+     * or {@code 0} when the stack is not a builder or has no saved index
+     */
     public static int getPatternIndex(ItemStack builder) {
         if (!isBuilder(builder)) return 0;
         var tag = builder.getTag();
@@ -60,23 +126,75 @@ public final class BuilderMaterialBindings {
         return Math.max(0, tag.getInt(KEY_PATTERN_INDEX));
     }
 
+    /**
+     * Saves the selected multiblock pattern index on a builder stack.
+     *
+     * <p>Preconditions: the stack must be the builder item being configured.
+     * Non-builder stacks are ignored. Side effects: creates or updates the
+     * builder NBT tag on the calling game thread.</p>
+     *
+     * @param builder      builder stack whose selected pattern is updated
+     * @param patternIndex zero-based pattern index; negative values are clamped
+     *                     to {@code 0}
+     */
     public static void setPatternIndex(ItemStack builder, int patternIndex) {
         if (!isBuilder(builder)) return;
         builder.getOrCreateTag().putInt(KEY_PATTERN_INDEX, Math.max(0, patternIndex));
     }
 
+    /**
+     * Records the item-source block position that auto-build should query for
+     * item handler capabilities.
+     *
+     * <p>Business goal: let the builder consume block items from an adjacent
+     * inventory selected by shift-right-click. Preconditions: {@code builder},
+     * {@code level}, and {@code pos} must be non-null; callers should validate
+     * that the stack is a builder and the target exposes item handlers before
+     * calling. Side effects: writes dimension id and packed block position to
+     * stack NBT. Thread safety follows the stack and level owner.</p>
+     *
+     * @param builder stack that stores the binding
+     * @param level   level containing the selected material source
+     * @param pos     block position in that level
+     */
     public static void bindItemPos(ItemStack builder, Level level, BlockPos pos) {
         var tag = builder.getOrCreateTag();
         tag.putString(KEY_ITEM_DIM, Objects.requireNonNull(level.dimension().location()).toString());
         tag.putLong(KEY_ITEM_POS, Objects.requireNonNull(pos).asLong());
     }
 
+    /**
+     * Records the fluid-source block position that auto-build should query for
+     * fluid handler capabilities.
+     *
+     * <p>Preconditions and threading match {@link #bindItemPos(ItemStack, Level,
+     * BlockPos)}. Side effects: writes dimension id and packed block position to
+     * stack NBT.</p>
+     *
+     * @param builder stack that stores the binding
+     * @param level   level containing the selected fluid source
+     * @param pos     block position in that level
+     */
     public static void bindFluidPos(ItemStack builder, Level level, BlockPos pos) {
         var tag = builder.getOrCreateTag();
         tag.putString(KEY_FLUID_DIM, Objects.requireNonNull(level.dimension().location()).toString());
         tag.putLong(KEY_FLUID_POS, Objects.requireNonNull(pos).asLong());
     }
 
+    /**
+     * Resolves all item handlers exposed by the builder's bound block in the
+     * player's current dimension.
+     *
+     * <p>Business goal: provide auto-build with the current external inventory
+     * candidates for block placement. Preconditions: the player must be
+     * non-null, in a level, and accessed from the game thread. Side effects:
+     * resolves Forge capabilities but does not mutate the world or handlers.</p>
+     *
+     * @param player player holding the configured builder
+     * @return a new list of currently resolvable item handlers; empty when no
+     * builder is held, the binding is missing, the dimension differs, the block
+     * entity is absent, or no item capability is available
+     */
     public static List<IItemHandler> getBoundItemHandlers(Player player) {
         ItemStack builder = findBuilderStack(player);
         if (builder.isEmpty()) return Collections.emptyList();
@@ -88,6 +206,18 @@ public final class BuilderMaterialBindings {
         return collectItemHandlers(be);
     }
 
+    /**
+     * Resolves all fluid handlers exposed by the builder's bound block in the
+     * player's current dimension.
+     *
+     * <p>Preconditions, side effects, and thread expectations match
+     * {@link #getBoundItemHandlers(Player)}, but the lookup targets fluid
+     * capabilities for bucket/fluid placement.</p>
+     *
+     * @param player player holding the configured builder
+     * @return a new list of currently resolvable fluid handlers, or an empty
+     * list when the binding cannot be used
+     */
     public static List<IFluidHandler> getBoundFluidHandlers(Player player) {
         ItemStack builder = findBuilderStack(player);
         if (builder.isEmpty()) return Collections.emptyList();
@@ -99,20 +229,60 @@ public final class BuilderMaterialBindings {
         return collectFluidHandlers(be);
     }
 
+    /**
+     * Returns the first item handler from the current builder item binding.
+     *
+     * <p>This is a convenience view for callers that cannot use multiple
+     * handlers. Preconditions and side effects match
+     * {@link #getBoundItemHandlers(Player)}.</p>
+     *
+     * @param player player holding the configured builder
+     * @return first resolved item handler, or {@code null} when none is
+     * available
+     */
     public static IItemHandler getBoundItemHandler(Player player) {
         List<IItemHandler> handlers = getBoundItemHandlers(player);
         return handlers.isEmpty() ? null : handlers.get(0);
     }
 
+    /**
+     * Returns the first fluid handler from the current builder fluid binding.
+     *
+     * <p>Preconditions and side effects match
+     * {@link #getBoundFluidHandlers(Player)}.</p>
+     *
+     * @param player player holding the configured builder
+     * @return first resolved fluid handler, or {@code null} when none is
+     * available
+     */
     public static IFluidHandler getBoundFluidHandler(Player player) {
         List<IFluidHandler> handlers = getBoundFluidHandlers(player);
         return handlers.isEmpty() ? null : handlers.get(0);
     }
 
+    /**
+     * Reads the saved item-source coordinate from a builder stack.
+     *
+     * <p>Preconditions: the stack must be non-null. Side effects: none; malformed
+     * resource locations or missing tags are treated as absent.</p>
+     *
+     * @param builder stack carrying builder NBT
+     * @return saved dimension and block position, or {@code null} when no valid
+     * item binding is present
+     */
     public static BoundPos readBoundItemPos(ItemStack builder) {
         return readBoundPos(builder, KEY_ITEM_DIM, KEY_ITEM_POS);
     }
 
+    /**
+     * Reads the saved fluid-source coordinate from a builder stack.
+     *
+     * <p>Preconditions and side effects match {@link #readBoundItemPos(ItemStack)}.</p>
+     *
+     * @param builder stack carrying builder NBT
+     * @return saved dimension and block position, or {@code null} when no valid
+     * fluid binding is present
+     */
     public static BoundPos readBoundFluidPos(ItemStack builder) {
         return readBoundPos(builder, KEY_FLUID_DIM, KEY_FLUID_POS);
     }
@@ -128,6 +298,17 @@ public final class BuilderMaterialBindings {
         return new BoundPos(dim, pos);
     }
 
+    /**
+     * Checks whether a block entity exposes any item handler capability.
+     *
+     * <p>All six sided capabilities and the null-side capability are queried.
+     * Preconditions: none; {@code null} is accepted. Side effects: resolves
+     * capability presence only. Thread safety follows Forge capability access
+     * rules for the block entity's level thread.</p>
+     *
+     * @param be block entity to probe
+     * @return {@code true} when at least one item handler is present
+     */
     public static boolean hasItemHandler(BlockEntity be) {
         if (be == null) return false;
         for (Direction dir : Direction.values()) {
@@ -136,6 +317,15 @@ public final class BuilderMaterialBindings {
         return be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).isPresent();
     }
 
+    /**
+     * Checks whether a block entity exposes any fluid handler capability.
+     *
+     * <p>Capability sides, side effects, and thread expectations match
+     * {@link #hasItemHandler(BlockEntity)}.</p>
+     *
+     * @param be block entity to probe
+     * @return {@code true} when at least one fluid handler is present
+     */
     public static boolean hasFluidHandler(BlockEntity be) {
         if (be == null) return false;
         for (Direction dir : Direction.values()) {
@@ -167,6 +357,12 @@ public final class BuilderMaterialBindings {
         return current != null && current.equals(dim);
     }
 
+    /**
+     * Immutable coordinate stored by a builder binding.
+     *
+     * @param dimension registry location of the level dimension; must be non-null
+     * @param pos       block position inside that dimension; must be non-null
+     */
     public record BoundPos(ResourceLocation dimension, BlockPos pos) {
         public BoundPos {
             Objects.requireNonNull(dimension);

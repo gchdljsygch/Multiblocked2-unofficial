@@ -21,37 +21,68 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Common contract for a block-entity-backed MBD machine.
+ *
+ * <p>The business goal is to expose machine lifecycle, orientation, recipe
+ * execution hooks, and recipe capability access through one capability-backed
+ * interface. Most mutating callbacks are expected to run on the logical server
+ * thread that owns the block entity. Rendering helpers may be called on the
+ * client side when refreshing visual state.</p>
+ */
 public interface IMachine extends IRecipeCapabilityHolder {
 
+    /**
+     * Resolves a machine capability from a block entity.
+     *
+     * @param blockEntity block entity to inspect; {@code null} yields an empty
+     *                    optional
+     * @return resolved machine capability when present
+     */
     static Optional<IMachine> ofMachine(@Nullable BlockEntity blockEntity) {
         return blockEntity == null ? Optional.empty() : blockEntity.getCapability(MBDCapabilities.CAPABILITY_MACHINE).resolve();
     }
 
+    /**
+     * Resolves a machine capability at a world position.
+     *
+     * @param level block getter used to read the block entity
+     * @param pos   position to inspect
+     * @return resolved machine capability when a machine block entity exists
+     */
     static Optional<IMachine> ofMachine(@Nonnull BlockGetter level, @Nonnull BlockPos pos) {
         return ofMachine(level.getBlockEntity(pos));
     }
 
     /**
-     * Get the block entity holder.
+     * Returns the backing block entity.
+     *
+     * @return block entity that owns this machine instance
      */
     BlockEntity getHolder();
 
     /**
-     * Get the level.
+     * Returns the current level for the backing block entity.
+     *
+     * @return level, or {@code null} while the block entity is detached
      */
     default Level getLevel() {
         return getHolder().getLevel();
     }
 
     /**
-     * Get machine position.
+     * Returns the machine's block position.
+     *
+     * @return immutable position of the backing block entity
      */
     default BlockPos getPos() {
         return getHolder().getBlockPos();
     }
 
     /**
-     * Get the block state.
+     * Returns the machine's current block state.
+     *
+     * @return block state stored by the backing block entity
      */
     default BlockState getBlockState() {
         return getHolder().getBlockState();
@@ -59,8 +90,13 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Convert a machine-relative position to an absolute world position.
-     * <br>
-     * Relative axes are {@code +X = right}, {@code +Y = up}, and {@code +Z = front}.
+     *
+     * <p>Relative axes are {@code +X = right}, {@code +Y = up}, and
+     * {@code +Z = front}. Machines without a front facing are treated as facing
+     * north. Side effects: none.</p>
+     *
+     * @param relativePos relative position in machine coordinates
+     * @return absolute world position for the same point
      */
     default BlockPos getAbsolutePos(@Nonnull BlockPos relativePos) {
         Objects.requireNonNull(relativePos, "relativePos");
@@ -73,8 +109,11 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Convert machine-relative coordinates to an absolute world position.
-     * <br>
-     * Relative axes are {@code +X = right}, {@code +Y = up}, and {@code +Z = front}.
+     *
+     * @param x relative right offset
+     * @param y relative upward offset
+     * @param z relative forward offset
+     * @return absolute world position for the same point
      */
     default BlockPos getAbsolutePos(int x, int y, int z) {
         return getAbsolutePos(new BlockPos(x, y, z));
@@ -93,12 +132,20 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Get the random offset.
+     * Returns this machine's stable tick offset.
+     *
+     * <p>Business goal: spread expensive periodic work across server ticks.
+     * Implementations should keep this stable for the lifetime of the machine.</p>
+     *
+     * @return non-negative or otherwise stable offset value
      */
     long getOffset();
 
     /**
-     * Get the offset timer.
+     * Returns game time shifted by the machine's offset.
+     *
+     * @return {@code level.getGameTime() + getOffset()} when attached to a level;
+     * otherwise just {@link #getOffset()}
      */
     default long getOffsetTimer() {
         var level = getLevel();
@@ -107,8 +154,11 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Get this machine's latest server tick cost in microseconds.
-     * <br>
-     * The value records the time spent by this machine's tick hooks, recipe logic, and trait logic.
+     *
+     * <p>The value records time spent by this machine's tick hooks, recipe logic,
+     * and trait logic.</p>
+     *
+     * @return latest tick cost in microseconds, or {@code 0} when not tracked
      */
     default long getGameDelayMicroseconds() {
         return 0;
@@ -116,6 +166,9 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Get this machine's average server tick cost over the last ten seconds in microseconds.
+     *
+     * @return rolling average tick cost in microseconds, or {@code 0} when not
+     * tracked
      */
     default long getTenSecondAverageGameDelayMicroseconds() {
         return 0;
@@ -123,6 +176,8 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Short alias for {@link #getGameDelayMicroseconds()}.
+     *
+     * @return latest tick cost in microseconds
      */
     default long getGameDelay() {
         return getGameDelayMicroseconds();
@@ -130,13 +185,19 @@ public interface IMachine extends IRecipeCapabilityHolder {
 
     /**
      * Short alias for {@link #getTenSecondAverageGameDelayMicroseconds()}.
+     *
+     * @return rolling average tick cost in microseconds
      */
     default long getTenSecondAverageGameDelay() {
         return getTenSecondAverageGameDelayMicroseconds();
     }
 
     /**
-     * Mark the machine as dirty.
+     * Marks the backing block entity as changed on the server thread.
+     *
+     * <p>Side effects: schedules {@link BlockEntity#setChanged()} through the
+     * server executor when the machine is attached to a server level. Client-side
+     * and detached machines are ignored.</p>
      */
     default void markDirty() {
         var level = getLevel();
@@ -147,63 +208,100 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Is the machine still valid.
+     * Returns whether the backing block entity has been removed.
+     *
+     * @return {@code true} when the block entity is invalid/removed
      */
     default boolean isInValid() {
         return getHolder().isRemoved();
     }
 
     /**
-     * Use for data not able to be saved with the SyncData system, like optional mod compatiblity in internal machines.
-     * @param tag the CompoundTag to load data from
-     * @param forDrop if the save is done for dropping the machine as an item.
+     * Saves custom persisted data that cannot be represented by the sync-data
+     * system.
+     *
+     * <p>Business goal: preserve optional integration or implementation-specific
+     * state without changing the shared sync model. Side effects: implementations
+     * may write additional keys into {@code tag}.</p>
+     *
+     * @param tag     destination NBT tag
+     * @param forDrop {@code true} when serializing data into a dropped machine
+     *                item rather than world storage
      */
     default void saveCustomPersistedData(CompoundTag tag, boolean forDrop) {
 
     }
 
     /**
-     * Use for data not able to be saved with the SyncData system, like optional mod compatiblity in internal machines.
-     * @param tag the CompoundTag to load data from
+     * Loads custom persisted data that cannot be represented by the sync-data
+     * system.
+     *
+     * <p>Side effects: implementations may mutate machine fields from
+     * {@code tag}. Call on the owning server/load thread.</p>
+     *
+     * @param tag source NBT tag
      */
     default void loadCustomPersistedData(CompoundTag tag) {
 
     }
 
     /**
-     * Get the front facing of the machine.
+     * Returns this machine's front direction.
+     *
+     * @return optional front facing; empty means the machine is orientation
+     * independent
      */
     Optional<Direction> getFrontFacing();
 
     /**
-     * Whether it has front face.
-     * @return false: structure of all sides are available.
+     * Returns whether this machine has orientation-dependent behavior.
+     *
+     * @return {@code true} when {@link #getFrontFacing()} is present; {@code false}
+     * when all sides are structurally equivalent
      */
     default boolean hasFrontFacing() {
         return getFrontFacing().isPresent();
     }
 
     /**
-     * Is the facing valid for setup.
+     * Checks whether a proposed front direction is valid.
+     *
+     * @param facing candidate facing
+     * @return {@code true} when the machine can be configured to face that
+     * direction
      */
     boolean isFacingValid(Direction facing);
 
     /**
-     * Set the front facing of the machine.
+     * Sets the machine's front direction.
+     *
+     * <p>Preconditions: callers should check {@link #isFacingValid(Direction)}
+     * before changing the facing. Side effects are implementation-specific and
+     * typically include synced state changes, dirty marking, and render updates.</p>
+     *
+     * @param facing new front direction
      */
     void setFrontFacing(Direction facing);
 
     /**
-     * Called when the machine is rotated.
-     * <br>
-     * It has to be triggered somewhere yourself.
+     * Handles a completed machine rotation.
+     *
+     * <p>Side effects: implementation-specific. Callers are responsible for
+     * invoking this after they change the stored facing.</p>
+     *
+     * @param oldFacing previous front direction
+     * @param newFacing new front direction
      */
     default void onRotated(Direction oldFacing, Direction newFacing) {
 
     }
 
     /**
-     * re-render the chunk.
+     * Requests a client-side block render refresh.
+     *
+     * <p>Side effects: on the client, calls {@link Level#sendBlockUpdated} for
+     * this machine position. Server-side calls are ignored by the default
+     * implementation.</p>
      */
     default void scheduleRenderUpdate() {
         var pos = getPos();
@@ -217,7 +315,10 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Notify the block update.
+     * Notifies neighboring blocks that this machine updated.
+     *
+     * <p>Side effects: calls {@link Level#updateNeighborsAt(BlockPos,
+     * net.minecraft.world.level.block.Block)} when attached to a level.</p>
      */
     default void notifyBlockUpdate() {
         var pos = getPos();
@@ -228,27 +329,33 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * on machine chunk unloaded.
-     * <br>
-     * You should call it in yourselves {@link BlockEntity#onChunkUnloaded()}.
+     * Handles chunk unload for the machine.
+     *
+     * <p>Side effects: invalidates recipe working hooks through
+     * {@link RecipeLogic#inValid()}. Implementations should call this from
+     * {@link BlockEntity#onChunkUnloaded()}.</p>
      */
     default void onChunkUnloaded() {
         getRecipeLogic().inValid();
     }
 
     /**
-     * on machine invalid in the chunk.
-     * <br>
-     * You should call it in yourselves {@link BlockEntity#setRemoved()}.
+     * Handles block entity removal.
+     *
+     * <p>Side effects: invalidates recipe working hooks through
+     * {@link RecipeLogic#inValid()}. Implementations should call this from
+     * {@link BlockEntity#setRemoved()}.</p>
      */
     default void onUnload() {
         getRecipeLogic().inValid();
     }
 
     /**
-     * on machine valid in the chunk.
-     * <br>
-     * You should call it in yourselves {@link BlockEntity#clearRemoved()}.
+     * Handles block entity load or revalidation.
+     *
+     * <p>Default side effects: none. Implementations should call this from
+     * {@link BlockEntity#clearRemoved()} when they need to re-register runtime
+     * services.</p>
      */
     default void onLoad() {
     }
@@ -258,35 +365,53 @@ public interface IMachine extends IRecipeCapabilityHolder {
     //////////////////////////////////////
 
     /**
-     * Get the recipe type.
+     * Returns the recipe type executed by this machine.
+     *
+     * @return non-null recipe type; use {@link MBDRecipeType#DUMMY} for machines
+     * without recipe logic
      */
     @Nonnull
     MBDRecipeType getRecipeType();
 
     /**
-     * Called when recipe logic status changed
+     * Called after recipe logic status changes.
+     *
+     * <p>Side effects: implementation-specific, usually UI, render, redstone, or
+     * part notification updates.</p>
+     *
+     * @param oldStatus previous status
+     * @param newStatus new status
      */
     default void notifyRecipeStatusChanged(RecipeLogic.Status oldStatus, RecipeLogic.Status newStatus) {
     }
 
     /**
-     * Shall we run the recipe logic during the server tick?
-     * <br>
-     * if the machine has no recipe logic or using the {@link MBDRecipeType#DUMMY}, it will return false.
+     * Returns whether this machine should tick recipe logic.
+     *
+     * @return {@code true} for normal recipe-capable machines; {@code false} for
+     * {@link MBDRecipeType#DUMMY}
      */
     default boolean runRecipeLogic() {
         return getRecipeType() != MBDRecipeType.DUMMY;
     }
 
     /**
-     * Recipe logic
+     * Returns the recipe logic state machine for this machine.
+     *
+     * @return non-null recipe logic instance owned by this machine
      */
     @Nonnull
     RecipeLogic getRecipeLogic();
 
     /**
-     * Modify fuel recipe for actual handling.
-     * @return return null to skip this recipe/
+     * Modifies a fuel recipe before it is consumed.
+     *
+     * <p>Business goal: let machines scale fuel duration, check tiers, or reject
+     * fuel dynamically. Side effects should be limited to returning a modified
+     * recipe; do not consume IO here.</p>
+     *
+     * @param recipe matched fuel recipe
+     * @return modified fuel recipe, original recipe, or {@code null} to skip it
      */
     @Nullable
     default MBDRecipe modifyFuelRecipe(MBDRecipe recipe) {
@@ -294,14 +419,27 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * It will be called when the current fuel burning is finished, before searching next fuel.
+     * Called when the current fuel burn interval ends.
+     *
+     * <p>Side effects: implementation-specific. Runs before recipe logic searches
+     * for the next fuel source.</p>
+     *
+     * @param recipe fuel recipe that supplied the burn interval, or {@code null}
+     *               for non-recipe fuel sources
      */
-    default void onFuelBurningFinish(@Nullable MBDRecipe recipe) {}
+    default void onFuelBurningFinish(@Nullable MBDRecipe recipe) {
+    }
 
     /**
-     * do not override it.
-     * <br> implement {@link #getModifiedRecipe(MBDRecipe)} for recipe modification.
-     * <br> implement {@link #getMaxParallel(MBDRecipe)} for parallel recipe.
+     * Applies recipe modification and parallelization.
+     *
+     * <p>Override {@link #getModifiedRecipe(MBDRecipe)} for recipe-specific
+     * changes and {@link #getMaxParallel(MBDRecipe)} for parallel scaling.
+     * Side effects should be avoided; recipe logic calls this during candidate
+     * validation.</p>
+     *
+     * @param recipe candidate recipe
+     * @return modified recipe, or {@code null} when the machine cannot run it
      */
     @Nullable
     default MBDRecipe doModifyRecipe(@Nonnull MBDRecipe recipe) {
@@ -313,10 +451,14 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Override it to modify recipe on the fly e.g. applying overclock, change chance, etc
-     * @param recipe recipe from detected from MBDRecipe
-     * @return modified recipe.
-     *         null -- this recipe is unavailable
+     * Modifies a candidate recipe before setup.
+     *
+     * <p>Business goal: apply overclocking, tier checks, chance changes, or other
+     * machine-specific transforms. Side effects should be avoided because this
+     * may run during recipe search/validation.</p>
+     *
+     * @param recipe candidate recipe detected by the recipe type
+     * @return modified recipe, original recipe, or {@code null} when unavailable
      */
     @Nullable
     default MBDRecipe getModifiedRecipe(@Nonnull MBDRecipe recipe) {
@@ -324,17 +466,26 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Get the max parallel.
+     * Returns the maximum parallelization modifier for a recipe.
+     *
+     * @param recipe candidate recipe
+     * @return content modifier whose value is applied to base parallel count
      */
     default ContentModifier getMaxParallel(@Nonnull MBDRecipe recipe) {
         return ContentModifier.IDENTITY;
     }
 
     /**
-     * Apply parallel to the recipe.
-     * @param recipe the recipe to apply parallel
-     * @param maxParallel the max parallel
-     * @return the modified recipe
+     * Applies parallel scaling to a recipe.
+     *
+     * <p>Side effects: none on the machine; returned recipe may be a copied or
+     * scaled recipe from {@link MBDRecipe#accurateParallel}.</p>
+     *
+     * @param recipe      recipe to scale
+     * @param maxParallel maximum parallel amount; values {@code <= 1} leave the
+     *                    recipe unchanged
+     * @return scaled recipe when parallelization is possible; otherwise the
+     * original recipe
      */
     @Nonnull
     default MBDRecipe applyParallel(@Nonnull MBDRecipe recipe, int maxParallel) {
@@ -347,37 +498,56 @@ public interface IMachine extends IRecipeCapabilityHolder {
     }
 
     /**
-     * Called in {@link RecipeLogic#setupRecipe(MBDRecipe)} ()}
-     * @return whether interrupt the recipe setup.
+     * Called before recipe setup commits to working state.
+     *
+     * <p>Side effects: implementation-specific. Return {@code true} to veto
+     * setup and reset recipe progress.</p>
+     *
+     * @param recipe recipe about to start
+     * @return {@code true} to interrupt setup; {@code false} to continue
      */
     default boolean beforeWorking(MBDRecipe recipe) {
         return false;
     }
 
     /**
-     * Called per tick in {@link RecipeLogic#handleRecipeWorking()}
-     * @return whether interrupt the recipe working.
+     * Called once per active recipe tick before progress is incremented.
+     *
+     * <p>Side effects: implementation-specific. Return {@code true} to interrupt
+     * the active recipe.</p>
+     *
+     * @return {@code true} to interrupt work; {@code false} to continue
      */
     default boolean onWorking() {
         return false;
     }
 
     /**
-     * Called per tick in {@link RecipeLogic#handleRecipeWorking()}
+     * Called when recipe logic enters or remains in waiting state.
+     *
+     * <p>Side effects: implementation-specific, usually visual, sound, or
+     * diagnostic updates.</p>
      */
     default void onWaiting() {
 
     }
 
     /**
-     * Called in {@link RecipeLogic#onRecipeFinish()} before outputs are produced
+     * Called during recipe completion before outputs are produced.
+     *
+     * <p>Side effects: implementation-specific. Also used by interruption paths
+     * for working cleanup.</p>
      */
     default void afterWorking() {
 
     }
 
     /**
-     * Called in {@link RecipeLogic#onRecipeFinish()} when {@code ConsumeInputsAfterWorking} enabled and handled, before outputs are produced
+     * Called after delayed input consumption and before outputs are produced.
+     *
+     * <p>Deprecated compatibility-style hook with no consumption details. Prefer
+     * {@link #onConsumeInputsAfterWorking(RecipeConsumption)} when implementing
+     * new logic.</p>
      */
     default void onConsumeInputsAfterWorking() {
 
@@ -386,80 +556,119 @@ public interface IMachine extends IRecipeCapabilityHolder {
     /**
      * Called after recipe inputs are actually consumed.
      *
-     * @param afterWorking true when inputs were consumed by {@code ConsumeInputsAfterWorking}; false for normal pre-working consumption.
+     * <p>Side effects: implementation-specific accounting, statistics, or
+     * capability updates. The {@code consumedInputs} object describes what was
+     * committed by recipe IO.</p>
+     *
+     * @param recipe         recipe whose inputs were consumed
+     * @param consumedInputs committed input-consumption details
+     * @param afterWorking   {@code true} when inputs were consumed after progress
+     *                       completed; {@code false} for normal pre-working consumption
      */
     default void onRecipeInputsConsumed(MBDRecipe recipe, RecipeConsumption consumedInputs, boolean afterWorking) {
 
     }
 
     /**
-     * Called in {@link RecipeLogic#onRecipeFinish()} when {@code ConsumeInputsAfterWorking} enabled and handled, before outputs are produced.
+     * Called after delayed input consumption and before outputs are produced.
+     *
+     * @param consumedInputs committed input-consumption details
      */
     default void onConsumeInputsAfterWorking(RecipeConsumption consumedInputs) {
         onConsumeInputsAfterWorking();
     }
 
     /**
-     * Called in {@link RecipeLogic#onRecipeFinish()} after outputs are produced
+     * Called after recipe outputs have been produced.
+     *
+     * <p>Side effects: implementation-specific completion logic such as stats,
+     * sounds, render changes, or chaining behavior.</p>
      */
     default void onRecipeFinish() {
 
     }
 
     /**
-     * Whether progress decrease when machine is waiting for pertick ingredients. (e.g. lack of EU)
+     * Returns whether waiting should reduce current recipe progress.
+     *
+     * @return {@code true} to decay progress when waiting for per-tick resources;
+     * {@code false} to preserve progress
      */
     default boolean dampingWhenWaiting() {
         return true;
     }
 
     /**
-     * Always try {@link #doModifyRecipe(MBDRecipe)} before setting up recipe.
-     * @return true - will map {@link RecipeLogic#getLastOriginRecipe()} to the latest recipe for next round when finishing.
-     * false - keep using the {@link RecipeLogic#getLastRecipe()}, which is already modified.
+     * Returns whether recipe finish should remodify the original recipe before
+     * restarting.
+     *
+     * @return {@code true} to keep an origin recipe and rerun
+     * {@link #doModifyRecipe(MBDRecipe)} between cycles; {@code false} to keep
+     * reusing the already modified last recipe
      */
     default boolean alwaysTryModifyRecipe() {
         return false;
     }
 
     /**
-     * Always re-search recipe when the recipe is finished.
-     * @return true - will re-search recipe when the last recipe is finished.
+     * Returns whether finishing a recipe should force a fresh recipe search.
+     *
+     * @return {@code true} to mark the cached recipe dirty after completion
      */
     default boolean alwaysReSearchRecipe() {
         return false;
     }
 
     /**
-     * if the recipe handling is waiting, damping value is the decreased ticks of the current progress.
-     * @return damping value in tick.
+     * Returns how many progress ticks are lost per waiting tick.
+     *
+     * @return non-negative damping amount in ticks
      */
     default int getRecipeDampingValue() {
         return 2;
     }
 
     /**
-     * Whether the inputs will be consumed after working?
-     * @return false - it will be consumed before working.
-     * true - it will be consumed after working (before output). During processing, if the inputs do not match the current recipe anymore,
-     * the current recipe process will be discarded.
+     * Chooses whether inputs are consumed before or after recipe progress.
+     *
+     * <p>When this returns {@code true}, recipe logic keeps validating inputs
+     * during processing. If they stop matching, the active recipe is discarded.</p>
+     *
+     * @param recipe recipe about to start
+     * @return {@code false} to consume inputs before work starts; {@code true} to
+     * consume inputs after work completes and before outputs are produced
      */
     default boolean consumeInputsAfterWorking(MBDRecipe recipe) {
         return false;
     }
 
     /**
-     * Get the machine level. it will be used for recipe condition {@link com.lowdragmc.mbd2.common.recipe.MachineLevelCondition} an so on.
+     * Returns this machine's tier or level for recipe conditions.
+     *
+     * @return machine level used by conditions such as
+     * {@link com.lowdragmc.mbd2.common.recipe.MachineLevelCondition}; default is
+     * {@code 0}
      */
     default int getMachineLevel() {
         return 0;
     }
 
+    /**
+     * Returns the chance tier used by recipe content chance calculations.
+     *
+     * @return same value as {@link #getMachineLevel()} by default
+     */
     @Override
     default int getChanceTier() {
         return getMachineLevel();
     }
 
+    /**
+     * Returns a custom display name for this machine.
+     *
+     * @return optional component shown by UI integrations; {@code null} means use
+     * the normal block/item name
+     */
     default @Nullable Component getCustomName() {
         return null;
     }

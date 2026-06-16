@@ -15,12 +15,34 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Editor widget that renders one recipe {@link Content} value through its
+ * {@link RecipeCapability}.
+ *
+ * <p>The business goal is to provide a compact live preview for recipe content
+ * while preserving common overlays and tooltips. This widget is client-side UI
+ * state; it mutates child widgets when content changes but does not mutate recipe
+ * logic or world state.</p>
+ *
+ * @param <T> capability content type
+ */
 @Getter
 public class ContentWidget<T> extends WidgetGroup {
     private final RecipeCapability<T> cap;
     private final Content content;
     private Tag lastContentTag;
 
+    /**
+     * Creates a 20x20 content preview widget.
+     *
+     * <p>Side effects: creates and adds the capability-specific preview widget at
+     * offset {@code (1, 1)} and stores an NBT snapshot used for change detection.</p>
+     *
+     * @param x       widget x coordinate
+     * @param y       widget y coordinate
+     * @param cap     capability used to convert and preview the content
+     * @param content content wrapper to display
+     */
     public ContentWidget(int x, int y, RecipeCapability<T> cap, Content content) {
         super(x, y, 20, 20);
         this.cap = cap;
@@ -31,6 +53,12 @@ public class ContentWidget<T> extends WidgetGroup {
         addWidget(contentWidget);
     }
 
+    /**
+     * Refreshes the preview widget when the serialized content value changes.
+     *
+     * <p>Client-side only. Side effects: clears and recreates child widgets when
+     * the capability serializer reports a different NBT value.</p>
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void updateScreen() {
@@ -45,6 +73,12 @@ public class ContentWidget<T> extends WidgetGroup {
         }
     }
 
+    /**
+     * Draws the capability preview and common content overlays.
+     *
+     * <p>Client-side only. Side effects: draws chance and per-tick overlays over
+     * the 18x18 inner slot.</p>
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void drawInBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
@@ -52,6 +86,12 @@ public class ContentWidget<T> extends WidgetGroup {
         content.createOverlay().draw(graphics, mouseX, mouseY, getPositionX() + 1, getPositionY() + 1, 18, 18);
     }
 
+    /**
+     * Appends metadata tooltips when the cursor is over the content slot.
+     *
+     * <p>Client-side only. Side effects: merges existing ModularUI tooltips with
+     * content, slot-name, and UI-name tooltips.</p>
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void drawInForeground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {

@@ -21,34 +21,71 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.locks.Lock;
 
+/**
+ * Machine contract for a multiblock controller.
+ *
+ * <p>The business goal is to coordinate structure validation, part membership,
+ * async pattern checks, and controller-level recipe behavior. Structure checks
+ * can run off-thread, but world mutation, part-list mutation, and recipe state
+ * changes must be performed on the logical server thread while holding the
+ * controller's pattern lock when structure state is involved.</p>
+ */
 public interface IMultiController extends IMachine {
 
     int BASE_ASYNC_CHECK_INTERVAL = 4;
     int LARGE_PATTERN_BLOCKS = 512;
     int MAX_ASYNC_CHECK_INTERVAL = 80;
 
+    /**
+     * Resolves a multiblock controller capability from a block entity.
+     *
+     * @param blockEntity block entity to inspect; {@code null} yields an empty
+     *                    optional
+     * @return resolved controller when the machine capability implements this
+     * interface
+     */
     static Optional<IMultiController> ofController(@Nullable BlockEntity blockEntity) {
         return blockEntity == null ? Optional.empty() : blockEntity.getCapability(MBDCapabilities.CAPABILITY_MACHINE).resolve()
                 .filter(IMultiController.class::isInstance)
                 .map(IMultiController.class::cast);
     }
 
+    /**
+     * Resolves a multiblock controller capability at a world position.
+     *
+     * @param level block getter used to read the block entity
+     * @param pos   position to inspect
+     * @return resolved controller when present
+     */
     static Optional<IMultiController> ofController(@Nonnull BlockGetter level, @Nonnull BlockPos pos) {
         return ofController(level.getBlockEntity(pos));
     }
 
     /**
-     * Check MultiBlock Pattern. Just checking pattern without any other logic.
-     * You can override it but it's unsafe for calling. because it will also be called in an async thread.
-     * <br>
-     * you should always use {@link IMultiController#checkPatternWithLock()} and {@link IMultiController#checkPatternWithTryLock()} instead.
-     * @return whether it can be formed.
+     * Checks whether the multiblock pattern can be formed.
+     *
+     * <p>Preconditions: this method may be called from an async thread, so
+     * implementations must not mutate world, controller, or part state here.
+     * Prefer {@link #checkPatternWithLock()} or {@link #checkPatternWithTryLock()}
+     * from external callers. Side effects should be limited to temporary
+     * {@link MultiblockState} check data.</p>
+     *
+     * @return {@code true} when the pattern currently matches
      */
     default boolean checkPattern() {
         BlockPattern pattern = getPattern();
         return pattern != null && pattern.checkPatternAt(getMultiblockState(), true);
     }
 
+    /**
+     * Computes how often async pattern checks should run.
+     *
+     * <p>Business goal: reduce background pressure for large patterns while
+     * keeping small structures responsive.</p>
+     *
+     * @return interval in ticks, from {@link #BASE_ASYNC_CHECK_INTERVAL} up to
+     * {@link #MAX_ASYNC_CHECK_INTERVAL}
+     */
     default int getAsyncCheckPatternInterval() {
         BlockPattern pattern = getPattern();
         if (pattern == null) {
@@ -63,7 +100,12 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Check pattern with a lock.
+     * Checks the pattern while holding the pattern lock.
+     *
+     * <p>Side effects: acquires and releases {@link #getPatternLock()} around
+     * {@link #checkPattern()}.</p>
+     *
+     * @return result of the locked pattern check
      */
     default boolean checkPatternWithLock() {
         var lock = getPatternLock();
@@ -76,8 +118,10 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Check pattern with a try lock
-     * @return false - checking failed or cant get the lock.
+     * Attempts to check the pattern without blocking on the lock.
+     *
+     * @return {@code false} when the lock cannot be acquired or the pattern does
+     * not match; {@code true} only for a successful locked check
      */
     default boolean checkPatternWithTryLock() {
         var lock = getPatternLock();
@@ -93,39 +137,53 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Get structure pattern.
-     * You can override it to create dynamic patterns.
+     * Returns the structure pattern for this controller.
+     *
+     * <p>Implementations may compute dynamic patterns but should keep this method
+     * side-effect free because callers may use it during async checks.</p>
+     *
+     * @return pattern to validate, or {@code null} when the controller currently
+     * has no valid pattern definition
      */
     BlockPattern getPattern();
 
     /**
-     * Whether Multiblock Formed.
-     * <br>
-     * NOTE: even machine is formed, it doesn't mean to workable!
-     * Its parts maybe invalid due to chunk unload.
-     * <br>
-     * use {@link #isFormedValid()} to check workable.
+     * Returns whether the structure has previously formed.
+     *
+     * <p>A formed structure is not necessarily workable: parts may be unloaded or
+     * invalid. Use {@link #isFormedValid()} for recipe/work checks.</p>
+     *
+     * @return {@code true} after successful formation until invalidated
      */
     boolean isFormed();
 
     /**
-     * Whether the structure is totally valid and workable.
+     * Returns whether the formed structure is currently workable.
+     *
+     * @return {@code true} when the structure is formed and all required parts
+     * are loaded/valid
      */
     boolean isFormedValid();
 
     /**
-     * Get MultiblockState. It records all structure-related information.
+     * Returns the mutable structure state record.
+     *
+     * @return non-null state containing controller position, matched parts, and
+     * pattern check diagnostics
      */
     @Nonnull
     MultiblockState getMultiblockState();
 
     /**
-     * Override it to modify recipe on the fly e.g. applying overclock, change chance, etc
-     * <br>
-     * Parts can modify recipe by calling {@link IMultiPart#modifyControllerRecipe(MBDRecipe, RecipeLogic)}
-     * @param recipe recipe from detected from MBDRecipe
-     * @return modified recipe.
-     *         null -- this recipe is unavailable
+     * Applies controller-part recipe modifications.
+     *
+     * <p>Business goal: let parts contribute overclocking, tier checks, or
+     * content changes to controller recipes. Side effects should be avoided
+     * because recipe logic calls this during candidate validation.</p>
+     *
+     * @param recipe candidate recipe detected by this controller's recipe type
+     * @return recipe after all parts modify it, or {@code null} when any part
+     * rejects it
      */
     @Nullable
     default MBDRecipe getModifiedRecipe(@Nonnull MBDRecipe recipe) {
@@ -136,6 +194,12 @@ public interface IMultiController extends IMachine {
         return recipe;
     }
 
+    /**
+     * Merges controller and part parallelization modifiers.
+     *
+     * @param recipe candidate recipe
+     * @return merged modifier contributed by the controller and all parts
+     */
     @Override
     default ContentModifier getMaxParallel(@NotNull MBDRecipe recipe) {
         var maxParallel = IMachine.super.getMaxParallel(recipe);
@@ -145,6 +209,12 @@ public interface IMultiController extends IMachine {
         return maxParallel;
     }
 
+    /**
+     * Returns whether any part requires recipe remodification between cycles.
+     *
+     * @return {@code true} when at least one part requests
+     * always-try-modify behavior
+     */
     @Override
     default boolean alwaysTryModifyRecipe() {
         for (var part : getParts()) {
@@ -156,15 +226,20 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Called in an async thread. It's unsafe, Don't modify anything of world but checking information.
-     * It will be called per 5 tick.
-     * <br>
-     * to implement it, you should
-     * <br>
-     * - call {@link MultiblockWorldSavedData#addAsyncLogic(IMultiController)} in {@link IMultiController#onLoad()}
-     * <br>
-     * - call {@link MultiblockWorldSavedData#removeAsyncLogic(IMultiController)} in {@link IMultiController#onUnload()}
-     * @param periodID period Tick
+     * Performs periodic async pattern validation and schedules formation on the
+     * server thread.
+     *
+     * <p>Preconditions: called by {@link MultiblockWorldSavedData}'s async
+     * logic. Implementations that use this default should register with
+     * {@link MultiblockWorldSavedData#addAsyncLogic(IMultiController)} from
+     * {@link #onLoad()} and unregister from
+     * {@link MultiblockWorldSavedData#removeAsyncLogic(IMultiController)} from
+     * {@link #onUnload()}. Side effects: may run a try-locked async check and,
+     * when the pattern matches, schedules a locked server-thread confirmation
+     * that calls {@link #onStructureFormed()} and updates multiblock saved-data
+     * mappings.</p>
+     *
+     * @param periodID periodic tick id supplied by async saved-data logic
      */
     default void asyncCheckPattern(long periodID) {
         long periodOffset = getOffset() + periodID;
@@ -192,64 +267,79 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Called when structure is formed, have to be called after {@link #checkPattern()}. (server-side / fake scene only)
-     * <br>
-     * Trigger points:
-     * <br>
-     * 1 - Blocks in structure changed but still formed.
-     * <br>
-     * 2 - Literally, structure formed.
+     * Handles successful structure formation.
+     *
+     * <p>Preconditions: call after a successful {@link #checkPattern()} on the
+     * server side or in a fake scene. Side effects usually include marking the
+     * controller formed, attaching parts, syncing state, and notifying the world.
+     * Triggered when the structure first forms or block changes keep it formed.</p>
      */
     void onStructureFormed();
 
     /**
-     * Called when structure is invalid. (server-side / fake scene only)
-     * <br>
-     * Trigger points:
-     * <br>
-     * 1 - Blocks in structure changed.
-     * <br>
-     * 2 - Before controller machine removed.
+     * Invalidates the structure without marking the controller as removed.
+     *
+     * <p>Side effects are delegated to
+     * {@link #onStructureInvalid(boolean)}.</p>
      */
     default void onStructureInvalid() {
         onStructureInvalid(false);
     }
 
     /**
-     * Called when structure is invalid. (server-side / fake scene only)
-     * <br>
-     * Trigger points:
-     * <br>
-     * 1 - Blocks in structure changed.
-     * <br>
-     * 2 - Before controller machine removed.
+     * Handles structure invalidation.
+     *
+     * <p>Preconditions: call on the server side or in a fake scene when blocks
+     * change or before the controller is removed. Side effects usually include
+     * detaching parts, clearing formed state, updating saved-data mappings, and
+     * interrupting recipe logic.</p>
+     *
+     * @param isControllerRemoved {@code true} when invalidation is caused by
+     *                            controller removal
      */
     void onStructureInvalid(boolean isControllerRemoved);
 
     /**
-     * Get all parts
+     * Returns currently attached parts.
+     *
+     * @return mutable or immutable implementation-defined list of parts; callers
+     * should not mutate it unless the implementation documents that behavior
      */
     List<IMultiPart> getParts();
 
     /**
-     * Called from part, when part is invalid due to chunk unload or broken.
+     * Called by a part when it unloads or is broken.
+     *
+     * <p>Side effects: implementation-specific, usually invalidating the
+     * structure or scheduling a recheck.</p>
      */
     void onPartUnload();
 
     /**
-     * Get lock for async pattern checking.
+     * Returns the lock guarding pattern checks and structure state mutation.
+     *
+     * @return shared lock used by async and server-thread pattern logic
      */
     Lock getPatternLock();
 
     /**
-     * should add part to the part list.
+     * Decides whether a matched part should be attached to this controller.
+     *
+     * @param part candidate part from the matched pattern
+     * @return {@code true} to add the part to the controller's part list
      */
     default boolean shouldAddPartToController(IMultiPart part) {
         return true;
     }
 
     /**
-     * get parts' Appearance. same as IForgeBlock.getAppearance() / IFabricBlock.getAppearance()
+     * Supplies a controller-defined appearance for a part.
+     *
+     * @param part        part being rendered or queried
+     * @param side        queried side
+     * @param sourceState original part block state
+     * @param sourcePos   original part position
+     * @return replacement appearance, or {@code null} to use the part default
      */
     @Nullable
     default BlockState getPartAppearance(IMultiPart part, Direction side, BlockState sourceState, BlockPos sourcePos) {
@@ -257,7 +347,10 @@ public interface IMultiController extends IMachine {
     }
 
     /**
-     * Called when recipe logic status changed
+     * Notifies attached parts that controller recipe status changed.
+     *
+     * @param oldStatus previous status
+     * @param newStatus new status
      */
     default void notifyRecipeStatusChanged(RecipeLogic.Status oldStatus, RecipeLogic.Status newStatus) {
         for (IMultiPart part : getParts()) {
@@ -265,6 +358,12 @@ public interface IMultiController extends IMachine {
         }
     }
 
+    /**
+     * Lets attached parts veto controller recipe setup.
+     *
+     * @param recipe recipe about to start
+     * @return {@code true} when any part interrupts setup
+     */
     @Override
     default boolean beforeWorking(MBDRecipe recipe) {
         IMachine.super.beforeWorking(recipe);
@@ -276,6 +375,11 @@ public interface IMultiController extends IMachine {
         return false;
     }
 
+    /**
+     * Lets attached parts interrupt an active controller recipe tick.
+     *
+     * @return {@code true} when any part interrupts work
+     */
     @Override
     default boolean onWorking() {
         IMachine.super.onWorking();
@@ -287,6 +391,9 @@ public interface IMultiController extends IMachine {
         return false;
     }
 
+    /**
+     * Notifies attached parts that controller recipe logic is waiting.
+     */
     @Override
     default void onWaiting() {
         IMachine.super.onWaiting();
@@ -295,6 +402,10 @@ public interface IMultiController extends IMachine {
         }
     }
 
+    /**
+     * Notifies attached parts that controller recipe work is cleaning up before
+     * outputs are produced or work is interrupted.
+     */
     @Override
     default void afterWorking() {
         IMachine.super.afterWorking();
