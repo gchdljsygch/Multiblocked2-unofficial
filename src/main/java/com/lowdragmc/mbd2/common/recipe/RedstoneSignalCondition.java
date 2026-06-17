@@ -19,11 +19,21 @@ import net.minecraft.world.item.Items;
 
 import javax.annotation.Nonnull;
 
+/**
+ * Recipe condition that requires a redstone neighbor signal range at the machine position.
+ *
+ * <p>The business goal is to let recipes depend on vanilla redstone control. Signal bounds use vanilla's inclusive
+ * {@code 0..15} range. Matching reads {@link net.minecraft.world.level.Level#getBestNeighborSignal} at the machine
+ * position on the recipe logic thread and has no side effects.</p>
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 public class RedstoneSignalCondition extends RecipeCondition {
 
+    /**
+     * Prototype instance used by the recipe-condition registry and deserializers.
+     */
     public final static RedstoneSignalCondition INSTANCE = new RedstoneSignalCondition();
     @Configurable(name = "config.recipe.condition.redstone_signal.signal.min")
     @NumberRange(range = {0f, 15f})
@@ -32,26 +42,54 @@ public class RedstoneSignalCondition extends RecipeCondition {
     @NumberRange(range = {0f, 15f})
     private int maxSignal;
 
+    /**
+     * Creates a redstone-signal condition.
+     *
+     * @param minSignal minimum accepted signal, inclusive; expected range is {@code 0..15}
+     * @param maxSignal maximum accepted signal, inclusive; expected range is {@code 0..15}
+     */
     public RedstoneSignalCondition(int minSignal, int maxSignal) {
         this.minSignal = minSignal;
         this.maxSignal = maxSignal;
     }
 
+    /**
+     * Returns the serialized recipe-condition type id.
+     *
+     * @return {@code redstone_signal}
+     */
     @Override
     public String getType() {
         return "redstone_signal";
     }
 
+    /**
+     * Builds the tooltip describing the accepted signal range.
+     *
+     * @return localized tooltip component
+     */
     @Override
     public Component getTooltips() {
         return Component.translatable("recipe.condition.redstone_signal.tooltip", minSignal, maxSignal);
     }
 
+    /**
+     * Returns the editor icon for this condition.
+     *
+     * @return redstone torch item texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(Items.REDSTONE_TORCH);
     }
 
+    /**
+     * Tests the best neighboring redstone signal at the machine position.
+     *
+     * @param recipe      recipe being checked
+     * @param recipeLogic recipe logic supplying the machine level and position
+     * @return {@code true} when the signal is inside the inclusive configured range
+     */
     @Override
     public boolean test(@Nonnull MBDRecipe recipe, @Nonnull RecipeLogic recipeLogic) {
         var pos = recipeLogic.getMachine().getPos();
@@ -59,6 +97,11 @@ public class RedstoneSignalCondition extends RecipeCondition {
         return signal >= minSignal && signal <= maxSignal;
     }
 
+    /**
+     * Serializes the condition to JSON.
+     *
+     * @return JSON object with {@code minSignal} and {@code maxSignal}
+     */
     @Nonnull
     @Override
     public JsonObject serialize() {
@@ -68,6 +111,12 @@ public class RedstoneSignalCondition extends RecipeCondition {
         return config;
     }
 
+    /**
+     * Loads the condition from JSON.
+     *
+     * @param config JSON object produced by {@link #serialize()}
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition deserialize(@Nonnull JsonObject config) {
         super.deserialize(config);
@@ -76,6 +125,12 @@ public class RedstoneSignalCondition extends RecipeCondition {
         return this;
     }
 
+    /**
+     * Reads the condition from the network buffer.
+     *
+     * @param buf source buffer
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition fromNetwork(FriendlyByteBuf buf) {
         super.fromNetwork(buf);
@@ -84,6 +139,11 @@ public class RedstoneSignalCondition extends RecipeCondition {
         return this;
     }
 
+    /**
+     * Writes the condition to the network buffer.
+     *
+     * @param buf destination buffer
+     */
     @Override
     public void toNetwork(FriendlyByteBuf buf) {
         super.toNetwork(buf);
@@ -91,6 +151,11 @@ public class RedstoneSignalCondition extends RecipeCondition {
         buf.writeVarInt(maxSignal);
     }
 
+    /**
+     * Serializes the condition to NBT.
+     *
+     * @return NBT tag with signal bounds
+     */
     @Override
     public CompoundTag toNBT() {
         var tag = super.toNBT();
@@ -99,6 +164,12 @@ public class RedstoneSignalCondition extends RecipeCondition {
         return tag;
     }
 
+    /**
+     * Loads the condition from NBT.
+     *
+     * @param tag source tag produced by {@link #toNBT()}
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition fromNBT(CompoundTag tag) {
         super.fromNBT(tag);

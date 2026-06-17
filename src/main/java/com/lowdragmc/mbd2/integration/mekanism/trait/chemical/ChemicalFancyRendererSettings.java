@@ -23,6 +23,9 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 
+/**
+ * Fancy renderer settings for drawing stored Mekanism chemicals inside a machine block.
+ */
 public class ChemicalFancyRendererSettings extends FancyRendererSettings {
     private final ChemicalTankCapabilityTraitDefinition<?, ?> definition;
 

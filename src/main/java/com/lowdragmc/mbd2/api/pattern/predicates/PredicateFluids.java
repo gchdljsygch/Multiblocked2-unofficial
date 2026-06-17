@@ -13,24 +13,53 @@ import org.apache.commons.lang3.ArrayUtils;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Predicate that accepts positions containing one of several fluid types.
+ *
+ * <p>The business goal is to let multiblock definitions require water, lava, or
+ * modded fluids while exposing bucket candidates for previews and auto-build.
+ * Instances are mutable through the editor and rebuild their matcher after
+ * configuration changes.</p>
+ */
 @LDLRegister(name = "fluids", group = "predicate")
 @NoArgsConstructor
 public class PredicateFluids extends SimplePredicate {
 
     @Configurable(name = "config.predicate.fluids", tips = "config.predicate.fluids.tooltip", collapse = false)
-    protected Fluid[] fluids = new Fluid[] {Fluids.WATER};
+    protected Fluid[] fluids = new Fluid[]{Fluids.WATER};
 
+    /**
+     * Creates a fluid predicate.
+     *
+     * @param fluids accepted fluid types; null entries are discarded during
+     *               rebuild
+     */
     public PredicateFluids(Fluid... fluids) {
         this.fluids = fluids;
         buildPredicate();
     }
 
+    /**
+     * Updates the accepted fluids from the editor.
+     *
+     * <p>Side effects: rebuilds the runtime predicate and bucket candidates.</p>
+     *
+     * @param fluids accepted fluid types
+     */
     @ConfigSetter(field = "fluids")
     public void setFluids(Fluid[] fluids) {
         this.fluids = fluids;
         buildPredicate();
     }
 
+    /**
+     * Rebuilds the matcher and fluid candidates.
+     *
+     * <p>Side effects: removes null fluid entries, replaces an empty list with a
+     * water fallback, and updates inherited preview state.</p>
+     *
+     * @return this predicate for chaining
+     */
     @Override
     public SimplePredicate buildPredicate() {
         fluids = Arrays.stream(fluids).filter(Objects::nonNull).toArray(Fluid[]::new);

@@ -17,6 +17,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Shared configuration and cache for optional in-world trait renderers.
+ *
+ * <p>Subclasses create the actual renderer for a capability type. This base class gates renderer creation by the
+ * enable flag and optional machine-state filters, then caches the renderer instance for reuse. Configuration vectors
+ * are client-render transforms in block-local coordinates; consumers apply them when rendering.</p>
+ */
 public abstract class FancyRendererSettings implements IToggleConfigurable {
     @Getter
     @Setter
@@ -52,6 +59,16 @@ public abstract class FancyRendererSettings implements IToggleConfigurable {
     private Set<String> filterSet;
     private IRenderer renderer;
 
+    /**
+     * Returns the renderer that should be used for the supplied machine.
+     *
+     * <p>Disabled settings and filtered-out runtime machine states return {@link IRenderer#EMPTY}. Dummy-world
+     * editor previews bypass state filtering so the configured renderer can be inspected even without a real machine
+     * state. The created renderer is cached until {@link #clearCache()} is called.</p>
+     *
+     * @param machine machine requesting a block entity renderer
+     * @return cached renderer, newly created renderer, or {@link IRenderer#EMPTY}
+     */
     public IRenderer getFancyRenderer(IMachine machine) {
         if (!enable) return IRenderer.EMPTY;
         if (filterSet == null) filterSet = new HashSet<>(filters);
@@ -67,9 +84,19 @@ public abstract class FancyRendererSettings implements IToggleConfigurable {
         return renderer;
     }
 
+    /**
+     * Drops the cached renderer so subsequent calls recreate it from current subclass settings.
+     */
     public void clearCache() {
         renderer = null;
     }
 
+    /**
+     * Creates the capability-specific renderer.
+     *
+     * <p>Called lazily by {@link #getFancyRenderer(IMachine)} only after enable/filter checks pass.</p>
+     *
+     * @return renderer instance for this settings object
+     */
     public abstract IRenderer createFancyRenderer();
 }

@@ -21,6 +21,16 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Preview panel for concrete multiblock shape variants.
+ *
+ * <p>The panel renders selected {@link com.lowdragmc.mbd2.api.pattern.MultiblockShapeInfo}
+ * data into a {@link TrackedDummyWorld} and delegates the list of available variants to
+ * {@link ShapeInfoList}. Shape previews are read-only from this panel; deletion and list
+ * rebuilds are handled by the side-list widget.</p>
+ *
+ * <p>This class is client-editor UI and should be used only from the render/UI thread.</p>
+ */
 public class MultiblockShapeInfoPanel extends WidgetGroup {
     @Getter
     protected final MachineEditor editor;
@@ -32,6 +42,12 @@ public class MultiblockShapeInfoPanel extends WidgetGroup {
     protected final SceneEditorWidget scene;
     protected final WidgetGroup buttonGroup;
 
+    /**
+     * Creates the shape-info preview panel for a multiblock project.
+     *
+     * @param editor  owning editor used for tool and config panels
+     * @param project project that supplies explicit or auto-built shape previews
+     */
     public MultiblockShapeInfoPanel(MachineEditor editor, MultiblockMachineProject project) {
         super(0, MenuPanel.HEIGHT + 16, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
         this.editor = editor;
@@ -48,11 +64,23 @@ public class MultiblockShapeInfoPanel extends WidgetGroup {
         buttonGroup.setSelfPosition(new Position(this.getSize().width - buttonGroup.getSize().width - 25, 25));
     }
 
+    /**
+     * Clears the rendered preview and closes the shape-specific configurator.
+     */
     public void clearShapeInfo() {
         scene.setRenderedCore(Collections.emptyList());
         editor.getConfigPanel().clearAllConfigurators(MachineEditor.BASIC);
     }
 
+    /**
+     * Displays a selected shape preview.
+     *
+     * @param configurable optional shape object to expose in the config panel; {@code null}
+     *                     means the preview is generated from the pattern and is not directly
+     *                     editable
+     * @param blocks       block positions already populated in the panel dummy world and intended
+     *                     to be rendered by the scene
+     */
     public void loadShapeInfo(@Nullable IConfigurable configurable, Collection<BlockPos> blocks) {
         scene.setRenderedCore(blocks);
         if (configurable != null) {
@@ -63,7 +91,7 @@ public class MultiblockShapeInfoPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Installs the shape-info toolbox and resets the currently displayed preview.
      */
     public void onPanelSelected() {
         editor.getConfigPanel().clearAllConfigurators();
@@ -79,7 +107,7 @@ public class MultiblockShapeInfoPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is deselected/switched from.
+     * Hides shape-info tooling and clears editor configurators.
      */
     public void onPanelDeselected() {
         editor.getToolPanel().setTitle("ldlib.gui.editor.group.tool_box");
@@ -89,7 +117,9 @@ public class MultiblockShapeInfoPanel extends WidgetGroup {
     }
 
     /**
-     * prepare the button group, you can add buttons / switches here.
+     * Adds extra toolbar controls for subclasses.
+     *
+     * <p>The base shape-info panel uses only the side toolbox.</p>
      */
     protected void prepareButtonGroup() {
     }

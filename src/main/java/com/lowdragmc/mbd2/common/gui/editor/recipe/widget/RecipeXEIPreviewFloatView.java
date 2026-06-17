@@ -15,8 +15,21 @@ import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import com.lowdragmc.mbd2.common.gui.editor.RecipeTypeProject;
 import net.minecraft.nbt.CompoundTag;
 
+/**
+ * Floating live preview for the selected built-in recipe's XEI UI.
+ *
+ * <p>The view serializes the project's recipe UI template, deserializes it into an isolated
+ * client-side widget tree, binds the selected recipe data to that copy, and displays the
+ * result. The original editable template is not modified by preview binding. A snapshot of
+ * the recipe NBT is kept so the preview can refresh when recipe contents or metadata change.</p>
+ *
+ * <p>This widget is client editor UI and should be updated on the render/UI thread.</p>
+ */
 public class RecipeXEIPreviewFloatView extends FloatViewWidget {
 
+    /**
+     * Creates an initially empty recipe preview float view.
+     */
     public RecipeXEIPreviewFloatView() {
         super(200, 200, 200, 120, false);
     }
@@ -31,6 +44,9 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
         return "editor.machine";
     }
 
+    /**
+     * Returns the icon shown when the float view is collapsed.
+     */
     public IGuiTexture getIcon() {
         return new ProgressTexture();
     }
@@ -40,6 +56,9 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
         return Icons.REMOVE;
     }
 
+    /**
+     * Returns the owning machine editor.
+     */
     public MachineEditor getEditor() {
         return (MachineEditor) editor;
     }
@@ -48,16 +67,25 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
     private MBDRecipe recipe;
     private CompoundTag lastData;
 
+    /**
+     * Clears the rendered recipe preview.
+     */
     public void clearRecipe() {
         content.clearAllWidgets();
     }
 
+    /**
+     * Loads a recipe into an isolated copy of the active recipe UI template.
+     *
+     * @param isFuel whether the fuel UI template should be used
+     * @param recipe recipe to bind into the preview; {@code null} leaves the preview empty
+     */
     public void loadRecipe(boolean isFuel, MBDRecipe recipe) {
         clearRecipe();
         this.isFuel = isFuel;
         if (recipe == null) return;
         if (editor.getCurrentProject() instanceof RecipeTypeProject project) {
-            this.recipe = recipe;;
+            this.recipe = recipe;
             lastData = MBDRecipeSerializer.SERIALIZER.toNBT(recipe);
             var tag = IConfigurableWidget.serializeNBT(isFuel ? project.getFuelUI() : project.getUi(), project.getResources(), true);
             var ui = new WidgetGroup();
@@ -65,12 +93,18 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
             IConfigurableWidget.deserializeNBT(ui, tag, project.getResources(), true);
             project.getRecipeType().bindXEIRecipeUI(ui, recipe);
             ui.setSelfPosition(0, 0);
-            resetSeize(ui.getSizeWidth(), ui.getSizeHeight());
+            resetSize(ui.getSizeWidth(), ui.getSizeHeight());
             content.addWidget(ui);
         }
     }
 
-    public void resetSeize(int width, int height) {
+    /**
+     * Resizes the float view to fit the rendered template.
+     *
+     * @param width  content width in pixels
+     * @param height content height in pixels
+     */
+    public void resetSize(int width, int height) {
         setSize(width, height + 15);
         clearAllWidgets();
         initWidget();
@@ -87,6 +121,17 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
         }
     }
 
+    /**
+     * @deprecated use {@link #resetSize(int, int)}.
+     */
+    @Deprecated(forRemoval = false)
+    public void resetSeize(int width, int height) {
+        resetSize(width, height);
+    }
+
+    /**
+     * Refreshes the preview when the selected recipe's serialized data changes.
+     */
     @Override
     public void updateScreen() {
         super.updateScreen();

@@ -16,6 +16,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * Adjusts LDLib modular-container item movement for oversized widget stacks.
+ *
+ * <p>MBD storage widgets may expose stacks larger than a vanilla item can hold. This mixin blocks
+ * unsafe cursor swaps and limits shift-click extraction to one native stack per action, preserving
+ * the backing machine storage while still letting players move usable stack-sized chunks.</p>
+ */
 @Mixin(ModularUIContainer.class)
 public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
     @Shadow(remap = false)
@@ -35,6 +42,12 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
 
     /**
      * Prevent swapping an oversized widget slot stack directly onto the carried cursor stack.
+     *
+     * @param slotId      clicked slot index
+     * @param dragType    vanilla drag/click subtype
+     * @param clickTypeIn vanilla click type
+     * @param player      player interacting with the container
+     * @param ci          callback cancelled when the swap would be unsafe
      */
     @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
     private void mbd2$blockOversizedCursorSwap(int slotId, int dragType, ClickType clickTypeIn, Player player, CallbackInfo ci) {
@@ -49,7 +62,12 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
     }
 
     /**
-     * @author
+     * Transfers at most one native item stack from a widget transfer slot per shift-click.
+     *
+     * @param player player performing the quick move
+     * @param index  clicked slot index
+     * @return stack moved by this action, or {@link ItemStack#EMPTY} when nothing moved
+     * @author pingsu
      * @reason Limit shift-click extraction from widget transfer slots to one native stack per action.
      */
     @Overwrite
@@ -96,6 +114,14 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
         return resultStack;
     }
 
+    /**
+     * Checks whether a pickup click would swap an oversized slot stack onto an incompatible cursor
+     * stack.
+     *
+     * @param slot        clicked slot
+     * @param clickTypeIn vanilla click type
+     * @return {@code true} when the click should be blocked
+     */
     private boolean mbd2$shouldBlockOversizedSwap(Slot slot, ClickType clickTypeIn) {
         if (clickTypeIn != ClickType.PICKUP) {
             return false;
@@ -113,6 +139,12 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
         return slotStack.getCount() > slotStack.getMaxStackSize() && !ItemStack.isSameItemSameTags(slotStack, carried);
     }
 
+    /**
+     * Identifies LDLib widget transfer slots by implementation class name.
+     *
+     * @param slot slot instance to test
+     * @return {@code true} for LDLib widget item-transfer slots
+     */
     private boolean mbd2$isWidgetTransferSlot(Slot slot) {
         return slot.getClass().getName().equals("com.lowdragmc.lowdraglib.gui.widget.SlotWidget$WidgetSlotItemTransfer");
     }

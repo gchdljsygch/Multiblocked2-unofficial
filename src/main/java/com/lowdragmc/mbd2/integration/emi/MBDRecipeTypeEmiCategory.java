@@ -17,7 +17,13 @@ import net.minecraft.resources.ResourceLocation;
 import javax.annotation.Nullable;
 import java.util.function.Function;
 
+/**
+ * EMI category for ordinary MBD recipes of a single recipe type.
+ */
 public class MBDRecipeTypeEmiCategory extends EmiRecipeCategory {
+    /**
+     * EMI recipe wrapper that supplies an MBD modular recipe UI.
+     */
     public static class MBDEmiRecipe extends ModularEmiRecipe<Widget> {
         final MBDRecipeTypeEmiCategory category;
         final MBDRecipe recipe;
@@ -43,7 +49,7 @@ public class MBDRecipeTypeEmiCategory extends EmiRecipeCategory {
     public final MBDRecipeType recipeType;
 
     public MBDRecipeTypeEmiCategory(MBDRecipeType recipeType) {
-        super(recipeType.getRegistryName(), IGui2Renderable.toDrawable(recipeType.getIcon(), 16,  16));
+        super(recipeType.getRegistryName(), IGui2Renderable.toDrawable(recipeType.getIcon(), 16, 16));
         this.recipeType = recipeType;
     }
 
@@ -61,12 +67,12 @@ public class MBDRecipeTypeEmiCategory extends EmiRecipeCategory {
     public static void registerWorkStations(EmiRegistry registry) {
         for (var mbdRecipeType : MBDRegistries.RECIPE_TYPES) {
             if (mbdRecipeType.isXEIVisible()) {
-                    for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
-                        var recipeType = definition.recipeLogicSettings().getRecipeType();
-                        if (recipeType == mbdRecipeType && definition.item() != null) {
-                            registry.addWorkstation(MBDRecipeTypeEmiCategory.CATEGORIES.apply(mbdRecipeType), EmiStack.of(definition.item()));
-                        }
+                for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
+                    var recipeType = definition.recipeLogicSettings().getRecipeType();
+                    if (recipeType == mbdRecipeType && definition.item() != null) {
+                        registry.addWorkstation(MBDRecipeTypeEmiCategory.CATEGORIES.apply(mbdRecipeType), EmiStack.of(definition.item()));
                     }
+                }
             }
         }
     }

@@ -24,6 +24,13 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 
+/**
+ * Fancy renderer settings for fluid tank traits.
+ *
+ * <p>The renderer draws the first tank's fluid as a translucent cube in block space. When percent-height rendering
+ * is enabled, the cube height is proportional to {@code amount / capacity}. Rendering is client-only and reads live
+ * storage from the bound machine trait.</p>
+ */
 public class FluidFancyRendererSettings extends FancyRendererSettings {
     private final FluidTankCapabilityTraitDefinition definition;
 
@@ -33,10 +40,20 @@ public class FluidFancyRendererSettings extends FancyRendererSettings {
     private boolean percentHeight = false;
 
 
+    /**
+     * Creates fluid renderer settings bound to one tank trait definition.
+     *
+     * @param definition definition whose runtime trait supplies the fluid storage to render
+     */
     public FluidFancyRendererSettings(FluidTankCapabilityTraitDefinition definition) {
         this.definition = definition;
     }
 
+    /**
+     * Creates the cached fluid renderer.
+     *
+     * @return renderer that draws the first storage tank for the bound definition
+     */
     public IRenderer createFancyRenderer() {
         return new FluidFancyRendererSettings.Renderer();
     }

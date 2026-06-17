@@ -29,6 +29,13 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Persisted item-level properties for a machine definition's item form.
+ * <p>
+ * Stack size and rarity are applied to the registered item. Renderer settings
+ * drive the inventory/GUI representation, while tooltip and creative-tab data
+ * are consumed by the item and editor UI.
+ */
 @Getter
 @Builder
 @Accessors(fluent = true)
@@ -69,6 +76,12 @@ public class ConfigItemProperties implements IConfigurable, IPersistedSerializab
     @Builder.Default
     private ToggleCreativeTab creativeTab = new ToggleCreativeTab(true);
 
+    /**
+     * Applies item registration properties controlled by this config.
+     *
+     * @param itemProp base item properties
+     * @return properties configured with stack size and rarity
+     */
     public Item.Properties apply(Item.Properties itemProp) {
         return itemProp.stacksTo(maxStackSize).rarity(rarity);
     }

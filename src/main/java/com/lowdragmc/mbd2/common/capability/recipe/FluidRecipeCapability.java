@@ -39,9 +39,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * @author KilaBash
- * @date 2023/2/20
- * @implNote FluidRecipeCapability
+ * Recipe capability descriptor for fluid ingredients.
+ *
+ * <p>The capability renders fixed-amount fluid/tag/NBT requirements, provides editor configurators for candidate
+ * fluids/tags and optional NBT, and binds either LowDragLib or GTM tank widgets when available. Recipe IO is handled
+ * by fluid tank traits; this descriptor is responsible only for content conversion, display, editing, and diagnostics.</p>
  */
 public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
 
@@ -50,21 +52,40 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
 
     public final static FluidRecipeCapability CAP = new FluidRecipeCapability();
 
+    /**
+     * Creates the singleton fluid recipe capability.
+     */
     protected FluidRecipeCapability() {
         super("fluid", SerializerFluidIngredient.INSTANCE);
     }
 
+    /**
+     * Returns a representative bucket-sized water requirement.
+     *
+     * @return water ingredient with amount {@code 1000}
+     */
     @Override
     public FluidIngredient createDefaultContent() {
         return FluidIngredient.of(1000, Fluids.WATER);
     }
 
+    /**
+     * Creates a tank preview for the supplied fluid ingredient.
+     *
+     * @param content fluid ingredient to preview
+     * @return non-interactive tank widget cycling through matching stacks
+     */
     @Override
     public Widget createPreviewWidget(FluidIngredient content) {
         var storage = new CycleFluidStorage(content.getAmount(), Arrays.stream(content.getStacks()).toList());
         return new TankWidget(storage, 0, 0, false, false).setDrawHoverOverlay(false);
     }
 
+    /**
+     * Creates the default fluid tank template used in recipe viewers.
+     *
+     * @return unbound tank widget template
+     */
     @Override
     public Widget createXEITemplate() {
         var tankWidget = new TankWidget();
@@ -75,6 +96,16 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
         return tankWidget;
     }
 
+    /**
+     * Binds a fluid ingredient to a LowDragLib or GTM recipe-viewer tank.
+     *
+     * <p>Tag-only ingredients are exposed as tag entries with the configured amount; concrete fluid candidates are
+     * exposed as cycling stacks. The method mutates only the supplied widget.</p>
+     *
+     * @param widget       tank widget created by this capability or a compatible GTM widget
+     * @param content      recipe content wrapper containing a fluid ingredient
+     * @param ingredientIO viewer role for input/output display
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof TankWidget tankWidget) {
@@ -127,10 +158,18 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
                     tankWidget.setAllowClickFilled(false);
                     tankWidget.setXEIChance(content.chance);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
+    /**
+     * Creates editor configurators for amount, candidate fluids/tags, and optional fluid NBT.
+     *
+     * @param father   parent configurator group
+     * @param supplier current fluid ingredient supplier
+     * @param onUpdate callback receiving updated content
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<FluidIngredient> supplier, Consumer<FluidIngredient> onUpdate) {
         // sized ingredient amount
@@ -191,7 +230,8 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
                             if (tagKey.toString().toLowerCase().contains(word.toLowerCase())) {
                                 find.accept(tagKey);
                             }
-                        }}, ResourceLocation::toString));
+                        }
+                    }, ResourceLocation::toString));
                 }
                 valueGroup.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", tank));
             });
@@ -228,9 +268,16 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
                         fluidIngredient.setNbt(newTag);
                         onUpdate.accept(fluidIngredient);
                     }, false, RecipeCapability.class.getField("name")));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
+    /**
+     * Builds a human-readable message for unsatisfied fluid ingredients.
+     *
+     * @param left remaining fluid ingredients after recipe matching
+     * @return component listing amount, first display fluid, and NBT requirement where present
+     */
     @Override
     public Component getLeftErrorInfo(List<FluidIngredient> left) {
         var result = Component.empty();

@@ -42,10 +42,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
+/**
+ * Machine trait that stores Mekanism chemicals, exposes chemical capabilities, and handles recipe transfer.
+ */
 public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>, HANDLER extends IChemicalHandler<CHEMICAL, STACK>> extends SimpleCapabilityTrait implements IRecipeHandlerTrait<STACK>, ICapabilityProviderTrait<HANDLER>, IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ChemicalTankCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -85,13 +91,13 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
                     getDefinition().getChemicalFilterSettings().isEnable() ? stack -> getDefinition().getChemicalFilterSettings().test(stack.getType()) : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
-        if (io.support(IO.OUT)){
+        if (io.support(IO.OUT)) {
             exportToTarget(mergeContents(storages), Long.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
     }
 
-    public abstract HANDLER mergeContents(ChemicalStorage<CHEMICAL,STACK>[] storages);
+    public abstract HANDLER mergeContents(ChemicalStorage<CHEMICAL, STACK>[] storages);
 
     public void exportToTarget(HANDLER source, long maxAmount, Predicate<STACK> filter, Level level, BlockPos pos, @Nullable Direction direction) {
         BlockState state = level.getBlockState(pos);
@@ -255,7 +261,7 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
         return isEmpty;
     }
 
-    public abstract ChemicalStorage<CHEMICAL,STACK> createStorage();
+    public abstract ChemicalStorage<CHEMICAL, STACK> createStorage();
 
     public static class Gas extends ChemicalTankCapabilityTrait<mekanism.api.chemical.gas.Gas, GasStack, IGasHandler> {
         public Gas(MBDMachine machine, ChemicalTankCapabilityTraitDefinition<mekanism.api.chemical.gas.Gas, GasStack> definition) {

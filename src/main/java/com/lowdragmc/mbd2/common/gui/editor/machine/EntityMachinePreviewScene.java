@@ -15,10 +15,27 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Consumer;
 
+/**
+ * Utility for installing and rendering entity-machine previews in editor scenes.
+ *
+ * <p>Entity-machine previews are drawn manually after the LDLib scene world render because the preview entity may use a
+ * vanilla marker entity type that the normal scene entity dispatcher cannot render as an MBD machine. The helper keeps
+ * the machine holder in the dummy world for lookups and renders the machine renderer directly.</p>
+ */
 public final class EntityMachinePreviewScene {
     private EntityMachinePreviewScene() {
     }
 
+    /**
+     * Creates a preview entity, installs its holder into the dummy world, and hooks the scene render callback.
+     *
+     * @param editor           owning editor; must currently load an {@link EntityMachineProject}
+     * @param scene            scene widget to hook
+     * @param level            dummy world used by the scene
+     * @param stateName        optional state name to apply to the preview machine
+     * @param afterWorldRender optional callback to run after the entity is drawn
+     * @return preview machine, or {@code null} when the current project/entity cannot produce one
+     */
     @Nullable
     public static MBDEntityMachine create(MachineEditor editor,
                                           SceneWidget scene,
@@ -49,6 +66,14 @@ public final class EntityMachinePreviewScene {
         return machine;
     }
 
+    /**
+     * Renders a preview machine entity at its current position.
+     *
+     * <p>The method mutates RenderSystem depth/blend state and flushes the buffer source before restoring the scene's
+     * expected translucent overlay state.</p>
+     *
+     * @param entity preview entity created by the active entity-machine definition
+     */
     private static void renderPreviewEntity(Entity entity) {
         var minecraft = Minecraft.getInstance();
         var buffers = minecraft.renderBuffers().bufferSource();

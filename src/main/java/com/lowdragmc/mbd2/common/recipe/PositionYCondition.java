@@ -34,6 +34,15 @@ public class PositionYCondition extends RecipeCondition {
     @NumberRange(range = {Integer.MIN_VALUE, Integer.MAX_VALUE})
     private int max;
 
+    /**
+     * Creates a condition that requires the machine Y coordinate to be inside an inclusive range.
+     * <p>
+     * The values are stored as supplied; no ordering or clamping is performed. If {@code min > max}, the condition can
+     * never pass. Testing reads the machine block position and does not require level access.
+     *
+     * @param min inclusive lower Y bound
+     * @param max inclusive upper Y bound
+     */
     public PositionYCondition(int min, int max) {
         this.min = min;
         this.max = max;

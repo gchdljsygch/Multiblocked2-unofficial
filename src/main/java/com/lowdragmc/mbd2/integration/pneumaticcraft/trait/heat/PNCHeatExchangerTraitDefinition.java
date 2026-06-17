@@ -21,6 +21,9 @@ import lombok.Setter;
 import me.desht.pneumaticcraft.common.core.ModItems;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Trait definition for configuring a PneumaticCraft heat exchanger and its UI.
+ */
 @LDLRegister(name = "pneumatic_heat_exchanger", group = "trait", modID = "pneumaticcraft")
 public class PNCHeatExchangerTraitDefinition extends RecipeCapabilityTraitDefinition implements IUIProviderTrait {
     @Getter
@@ -36,7 +39,7 @@ public class PNCHeatExchangerTraitDefinition extends RecipeCapabilityTraitDefini
     @Configurable(name = "config.definition.trait.pneumatic_heat_exchanger.thermal_resistance",
             tips = "config.definition.trait.pneumatic_heat_exchanger.thermal_resistance.tips")
     @NumberRange(range = {0, Double.MAX_VALUE})
-    private float thermalResistance= 1;
+    private float thermalResistance = 1;
 
     @Override
     public PNCHeatExchangerTrait createTrait(MBDMachine machine) {

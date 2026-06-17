@@ -25,6 +25,13 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Trait definition for configurable Ars Nouveau Source storage.
+ *
+ * <p>The definition owns capacity, per-transfer auto IO rate, optional auto IO settings, and a
+ * client-side fancy renderer. Only one Source storage trait is allowed per machine because relays
+ * and UI widgets address the trait by definition.</p>
+ */
 @LDLRegister(name = "ars_nouveau_source_storage", group = "trait", modID = "ars_nouveau")
 public class ArsNouveauSourceCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter
@@ -45,26 +52,46 @@ public class ArsNouveauSourceCapabilityTraitDefinition extends SimpleCapabilityT
             tips = "config.definition.trait.ars_nouveau_source_storage.fancy_renderer.tooltip")
     private final ArsNouveauSourceFancyRendererSettings fancyRendererSettings = new ArsNouveauSourceFancyRendererSettings(this);
 
+    /**
+     * Creates the runtime Source storage trait for a machine instance.
+     *
+     * @param machine owning machine
+     * @return configured Source trait
+     */
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {
         return new ArsNouveauSourceCapabilityTrait(machine, this);
     }
 
+    /**
+     * Returns the Source Jar icon used in trait lists.
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(BlockRegistry.SOURCE_JAR.asItem());
     }
 
+    /**
+     * Source relay and UI bindings assume a single Source storage definition per machine.
+     */
     @Override
     public boolean allowMultiple() {
         return false;
     }
 
+    /**
+     * Creates the block-entity renderer configured by {@link ArsNouveauSourceFancyRendererSettings}.
+     */
     @Override
     public IRenderer getBESRenderer(IMachine machine) {
         return fancyRendererSettings.getFancyRenderer(machine);
     }
 
+    /**
+     * Builds the progress bar and text widgets used by machine UI templates.
+     *
+     * @param ui template root to receive Source widgets
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var prefix = uiPrefixName();
@@ -81,6 +108,12 @@ public class ArsNouveauSourceCapabilityTraitDefinition extends SimpleCapabilityT
         ui.addWidget(sourceBarText);
     }
 
+    /**
+     * Binds live Source storage values to the UI widgets created by {@link #createTraitUITemplate}.
+     *
+     * @param trait runtime trait instance
+     * @param group concrete UI group containing the template widgets
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof ArsNouveauSourceCapabilityTrait sourceTrait) {

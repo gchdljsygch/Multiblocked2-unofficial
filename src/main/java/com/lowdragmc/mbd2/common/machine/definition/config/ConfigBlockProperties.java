@@ -33,10 +33,23 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Persisted block-level properties for a machine definition.
+ * <p>
+ * These settings are applied when MBD2 creates the Minecraft block for a
+ * definition. Many fields affect block registration or baked block behavior and
+ * therefore require the definition/block to be recreated before changes are
+ * visible in a running game. Runtime machine state such as renderer and shape is
+ * configured separately through {@link MachineState}.
+ */
 @Getter
 @Accessors(fluent = true)
 @Builder
 public class ConfigBlockProperties implements IPersistedSerializable, IConfigurable {
+    /**
+     * Render layer flags used when client render layers are assigned for the
+     * machine block.
+     */
     @Getter
     @Setter
     @Accessors(fluent = true)
@@ -161,7 +174,7 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             for (Configurator configurator : father.getConfigurators()) {
                 if (configurator.getName().equals("config.block_properties.rotation_state") && configurator instanceof SelectorConfigurator<?> selector) {
                     father.removeConfigurator(selector);
-                    var newSelector =  new SelectorConfigurator<>(
+                    var newSelector = new SelectorConfigurator<>(
                             "config.block_properties.rotation_state",
                             () -> rotationState,
                             r -> rotationState = r,
@@ -178,6 +191,16 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
         }
     }
 
+    /**
+     * Applies this configuration to vanilla block behavior properties.
+     * <p>
+     * The method may mark the block as using dynamic shapes when any configured
+     * machine state has a non-default or state-dependent shape.
+     *
+     * @param stateMachine state tree whose shapes should be considered
+     * @param properties   base properties to mutate fluently
+     * @return resulting block properties
+     */
     public BlockBehaviour.Properties apply(StateMachine<?> stateMachine, BlockBehaviour.Properties properties) {
         if (forceSolid) {
             properties = properties.forceSolidOn();
@@ -229,6 +252,13 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
         return properties;
     }
 
+    /**
+     * Persisted sound-event ids and volume/pitch values used to build the
+     * block's {@link ForgeSoundType}.
+     * <p>
+     * Sound events are resolved lazily from Forge registries. Missing ids fall
+     * back to {@link SoundEvents#EMPTY}.
+     */
     @Getter
     @Setter
     @Accessors(fluent = true)
@@ -257,6 +287,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
         private SoundEvent hitSoundEvent;
         private SoundEvent fallSoundEvent;
 
+        /**
+         * Creates the Forge sound type used by block properties.
+         *
+         * @return sound type backed by this object's lazy sound suppliers
+         */
         public ForgeSoundType createSoundType() {
             return new ForgeSoundType(1.0f, 1.0f,
                     this::getBreakSoundEvent,
@@ -266,6 +301,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
                     this::getFallSoundEvent);
         }
 
+        /**
+         * Resolves the break sound event.
+         *
+         * @return registered sound event or {@link SoundEvents#EMPTY}
+         */
         public SoundEvent getBreakSoundEvent() {
             if (breakSoundEvent == null) {
                 breakSoundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(breakSound)).orElse(SoundEvents.EMPTY);
@@ -273,6 +313,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             return breakSoundEvent;
         }
 
+        /**
+         * Resolves the step sound event.
+         *
+         * @return registered sound event or {@link SoundEvents#EMPTY}
+         */
         public SoundEvent getStepSoundEvent() {
             if (stepSoundEvent == null) {
                 stepSoundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(stepSound)).orElse(SoundEvents.EMPTY);
@@ -280,6 +325,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             return stepSoundEvent;
         }
 
+        /**
+         * Resolves the place sound event.
+         *
+         * @return registered sound event or {@link SoundEvents#EMPTY}
+         */
         public SoundEvent getPlaceSoundEvent() {
             if (placeSoundEvent == null) {
                 placeSoundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(placeSound)).orElse(SoundEvents.EMPTY);
@@ -287,6 +337,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             return placeSoundEvent;
         }
 
+        /**
+         * Resolves the hit sound event.
+         *
+         * @return registered sound event or {@link SoundEvents#EMPTY}
+         */
         public SoundEvent getHitSoundEvent() {
             if (hitSoundEvent == null) {
                 hitSoundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(hitSound)).orElse(SoundEvents.EMPTY);
@@ -294,6 +349,11 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             return hitSoundEvent;
         }
 
+        /**
+         * Resolves the fall sound event.
+         *
+         * @return registered sound event or {@link SoundEvents#EMPTY}
+         */
         public SoundEvent getFallSoundEvent() {
             if (fallSoundEvent == null) {
                 fallSoundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(fallSound)).orElse(SoundEvents.EMPTY);
@@ -313,6 +373,14 @@ public class ConfigBlockProperties implements IPersistedSerializable, IConfigura
             );
         }
 
+        /**
+         * Creates a client-side searchable sound selector configurator.
+         *
+         * @param name   translation key/name for the configurator
+         * @param setter setter for the selected sound id
+         * @param getter getter for the current sound id
+         * @return configurator that previews selected sounds in the UI
+         */
         @OnlyIn(Dist.CLIENT)
         public Configurator createSoundConfigurator(String name, Consumer<ResourceLocation> setter, Supplier<ResourceLocation> getter) {
             return new SearchComponentConfigurator<>(name, getter, sound -> {

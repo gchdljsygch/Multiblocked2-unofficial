@@ -38,6 +38,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
+/**
+ * Trait definition for draining and filling ambient Blood Magic demon will.
+ *
+ * <p>Configuration controls accepted will types, the sampled chunk radius, and input/output
+ * throttles. A radius of zero samples the machine's own chunk; larger radii sample chunk centers
+ * sorted from nearest to farthest.</p>
+ */
 @LDLRegister(name = "bloodmagic_will_handler", group = "trait", modID = "bloodmagic")
 public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefinition implements IUIProviderTrait {
     @Getter
@@ -63,6 +70,9 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
 
     private final List<EnumDemonWillType> willTypes = new ArrayList<>(List.of(EnumDemonWillType.DEFAULT));
 
+    /**
+     * Returns the accepted will type list, always containing at least default will.
+     */
     public List<EnumDemonWillType> getWillTypes() {
         if (willTypes.isEmpty()) {
             willTypes.add(EnumDemonWillType.DEFAULT);
@@ -70,6 +80,11 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         return willTypes;
     }
 
+    /**
+     * Replaces the accepted will type list, removing nulls and duplicates.
+     *
+     * @param types new accepted types
+     */
     public void setWillTypes(List<EnumDemonWillType> types) {
         willTypes.clear();
         if (types != null) {
@@ -84,10 +99,16 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         }
     }
 
+    /**
+     * Checks whether this trait may handle a recipe payload of the given will type.
+     */
     public boolean acceptsType(EnumDemonWillType type) {
         return getWillTypes().contains(type);
     }
 
+    /**
+     * Returns the accepted will types as a comma-separated display string.
+     */
     public String getWillTypesName() {
         return getWillTypes().stream()
                 .map(BloodMagicWillRecipeCapability::getTypeName)
@@ -95,6 +116,12 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
                 .orElseGet(() -> BloodMagicWillRecipeCapability.getTypeName(EnumDemonWillType.DEFAULT));
     }
 
+    /**
+     * Computes chunk-center positions sampled for ambient demon will operations.
+     *
+     * @param origin machine position
+     * @return loaded-chunk candidates are checked later; positions are sorted nearest first
+     */
     public List<BlockPos> getChunkSamplePositions(BlockPos origin) {
         var radius = Math.max(0, chunkRadius);
         var originChunkX = origin.getX() >> 4;
@@ -110,6 +137,9 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         return positions;
     }
 
+    /**
+     * Builds base numeric configurators plus the accepted will-type array editor.
+     */
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         ConfiguratorParser.createConfigurators(father, new HashMap<>(), getClass(), this);
@@ -139,6 +169,9 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         father.addConfigurators(willTypeGroup);
     }
 
+    /**
+     * Serializes accepted will types alongside base trait configuration.
+     */
     @Override
     public CompoundTag serializeNBT() {
         var tag = super.serializeNBT();
@@ -150,6 +183,9 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         return tag;
     }
 
+    /**
+     * Deserializes accepted will types, including the legacy single {@code willType} field.
+     */
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         super.deserializeNBT(nbt);
@@ -166,21 +202,33 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         setWillTypes(types);
     }
 
+    /**
+     * Creates the runtime ambient will handler trait.
+     */
     @Override
     public ITrait createTrait(MBDMachine machine) {
         return new BloodMagicWillTrait(machine, this);
     }
 
+    /**
+     * Returns the Demon Will Gauge icon used in trait lists.
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(BloodMagicItems.DEMON_WILL_GAUGE.get());
     }
 
+    /**
+     * Ambient will handler configuration is intended to be unique per machine.
+     */
     @Override
     public boolean allowMultiple() {
         return false;
     }
 
+    /**
+     * Builds the live ambient will summary text widget.
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var text = new TextTextureWidget(0, 0, 100, 10,
@@ -191,6 +239,9 @@ public class BloodMagicWillTraitDefinition extends RecipeCapabilityTraitDefiniti
         ui.addWidget(text);
     }
 
+    /**
+     * Binds the live summed ambient will value to the UI text widget.
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof BloodMagicWillTrait willTrait) {

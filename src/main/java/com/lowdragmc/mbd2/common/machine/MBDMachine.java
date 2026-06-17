@@ -85,6 +85,22 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Default block-backed machine runtime for an {@link MBDMachineDefinition}.
+ * <p>
+ * A machine owns the persisted/synced state that is not part of the block
+ * state itself: custom names/data, recipe logic, dynamic model overrides,
+ * redstone output, additional traits, capability routing, sounds, and optional
+ * integration state. It is bound to an {@link IMachineBlockEntity} holder and
+ * attaches its managed storage to the holder during construction.
+ * <p>
+ * Most methods are expected to run on the logical server or the logical client
+ * main thread, matching normal Minecraft block entity lifecycles. The class is
+ * not generally thread-safe; the only concurrent structure is the static set
+ * used to de-duplicate trait load warnings. Server-side mutators often mark the
+ * holder dirty, send block updates, post Forge/KubeJS/graph events, or invoke
+ * LowDragLib RPCs to tracking clients.
+ */
 @Getter
 public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMachine.class);
@@ -189,6 +205,18 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @OnlyIn(Dist.CLIENT)
     private MachineSound currentSound;
 
+    /**
+     * Creates and attaches a machine instance to its block entity holder.
+     *
+     * @param machineHolder block entity wrapper that owns storage, position, and
+     *                      level access; its root storage must be a
+     *                      {@link MultiManagedStorage}
+     * @param definition    static definition that drives states, traits, recipe
+     *                      logic, and UI behavior
+     * @param args          optional subclass-specific creation arguments
+     * @throws RuntimeException if the holder does not expose a
+     *                          {@link MultiManagedStorage}
+     */
     public MBDMachine(IMachineBlockEntity machineHolder, MBDMachineDefinition definition, Object... args) {
         this.machineHolder = machineHolder;
         this.definition = definition;
@@ -255,6 +283,16 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Creates the recipe logic instance owned by this machine.
+     * <p>
+     * Subclasses may override this to provide threaded or specialized recipe
+     * logic. The returned logic is persisted and description-synced by the
+     * machine.
+     *
+     * @param args constructor arguments passed to the machine
+     * @return recipe logic instance for this machine
+     */
     protected RecipeLogic createRecipeLogic(Object... args) {
         return new RecipeLogic(this);
     }
@@ -285,11 +323,27 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Sets a server-synced dynamic block model override.
+     * <p>
+     * The override is persisted through description sync only, invalidates the
+     * client renderer cache, marks the block for update, and sends an RPC to
+     * tracking clients when called on the server.
+     *
+     * @param modelPath resource location of the model to render; must be a
+     *                  valid model location
+     */
     @HideFromJS
     public void setMachineBlockModel(ResourceLocation modelPath) {
         applyMachineBlockModel(modelPath);
     }
 
+    /**
+     * Sets a server-synced dynamic block model override from a string id.
+     * Invalid resource locations are logged and ignored.
+     *
+     * @param modelPath resource location string such as {@code modid:path}
+     */
     public void setMachineBlockModel(String modelPath) {
         var location = ResourceLocation.tryParse(modelPath);
         if (location == null) {
@@ -308,11 +362,25 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         updateDynamicRenderer(dynamicBlockModel, "");
     }
 
+    /**
+     * Sets a server-synced dynamic front model override.
+     * <p>
+     * The override follows the same sync and render-cache invalidation rules as
+     * {@link #setMachineBlockModel(ResourceLocation)}.
+     *
+     * @param modelPath resource location of the front model to render
+     */
     @HideFromJS
     public void setMachineFrontModel(ResourceLocation modelPath) {
         applyMachineFrontModel(modelPath);
     }
 
+    /**
+     * Sets a server-synced dynamic front model override from a string id.
+     * Invalid resource locations are logged and ignored.
+     *
+     * @param modelPath resource location string such as {@code modid:path}
+     */
     public void setMachineFrontModel(String modelPath) {
         var location = ResourceLocation.tryParse(modelPath);
         if (location == null) {
@@ -331,12 +399,20 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         updateDynamicRenderer(dynamicFrontModel, "");
     }
 
+    /**
+     * Clears the dynamic block model override and resynchronizes renderer state
+     * to tracking clients.
+     */
     public void clearMachineBlockModel() {
         dynamicBlockModel = "";
         notifyDynamicRendererChanged();
         updateDynamicRenderer(dynamicBlockModel, "");
     }
 
+    /**
+     * Clears the dynamic front model override and resynchronizes renderer state
+     * to tracking clients.
+     */
     public void clearMachineFrontModel() {
         dynamicFrontModel = "";
         notifyDynamicRendererChanged();
@@ -361,6 +437,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * RPC entry point used to apply dynamic renderer ids on clients.
+     *
+     * @param blockModel block model id, or empty/null to clear it
+     * @param frontModel front model id, or empty/null to clear it
+     */
     @RPCMethod
     public void setDynamicRenderer(String blockModel, String frontModel) {
         dynamicBlockModel = blockModel == null ? "" : blockModel;
@@ -370,6 +452,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         updateDynamicRenderer(dynamicBlockModel, dynamicFrontModel);
     }
 
+    /**
+     * Managed-field listener for dynamic renderer changes.
+     * <p>
+     * On the logical client this clears cached renderer instances and requests a
+     * render update. Server calls only update synced field values.
+     *
+     * @param newValue value reported by the changed managed field
+     * @param oldValue previous value reported by the changed managed field
+     */
     public void updateDynamicRenderer(String newValue, String oldValue) {
         if (isRemote()) {
             clearDynamicRendererCache();
@@ -385,10 +476,25 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         lastDynamicFrontModel = null;
     }
 
+    /**
+     * Managed-field listener for custom machine data changes.
+     *
+     * @param newValue new custom NBT payload
+     * @param oldValue previous custom NBT payload
+     */
     public void updateCustomData(CompoundTag newValue, CompoundTag oldValue) {
         MinecraftForge.EVENT_BUS.post(new MachineCustomDataUpdateEvent(this, newValue, oldValue).postCustomEvent());
     }
 
+    /**
+     * Managed-field listener for machine state changes.
+     * <p>
+     * Updates lighting when state light levels differ, and on the client starts
+     * the state sound and schedules a render refresh.
+     *
+     * @param newValue new state name
+     * @param oldValue previous state name
+     */
     public void updateState(String newValue, String oldValue) {
         var hasLightChanged = definition.stateMachine().getState(newValue).getLightLevel() != definition.stateMachine().getState(oldValue).getLightLevel();
         // notify the light engine to update the light value
@@ -451,6 +557,13 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Checks whether a configured trait definition should be instantiated for
+     * this machine.
+     *
+     * @param traitDefinition configured trait definition
+     * @return {@code true} to create and attach the trait
+     */
     protected boolean canLoadTrait(TraitDefinition traitDefinition) {
         return true;
     }
@@ -485,6 +598,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     /**
      * Get the Trait Instance by the given trait definition.
      */
+    /**
+     * Looks up a loaded trait by exact definition identity.
+     *
+     * @param traitDefinition definition instance to match
+     * @return loaded trait, or {@code null} when the definition is not attached
+     */
     @Nullable
     public ITrait getTraitByDefinition(TraitDefinition traitDefinition) {
         for (var trait : additionalTraits) {
@@ -495,6 +614,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    /**
+     * Looks up a loaded trait by definition name.
+     *
+     * @param name trait definition name
+     * @return loaded trait, or {@code null} if none matches
+     */
     @Nullable
     public ITrait getTraitByName(String name) {
         for (var trait : additionalTraits) {
@@ -505,6 +630,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    /**
+     * Looks up and casts a loaded trait by definition name.
+     *
+     * @param clazz expected trait runtime type
+     * @param name  trait definition name
+     * @param <T>   expected trait type
+     * @return loaded trait cast to {@code clazz}, or {@code null} if no matching
+     * trait exists
+     */
     public <T> T getTraitByName(Class<T> clazz, String name) {
         for (var trait : additionalTraits) {
             if (trait.getDefinition().getName().equals(name) && clazz.isInstance(trait)) {
@@ -631,15 +765,43 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         IMachine.super.scheduleRenderUpdate();
     }
 
+    /**
+     * Resolves the current persisted state name to the configured machine state.
+     * <p>
+     * The state name is description-synced and changed through {@link #setMachineState(String)} or multiblock formed
+     * state transitions. Callers should ensure the definition still contains the state name; project reloads that remove
+     * a state can make this return {@code null}.
+     *
+     * @return configured state for the current state name, or {@code null} if the definition no longer has that state
+     */
     public MachineState getMachineState() {
         return definition.getState(machineState);
     }
 
+    /**
+     * Builds the client renderer for the current state and facing.
+     * <p>
+     * This is client-only and should be called from render setup/render paths. It uses north as the fallback front when
+     * the machine has no front-facing direction. Dynamic block/front renderer overrides take precedence over definition
+     * renderers.
+     *
+     * @return renderer composed for the current state and effective front direction
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer getRealRenderer() {
         return getRealRenderer(getFrontFacing().orElse(Direction.NORTH));
     }
 
+    /**
+     * Builds the client renderer for the current state with an explicit front direction.
+     * <p>
+     * The returned renderer combines the block renderer and optional front renderer. If the front renderer is
+     * {@link IRenderer#EMPTY}, only the block renderer is used. Dynamic model overrides are resolved lazily and cached
+     * until their synced model path changes.
+     *
+     * @param frontFacing direction used to orient the front overlay renderer
+     * @return renderer that should be used for this machine state and facing
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer getRealRenderer(Direction frontFacing) {
         var state = getMachineState();
@@ -653,6 +815,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return MBDClientRenderers.createMachineStateRenderer(realBlockRenderer, realFrontRenderer, frontFacing);
     }
 
+    /**
+     * Resolves the dynamic block renderer override, if one is currently configured.
+     * <p>
+     * Client-only. Side effect: when {@code dynamicBlockModel} changed since the last call, recreates and caches the
+     * renderer. Blank or invalid model ids clear the cached override and return {@code null}.
+     *
+     * @return dynamic block renderer, or {@code null} to use the definition state renderer
+     */
     @OnlyIn(Dist.CLIENT)
     @Nullable
     protected IRenderer getDynamicBlockRenderer() {
@@ -664,6 +834,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return dynamicBlockRenderer;
     }
 
+    /**
+     * Resolves the dynamic front renderer override, if one is currently configured.
+     * <p>
+     * Client-only. Side effect: when {@code dynamicFrontModel} changed since the last call, recreates and caches the
+     * renderer. Blank or invalid model ids clear the cached override and return {@code null}.
+     *
+     * @return dynamic front renderer, or {@code null} to use the definition state front renderer
+     */
     @OnlyIn(Dist.CLIENT)
     @Nullable
     protected IRenderer getDynamicFrontRenderer() {
@@ -685,6 +863,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return modelLocation == null ? null : MBDClientRenderers.createFusionModelRenderer(modelLocation);
     }
 
+    /**
+     * Returns the model id that should be used by render systems that need a block-model location.
+     * <p>
+     * Client-only. Dynamic block model overrides take precedence. If the active renderer is a nested
+     * {@link UIResourceRenderer}, it is unwrapped until a model renderer is found or no model-backed renderer remains.
+     *
+     * @return model location for the dynamic or state renderer, or {@link Optional#empty()} when rendering is not model
+     * backed
+     */
     @OnlyIn(Dist.CLIENT)
     public Optional<ResourceLocation> getBlockModelLocationForRendering() {
         var dynamicModel = ResourceLocation.tryParse(dynamicBlockModel);
@@ -694,11 +881,24 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return getModelLocation(getMachineState().getRenderer());
     }
 
+    /**
+     * Checks whether a dynamic block or front renderer path has been supplied.
+     *
+     * @return {@code true} when either dynamic renderer override string is non-blank
+     */
     public boolean hasDynamicRendererOverride() {
         return dynamicBlockModel != null && !dynamicBlockModel.isBlank() ||
                 dynamicFrontModel != null && !dynamicFrontModel.isBlank();
     }
 
+    /**
+     * Extracts a model location from a renderer tree.
+     * <p>
+     * Client-only. This method only inspects renderer metadata; it does not create models or trigger resource reloads.
+     *
+     * @param renderer renderer to inspect; may be a direct model renderer or a UI resource wrapper
+     * @return model location when the renderer ultimately delegates to an {@link IModelRenderer}
+     */
     @OnlyIn(Dist.CLIENT)
     protected Optional<ResourceLocation> getModelLocation(IRenderer renderer) {
         if (renderer instanceof IModelRenderer modelRenderer) {
@@ -710,6 +910,11 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return Optional.empty();
     }
 
+    /**
+     * Returns the synced state name currently selected for this machine.
+     *
+     * @return state name used to resolve {@link #getMachineState()}
+     */
     public String getMachineStateName() {
         return machineState;
     }
@@ -781,6 +986,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Records one server-tick execution time sample for UI/debug display.
+     * <p>
+     * Side effects: updates the current tick sample, per-second accumulation, ten-second rolling average buckets, and the
+     * description-synced delay value every {@value #GAME_DELAY_SYNC_INTERVAL} offset ticks. Negative elapsed values are
+     * clamped to zero. Call from the logical server tick path after machine work completes.
+     *
+     * @param elapsedNanos elapsed wall-clock time in nanoseconds for one machine tick
+     */
     protected void updateGameDelay(long elapsedNanos) {
         var offsetTimer = getOffsetTimer();
         var sampleMicroseconds = Math.max(0, elapsedNanos / 1_000L);
@@ -806,6 +1020,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         gameDelayMicroseconds = sampleMicroseconds;
     }
 
+    /**
+     * Rolls the current one-second delay accumulation into the ten-second average.
+     * <p>
+     * Side effects: writes the next average bucket, advances the circular bucket index, updates the published
+     * ten-second average, and clears the current-second counters. If no samples were collected, no state changes occur.
+     */
     protected void updateTenSecondAverageGameDelay() {
         if (currentSecondGameDelaySamples <= 0) return;
         gameDelaySecondAverageBuckets[gameDelaySecondAverageBucketIndex] = currentSecondGameDelayMicroseconds / currentSecondGameDelaySamples;
@@ -822,6 +1042,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         currentSecondGameDelaySamples = 0;
     }
 
+    /**
+     * Clears all tick-delay measurements.
+     * <p>
+     * Side effects: resets synced delay values, rolling average buckets, current-second accumulation, and duplicate-tick
+     * detection. Called when the machine loads/unloads so stale timings from a previous chunk lifecycle are not reported.
+     */
     protected void resetGameDelay() {
         gameDelayMicroseconds = 0;
         tenSecondAverageGameDelayMicroseconds = 0;
@@ -845,6 +1071,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return tenSecondAverageGameDelayMicroseconds;
     }
 
+    /**
+     * Posts configured fixed-tick events for this machine.
+     * <p>
+     * The interval is clamped to at least one tick. Side effects: may post Forge custom events and KubeJS machine
+     * fixed-tick hooks on the logical server tick path. This method does not run recipe logic or trait ticks.
+     */
     protected void postFixedTickEvent() {
         var timer = getOffsetTimer();
         var interval = Math.max(1, definition.machineEvents().getFixedTickInterval());
@@ -856,6 +1088,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Runs the core server-tick work after external tick events have had a chance to cancel.
+     * <p>
+     * Side effects: advances recipe logic when {@link #runRecipeLogic()} permits it and then ticks every additional
+     * trait. Call only from the logical server tick path.
+     */
     protected void internalServerTick() {
         if (runRecipeLogic()) {
             recipeLogic.serverTick();
@@ -921,17 +1159,40 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
                 .merge(getDynamicMaxParallelModifier());
     }
 
+    /**
+     * Resolves the recipe logic that is currently executing for this machine.
+     * <p>
+     * In threaded recipe mode this delegates to {@link RecipeThreadTrait} so graph callbacks and recipe modifiers see
+     * the active thread context. Without a thread trait it resolves to the base machine recipe logic.
+     *
+     * @return active recipe logic for the current execution context
+     */
     @Nonnull
     public RecipeLogic getCurrentRecipeLogic() {
         return RecipeThreadTrait.getCurrentRecipeLogic(this);
     }
 
+    /**
+     * Resolves a recipe logic instance by thread id.
+     * <p>
+     * Thread id {@code 0} maps to the base recipe logic when the machine has no {@link RecipeThreadTrait}. Other ids
+     * return {@code null} unless a recipe-thread trait owns them.
+     *
+     * @param threadId zero-based recipe thread id
+     * @return recipe logic for the requested thread, or {@code null} when no such thread exists
+     */
     @Nullable
     public RecipeLogic getRecipeLogic(int threadId) {
         RecipeThreadTrait trait = RecipeThreadTrait.get(this);
         return trait == null ? (threadId == 0 ? getRecipeLogic() : null) : trait.getRecipeLogic(threadId);
     }
 
+    /**
+     * Converts the dynamic max-parallel override into a recipe content modifier.
+     *
+     * @return multiplier based on {@link #dynamicMaxParallel}, or {@link ContentModifier#IDENTITY} when no override is
+     * active
+     */
     protected ContentModifier getDynamicMaxParallelModifier() {
         return dynamicMaxParallel > 0 ? ContentModifier.multiplier(dynamicMaxParallel) : ContentModifier.IDENTITY;
     }
@@ -1284,6 +1545,14 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         return null;
     }
 
+    /**
+     * Returns the currently playing machine state sound.
+     * <p>
+     * Client-only. The value is set by {@link #playStateSound(String)} and may be {@code null} when the active state has
+     * no sound or no sound has been started.
+     *
+     * @return current sound handle, or {@code null}
+     */
     @Nullable
     @OnlyIn(Dist.CLIENT)
     public MachineSound getCurrentSound() {
@@ -1306,6 +1575,15 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         }
     }
 
+    /**
+     * Triggers a Geckolib animation on the default controller.
+     * <p>
+     * Safe to call on either logical side. Server-side calls are forwarded to tracking clients by
+     * {@link #triggerGeckolibAnim(String, String, float)}.
+     *
+     * @param animName triggerable animation name configured on the current Geckolib renderer
+     * @param speed    playback speed; values below zero are clamped to zero on the client
+     */
     public void triggerGeckolibAnim(String animName, float speed) {
         triggerGeckolibAnim("", animName, speed);
     }

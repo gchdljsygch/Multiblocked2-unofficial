@@ -5,7 +5,13 @@ import net.minecraft.core.Direction;
 import java.util.function.Function;
 
 /**
- * Relative direction when facing horizontally
+ * Pattern-axis direction relative to a horizontally facing controller.
+ *
+ * <p>The business goal is to let pattern definitions describe rows, columns,
+ * and aisles in author-facing terms, then resolve them to absolute Minecraft
+ * directions during pattern matching, preview generation, and auto-build. The
+ * helper methods accept only horizontal controller faces; vertical controller
+ * faces are invalid because left/right/front/back are ambiguous.</p>
  */
 public enum RelativeDirection {
     UP(f -> Direction.UP, Direction.Axis.Y),
@@ -18,13 +24,28 @@ public enum RelativeDirection {
     final Function<Direction, Direction> actualFacing;
     public final Direction.Axis axis;
 
+    /**
+     * Creates a relative direction.
+     *
+     * @param actualFacing resolver from controller facing to world direction
+     * @param axis         logical pattern axis represented by this direction
+     */
     RelativeDirection(Function<Direction, Direction> actualFacing, Direction.Axis axis) {
         this.actualFacing = actualFacing;
         this.axis = axis;
     }
 
+    /**
+     * Chooses the aisle/depth direction for an editor layer axis and controller
+     * front.
+     *
+     * @param layerAxis      world axis perpendicular to preview slices
+     * @param controllerFace horizontal controller front direction
+     * @return relative direction used when advancing between aisles
+     * @throws IllegalArgumentException when the controller face is vertical
+     */
     public static RelativeDirection getAisleDirection(Direction.Axis layerAxis, Direction controllerFace) {
-        return switch(controllerFace) {
+        return switch (controllerFace) {
             case NORTH -> switch (layerAxis) {
                 case X -> RIGHT;
                 case Y -> UP;
@@ -49,8 +70,17 @@ public enum RelativeDirection {
         };
     }
 
+    /**
+     * Chooses the relative direction for the x coordinate inside a preview
+     * slice.
+     *
+     * @param layerAxis      world axis perpendicular to preview slices
+     * @param controllerFace horizontal controller front direction
+     * @return relative direction for increasing slice x
+     * @throws IllegalArgumentException when the controller face is vertical
+     */
     public static RelativeDirection getSliceXDirection(Direction.Axis layerAxis, Direction controllerFace) {
-        return switch(controllerFace) {
+        return switch (controllerFace) {
             case NORTH -> switch (layerAxis) {
                 case X -> UP;
                 case Y -> RIGHT;
@@ -75,8 +105,17 @@ public enum RelativeDirection {
         };
     }
 
+    /**
+     * Chooses the relative direction for the y coordinate inside a preview
+     * slice.
+     *
+     * @param layerAxis      world axis perpendicular to preview slices
+     * @param controllerFace horizontal controller front direction
+     * @return relative direction for increasing slice y
+     * @throws IllegalArgumentException when the controller face is vertical
+     */
     public static RelativeDirection getSliceYDirection(Direction.Axis layerAxis, Direction controllerFace) {
-        return switch(controllerFace) {
+        return switch (controllerFace) {
             case NORTH -> switch (layerAxis) {
                 case X -> BACK;
                 case Y -> BACK;
@@ -101,10 +140,22 @@ public enum RelativeDirection {
         };
     }
 
+    /**
+     * Resolves this relative direction to a world direction.
+     *
+     * @param facing horizontal controller facing
+     * @return actual world direction for this relative direction
+     */
     public Direction getActualFacing(Direction facing) {
         return actualFacing.apply(facing);
     }
 
+    /**
+     * Checks whether two relative directions use the same logical axis.
+     *
+     * @param dir direction to compare
+     * @return {@code true} when both directions are on the same pattern axis
+     */
     public boolean isSameAxis(RelativeDirection dir) {
         return this.axis == dir.axis;
     }

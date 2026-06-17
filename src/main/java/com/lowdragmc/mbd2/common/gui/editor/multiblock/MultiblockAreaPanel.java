@@ -51,6 +51,19 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Optional;
 
+/**
+ * Editor panel that samples a real-world cuboid and converts it into multiblock data.
+ *
+ * <p>The panel renders nearby client-world blocks in a {@link SceneEditorWidget}, lets the
+ * user choose opposite corners with shift-click, and then writes either pattern
+ * placeholders or explicit {@link MultiblockShapeInfo} previews into the current
+ * {@link MultiblockMachineProject}. It also creates missing built-in predicate resources
+ * for sampled block states and fluids.</p>
+ *
+ * <p>This class is client-only editor UI. It reads {@link Minecraft#getInstance()} state,
+ * mutates OpenGL/RenderSystem state while drawing overlays, and should only be used from
+ * the render thread.</p>
+ */
 public class MultiblockAreaPanel extends WidgetGroup {
     @Getter
     protected final MultiblockMachineProject project;
@@ -63,21 +76,33 @@ public class MultiblockAreaPanel extends WidgetGroup {
     // runtime
     private final Runtime runtime = new Runtime();
 
+    /**
+     * Configurable scratch state for the capture session shown in the editor config panel.
+     *
+     * <p>Values here are not persisted directly. Generate actions consume them and write the
+     * resulting pattern or shape data to {@link #project}.</p>
+     */
     public class Runtime implements IConfigurable {
-        @Configurable(name = "editor.machine.multiblock.area_panel.sceneRadius", tips="editor.machine.multiblock.area_panel.sceneRadius.tips")
-        @NumberRange(range={1, 100})
+        @Configurable(name = "editor.machine.multiblock.area_panel.sceneRadius", tips = "editor.machine.multiblock.area_panel.sceneRadius.tips")
+        @NumberRange(range = {1, 100})
         private int sceneRadius = 5;
 
-        @Configurable(name = "editor.machine.multiblock.area_panel.area", tips="editor.machine.multiblock.area_panel.area.tips", subConfigurable = true, canCollapse = false, collapse = false)
+        @Configurable(name = "editor.machine.multiblock.area_panel.area", tips = "editor.machine.multiblock.area_panel.area.tips", subConfigurable = true, canCollapse = false, collapse = false)
         private final Area area = new Area();
 
+        /**
+         * Selected cuboid bounds in world coordinates.
+         *
+         * <p>{@code from} and {@code to} may be supplied in either order. Generation methods
+         * normalize them to inclusive min/max bounds before reading the world.</p>
+         */
         public class Area implements IConfigurable {
-            @Configurable(name = "editor.machine.multiblock.area_panel.from", tips="editor.machine.multiblock.area_panel.from.tips")
-            @NumberRange(range={Integer.MIN_VALUE, Integer.MAX_VALUE}, wheel=1)
+            @Configurable(name = "editor.machine.multiblock.area_panel.from", tips = "editor.machine.multiblock.area_panel.from.tips")
+            @NumberRange(range = {Integer.MIN_VALUE, Integer.MAX_VALUE}, wheel = 1)
             private BlockPos from = Minecraft.getInstance().player.getOnPos();
 
-            @Configurable(name = "editor.machine.multiblock.area_panel.to", tips="editor.machine.multiblock.area_panel.to.tips")
-            @NumberRange(range={Integer.MIN_VALUE, Integer.MAX_VALUE}, wheel=1)
+            @Configurable(name = "editor.machine.multiblock.area_panel.to", tips = "editor.machine.multiblock.area_panel.to.tips")
+            @NumberRange(range = {Integer.MIN_VALUE, Integer.MAX_VALUE}, wheel = 1)
             private BlockPos to = Minecraft.getInstance().player.getOnPos();
 
             @Override
@@ -89,21 +114,38 @@ public class MultiblockAreaPanel extends WidgetGroup {
             }
         }
 
-        @Configurable(name = "editor.machine.multiblock.area_panel.controllerOffset", tips="editor.machine.multiblock.area_panel.controllerOffset.tips")
-        @NumberRange(range={0, Integer.MAX_VALUE}, wheel=1)
+        @Configurable(name = "editor.machine.multiblock.area_panel.controllerOffset", tips = "editor.machine.multiblock.area_panel.controllerOffset.tips")
+        @NumberRange(range = {0, Integer.MAX_VALUE}, wheel = 1)
         private Vector3i controllerOffset = new Vector3i(0, 0, 0);
-        @Configurable(name = "editor.machine.multiblock.area_panel.controllerFace", tips="editor.machine.multiblock.area_panel.controllerFace.tips")
+        @Configurable(name = "editor.machine.multiblock.area_panel.controllerFace", tips = "editor.machine.multiblock.area_panel.controllerFace.tips")
         @ConfigSelector(candidate = {"north", "south", "west", "east"})
         private Direction controllerFace = Direction.NORTH;
 
         private boolean isFromClicked = false;
 
+        /**
+         * Updates how many blocks around the player are shown in the sampling scene.
+         * <p>
+         * The editor annotation constrains UI input to {@code 1..100}. Side effect: reloads the client-side scene core
+         * immediately. Call from the editor/render thread because it reads Minecraft client world state.
+         *
+         * @param radius inclusive radius in blocks around the player
+         */
         @ConfigSetter(field = "sceneRadius")
         public void setSceneRadius(int radius) {
             this.sceneRadius = radius;
             reloadScene();
         }
 
+        /**
+         * Updates the controller position within the currently selected cuboid.
+         * <p>
+         * The offset is clamped to the normalized inclusive bounds derived from {@link Area#from} and {@link Area#to}.
+         * Negative coordinates become {@code 0}; values past the selected size clamp to the far edge. The supplied vector
+         * is copied rather than retained.
+         *
+         * @param offset desired controller offset from the selected cuboid minimum corner
+         */
         @ConfigSetter(field = "controllerOffset")
         public void setControllerOffset(Vector3i offset) {
             var minX = Math.min(runtime.area.from.getX(), runtime.area.to.getX());
@@ -116,15 +158,31 @@ public class MultiblockAreaPanel extends WidgetGroup {
                     Mth.clamp(offset.x, 0, maxX - minX),
                     Mth.clamp(offset.y, 0, maxY - minY),
                     Mth.clamp(offset.z, 0, maxZ - minZ)
-                    );
+            );
         }
 
+        /**
+         * Updates one corner of the sampled cuboid.
+         * <p>
+         * Side effect: reclamps the controller offset to the new inclusive bounds. The two corners may be supplied in
+         * either order; generation normalizes them before reading blocks.
+         *
+         * @param from first selected world position
+         */
         @ConfigSetter(field = "from")
         public void setFrom(BlockPos from) {
             this.area.from = from;
             setControllerOffset(controllerOffset);
         }
 
+        /**
+         * Updates the opposite corner of the sampled cuboid.
+         * <p>
+         * Side effect: reclamps the controller offset to the new inclusive bounds. The two corners may be supplied in
+         * either order; generation normalizes them before reading blocks.
+         *
+         * @param to second selected world position
+         */
         @ConfigSetter(field = "to")
         public void setTo(BlockPos to) {
             this.area.to = to;
@@ -156,6 +214,16 @@ public class MultiblockAreaPanel extends WidgetGroup {
 
     }
 
+    /**
+     * Creates the area capture panel for the multiblock editor.
+     * <p>
+     * Side effects: creates a client scene from the current client level, installs an after-world render callback, enables
+     * scene cache buffers, loads nearby blocks, and prepares toolbar buttons. Must be constructed on the client editor
+     * thread with a loaded level and player.
+     *
+     * @param project      project that receives generated pattern and shape data
+     * @param patternPanel pattern panel to refresh after generated data is applied
+     */
     public MultiblockAreaPanel(MultiblockMachineProject project, MultiblockPatternPanel patternPanel) {
         super(0, MenuPanel.HEIGHT + 16, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
         this.project = project;
@@ -175,7 +243,10 @@ public class MultiblockAreaPanel extends WidgetGroup {
     }
 
     /**
-     * reload the scene rendering.
+     * Reloads the live-world preview around the player.
+     *
+     * <p>The radius is read from {@link Runtime#sceneRadius}. Only loaded blocks are added
+     * to the rendered core, so this method does not request chunk loads.</p>
      */
     public void reloadScene() {
         var pos = Minecraft.getInstance().player.getOnPos();
@@ -195,6 +266,14 @@ public class MultiblockAreaPanel extends WidgetGroup {
         scene.setRenderedCore(blocks);
     }
 
+    /**
+     * Captures the selected cuboid as a concrete preview shape.
+     *
+     * <p>The method reads block states from the client level, replaces the configured
+     * controller position with {@link ControllerBlockInfo}, and appends the result to
+     * {@link MultiblockMachineProject#getMultiblockShapeInfos()}. It does not update the
+     * pattern grid.</p>
+     */
     public void generateShapeInfo() {
         var minX = Math.min(runtime.area.from.getX(), runtime.area.to.getX());
         var minY = Math.min(runtime.area.from.getY(), runtime.area.to.getY());
@@ -226,7 +305,13 @@ public class MultiblockAreaPanel extends WidgetGroup {
     }
 
     /**
-     * generate the pattern based on selected area.
+     * Generates editable multiblock pattern placeholders from the selected world area.
+     *
+     * <p>Non-air blocks become built-in block, fluid, or exact-state predicates in the
+     * project predicate resource table. Air maps to the existing {@code any} predicate.
+     * The configured controller offset becomes a controller placeholder with the selected
+     * facing. After generation this replaces the project's current block placeholder grid
+     * and notifies the pattern panel.</p>
      */
     public void generatePattern() {
         var minX = Math.min(runtime.area.from.getX(), runtime.area.to.getX());
@@ -314,20 +399,22 @@ public class MultiblockAreaPanel extends WidgetGroup {
     }
 
     /**
-     * prepare the button group, you can add buttons / switches here.
+     * Adds extra toolbar controls for subclasses.
+     *
+     * <p>The base panel has no controls outside the config-panel generate action.</p>
      */
     protected void prepareButtonGroup() {
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Opens the runtime capture settings when the panel is selected.
      */
     public void onPanelSelected() {
         Editor.INSTANCE.getConfigPanel().openConfigurator(MachineEditor.BASIC, runtime);
     }
 
     /**
-     * Called when the panel is deselected/switched from.
+     * Clears capture settings when the panel is deselected.
      */
     public void onPanelDeselected() {
         Editor.INSTANCE.getConfigPanel().clearAllConfigurators();
@@ -353,9 +440,11 @@ public class MultiblockAreaPanel extends WidgetGroup {
     }
 
     /**
-     * render the scene after the world is rendered.
-     * <br/> e.g. <br/>
-     * shape frame lines.
+     * Draws the selected cuboid, endpoints, and controller facing after world rendering.
+     *
+     * <p>This method changes blend, depth, cull, shader, and line-width state for the
+     * preview overlay. It is registered as the scene post-world render callback and is
+     * expected to run only on the client render thread.</p>
      */
     private void renderAfterWorld(SceneWidget sceneWidget) {
         PoseStack poseStack = new PoseStack();

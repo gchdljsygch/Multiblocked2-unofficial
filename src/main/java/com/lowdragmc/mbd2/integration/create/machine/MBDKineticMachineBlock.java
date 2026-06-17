@@ -18,6 +18,9 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * MBD machine block that participates in Create's kinetic network and exposes shaft directions.
+ */
 public class MBDKineticMachineBlock extends MBDMachineBlock implements IRotate {
 
     public MBDKineticMachineBlock(Properties properties, CreateKineticMachineDefinition definition) {
@@ -26,7 +29,7 @@ public class MBDKineticMachineBlock extends MBDMachineBlock implements IRotate {
 
     @Override
     public CreateKineticMachineDefinition getDefinition() {
-        return (CreateKineticMachineDefinition)super.getDefinition();
+        return (CreateKineticMachineDefinition) super.getDefinition();
     }
 
     @Override

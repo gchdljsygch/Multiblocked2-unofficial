@@ -11,10 +11,28 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Small render-thread utility for drawing translucent block-space overlays.
+ *
+ * <p>The helper is used by in-world diagnostics and previews where a full block render is unnecessary. It mutates
+ * the current {@link RenderSystem} shader and blend state and balances all {@link PoseStack} pushes before returning.
+ * Call it only from client render code with a pose stack already translated into world coordinates.</p>
+ */
 public final class OverlayRenderUtil {
     private OverlayRenderUtil() {
     }
 
+    /**
+     * Draws a solid colored cube centered on {@code pos}.
+     *
+     * @param poseStack active render pose stack; the method pushes and pops one transform
+     * @param pos       world block position to highlight; {@code null} is accepted as a no-op
+     * @param r         red channel in the normal shader-color range {@code 0.0f..1.0f}
+     * @param g         green channel in the normal shader-color range {@code 0.0f..1.0f}
+     * @param b         blue channel in the normal shader-color range {@code 0.0f..1.0f}
+     * @param a         alpha channel in the normal shader-color range {@code 0.0f..1.0f}
+     * @param scale     cube scale relative to one block; values slightly above {@code 1.0f} avoid z-fighting
+     */
     public static void renderSolidBlockOverlay(PoseStack poseStack, BlockPos pos, float r, float g, float b, float a, float scale) {
         if (pos == null) return;
 

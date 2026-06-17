@@ -12,21 +12,49 @@ import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Long-value configurator that accepts compact SI-style energy text.
+ *
+ * <p>The widget parses user input through {@link EnergyFormatUtil}, clamps values to a configured range, and formats
+ * committed values back to readable text. It is an editor UI component and should be accessed from the client UI
+ * thread. The configured updater is called through the normal {@link ValueConfigurator} value-update path.</p>
+ */
 public class SILongConfigurator extends ValueConfigurator<Long> {
+    /**
+     * Text box used for user input after {@link #init(int)}.
+     */
     protected TextFieldWidget textFieldWidget;
     private boolean updatingText;
     private final long min;
     private final long max;
     private final String tooltipKey;
 
+    /**
+     * Creates a configurator with the default range {@code 0..Long.MAX_VALUE}.
+     */
     public SILongConfigurator(String name, Supplier<Long> supplier, Consumer<Long> onUpdate, @Nonnull Long defaultValue, boolean forceUpdate) {
         this(name, supplier, onUpdate, 0L, Long.MAX_VALUE, defaultValue, forceUpdate, null);
     }
 
+    /**
+     * Creates a configurator with an explicit inclusive range.
+     */
     public SILongConfigurator(String name, Supplier<Long> supplier, Consumer<Long> onUpdate, long min, long max, @Nonnull Long defaultValue, boolean forceUpdate) {
         this(name, supplier, onUpdate, min, max, defaultValue, forceUpdate, null);
     }
 
+    /**
+     * Creates a configurator with an explicit inclusive range and optional leading tooltip.
+     *
+     * @param name         editor field name
+     * @param supplier     value supplier used by the base configurator
+     * @param onUpdate     callback invoked when the value changes
+     * @param min          inclusive minimum accepted value
+     * @param max          inclusive maximum accepted value
+     * @param defaultValue fallback value used when the supplied value is {@code null}
+     * @param forceUpdate  whether the base configurator should force update propagation
+     * @param tooltipKey   optional translation key displayed before the range tooltip
+     */
     public SILongConfigurator(String name, Supplier<Long> supplier, Consumer<Long> onUpdate, long min, long max, @Nonnull Long defaultValue, boolean forceUpdate, String tooltipKey) {
         super(name, supplier, onUpdate, defaultValue, forceUpdate);
         this.min = min;
@@ -34,6 +62,11 @@ public class SILongConfigurator extends ValueConfigurator<Long> {
         this.tooltipKey = tooltipKey;
     }
 
+    /**
+     * Receives external value changes and refreshes the text box unless the user is editing it.
+     *
+     * @param newValue new value from the configurator source; {@code null} maps to the default value
+     */
     @Override
     protected void onValueUpdate(Long newValue) {
         if (newValue == null) newValue = defaultValue;
@@ -44,6 +77,11 @@ public class SILongConfigurator extends ValueConfigurator<Long> {
         }
     }
 
+    /**
+     * Creates the text-field widget and initializes it from the current value.
+     *
+     * @param width available configurator width in pixels
+     */
     @Override
     public void init(int width) {
         super.init(width);

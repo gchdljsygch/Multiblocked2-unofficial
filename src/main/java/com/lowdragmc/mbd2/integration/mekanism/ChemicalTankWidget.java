@@ -62,6 +62,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+/**
+ * Configurable UI widget that renders and exposes a Mekanism chemical tank slot.
+ */
 @Accessors(chain = true)
 public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> extends Widget implements IRecipeIngredientSlot, IConfigurableWidget {
     public final static ResourceBorderTexture FLUID_SLOT_TEXTURE = new ResourceBorderTexture("ldlib:textures/gui/fluid_slot.png", 18, 18, 1, 1);
@@ -91,9 +94,11 @@ public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, ST
     protected ProgressTexture.FillDirection fillDirection = ProgressTexture.FillDirection.ALWAYS_FULL;
     @Setter
     protected BiConsumer<ChemicalTankWidget<CHEMICAL, STACK>, List<Component>> onAddedTooltips;
-    @Setter @Getter
+    @Setter
+    @Getter
     protected IngredientIO ingredientIO = IngredientIO.RENDER_ONLY;
-    @Setter @Getter
+    @Setter
+    @Getter
     protected float XEIChance = 1f;
     protected ChemicalStack<CHEMICAL> lastChemicalInTank;
     protected long lastTankCapacity;
@@ -133,6 +138,7 @@ public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, ST
     }
 
     public abstract Capability<? extends IChemicalHandler<CHEMICAL, STACK>> getCapability();
+
     public abstract ChemicalStack<CHEMICAL> readStack(CompoundTag tag);
 
     public ChemicalTankWidget<CHEMICAL, STACK> setChemicalTank(IChemicalHandler<CHEMICAL, STACK> chemicalHandler) {
@@ -594,103 +600,103 @@ public abstract class ChemicalTankWidget<CHEMICAL extends Chemical<CHEMICAL>, ST
     @NoArgsConstructor
     public static class Pigment extends ChemicalTankWidget<mekanism.api.chemical.pigment.Pigment, PigmentStack> {
 
-            public Pigment(@Nullable IPigmentHandler chemicalHandler, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, x, y, allowClickContainerFilling, allowClickContainerEmptying);
-            }
+        public Pigment(@Nullable IPigmentHandler chemicalHandler, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, x, y, allowClickContainerFilling, allowClickContainerEmptying);
+        }
 
-            public Pigment(@Nullable IPigmentHandler chemicalHandler, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
-            }
+        public Pigment(@Nullable IPigmentHandler chemicalHandler, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
+        }
 
-            public Pigment(@Nullable IPigmentHandler chemicalHandler, int tank, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, tank, x, y, allowClickContainerFilling, allowClickContainerEmptying);
-            }
+        public Pigment(@Nullable IPigmentHandler chemicalHandler, int tank, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, tank, x, y, allowClickContainerFilling, allowClickContainerEmptying);
+        }
 
-            public Pigment(@Nullable IPigmentHandler chemicalHandler, int tank, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, tank, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
-            }
+        public Pigment(@Nullable IPigmentHandler chemicalHandler, int tank, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, tank, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
+        }
 
-            @Override
-            public Capability<IPigmentHandler> getCapability() {
-                return Capabilities.PIGMENT_HANDLER;
-            }
+        @Override
+        public Capability<IPigmentHandler> getCapability() {
+            return Capabilities.PIGMENT_HANDLER;
+        }
 
-            @Override
-            public PigmentStack readStack(CompoundTag tag) {
-                return PigmentStack.readFromNBT(tag);
-            }
+        @Override
+        public PigmentStack readStack(CompoundTag tag) {
+            return PigmentStack.readFromNBT(tag);
+        }
 
-            @Override
-            public void buildConfigurator(ConfiguratorGroup father) {
-                if (ChemicalTankBuilder.PIGMENT.createAllValid(2000, null) instanceof IPigmentHandler handler) {
-                    handler.insertChemical(MekanismChemicalRecipeCapability.CAP_PIGMENT.createDefaultContent(), Action.EXECUTE);
-                    father.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", new Pigment() {
-                        @Override
-                        public void updateScreen() {
-                            super.updateScreen();
-                            setHoverTooltips(Pigment.this.tooltipTexts);
-                            this.backgroundTexture = Pigment.this.backgroundTexture;
-                            this.hoverTexture = Pigment.this.hoverTexture;
-                            this.showAmount = Pigment.this.showAmount;
-                            this.drawHoverTips = Pigment.this.drawHoverTips;
-                            this.fillDirection = Pigment.this.fillDirection;
-                            this.overlay = Pigment.this.overlay;
-                        }
-                    }.setAllowClickDrained(false).setAllowClickFilled(false).setChemicalTank(handler)));
-                }
-                super.buildConfigurator(father);
+        @Override
+        public void buildConfigurator(ConfiguratorGroup father) {
+            if (ChemicalTankBuilder.PIGMENT.createAllValid(2000, null) instanceof IPigmentHandler handler) {
+                handler.insertChemical(MekanismChemicalRecipeCapability.CAP_PIGMENT.createDefaultContent(), Action.EXECUTE);
+                father.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", new Pigment() {
+                    @Override
+                    public void updateScreen() {
+                        super.updateScreen();
+                        setHoverTooltips(Pigment.this.tooltipTexts);
+                        this.backgroundTexture = Pigment.this.backgroundTexture;
+                        this.hoverTexture = Pigment.this.hoverTexture;
+                        this.showAmount = Pigment.this.showAmount;
+                        this.drawHoverTips = Pigment.this.drawHoverTips;
+                        this.fillDirection = Pigment.this.fillDirection;
+                        this.overlay = Pigment.this.overlay;
+                    }
+                }.setAllowClickDrained(false).setAllowClickFilled(false).setChemicalTank(handler)));
             }
+            super.buildConfigurator(father);
+        }
     }
 
     @LDLRegister(name = "chemical_slurry_slot", group = "widget.container", modID = "mekanism")
     @NoArgsConstructor
     public static class Slurry extends ChemicalTankWidget<mekanism.api.chemical.slurry.Slurry, SlurryStack> {
-            
-            public Slurry(@Nullable ISlurryHandler chemicalHandler, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, x, y, allowClickContainerFilling, allowClickContainerEmptying);
-            }
-    
-            public Slurry(@Nullable ISlurryHandler chemicalHandler, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
-            }
-    
-            public Slurry(@Nullable ISlurryHandler chemicalHandler, int tank, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, tank, x, y, allowClickContainerFilling, allowClickContainerEmptying);
-            }
-    
-            public Slurry(@Nullable ISlurryHandler chemicalHandler, int tank, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
-                super(chemicalHandler, tank, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
-            }
-    
-            @Override
-            public Capability<ISlurryHandler> getCapability() {
-                return Capabilities.SLURRY_HANDLER;
-            }
-    
-            @Override
-            public SlurryStack readStack(CompoundTag tag) {
-                return SlurryStack.readFromNBT(tag);
-            }
 
-            @Override
-            public void buildConfigurator(ConfiguratorGroup father) {
-                if (ChemicalTankBuilder.SLURRY.createAllValid(2000, null) instanceof ISlurryHandler handler) {
-                    handler.insertChemical(MekanismChemicalRecipeCapability.CAP_SLURRY.createDefaultContent(), Action.EXECUTE);
-                    father.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", new Slurry() {
-                        @Override
-                        public void updateScreen() {
-                            super.updateScreen();
-                            setHoverTooltips(Slurry.this.tooltipTexts);
-                            this.backgroundTexture = Slurry.this.backgroundTexture;
-                            this.hoverTexture = Slurry.this.hoverTexture;
-                            this.showAmount = Slurry.this.showAmount;
-                            this.drawHoverTips = Slurry.this.drawHoverTips;
-                            this.fillDirection = Slurry.this.fillDirection;
-                            this.overlay = Slurry.this.overlay;
-                        }
-                    }.setAllowClickDrained(false).setAllowClickFilled(false).setChemicalTank(handler)));
-                }
-                super.buildConfigurator(father);
+        public Slurry(@Nullable ISlurryHandler chemicalHandler, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, x, y, allowClickContainerFilling, allowClickContainerEmptying);
+        }
+
+        public Slurry(@Nullable ISlurryHandler chemicalHandler, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
+        }
+
+        public Slurry(@Nullable ISlurryHandler chemicalHandler, int tank, int x, int y, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, tank, x, y, allowClickContainerFilling, allowClickContainerEmptying);
+        }
+
+        public Slurry(@Nullable ISlurryHandler chemicalHandler, int tank, int x, int y, int width, int height, boolean allowClickContainerFilling, boolean allowClickContainerEmptying) {
+            super(chemicalHandler, tank, x, y, width, height, allowClickContainerFilling, allowClickContainerEmptying);
+        }
+
+        @Override
+        public Capability<ISlurryHandler> getCapability() {
+            return Capabilities.SLURRY_HANDLER;
+        }
+
+        @Override
+        public SlurryStack readStack(CompoundTag tag) {
+            return SlurryStack.readFromNBT(tag);
+        }
+
+        @Override
+        public void buildConfigurator(ConfiguratorGroup father) {
+            if (ChemicalTankBuilder.SLURRY.createAllValid(2000, null) instanceof ISlurryHandler handler) {
+                handler.insertChemical(MekanismChemicalRecipeCapability.CAP_SLURRY.createDefaultContent(), Action.EXECUTE);
+                father.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", new Slurry() {
+                    @Override
+                    public void updateScreen() {
+                        super.updateScreen();
+                        setHoverTooltips(Slurry.this.tooltipTexts);
+                        this.backgroundTexture = Slurry.this.backgroundTexture;
+                        this.hoverTexture = Slurry.this.hoverTexture;
+                        this.showAmount = Slurry.this.showAmount;
+                        this.drawHoverTips = Slurry.this.drawHoverTips;
+                        this.fillDirection = Slurry.this.fillDirection;
+                        this.overlay = Slurry.this.overlay;
+                    }
+                }.setAllowClickDrained(false).setAllowClickFilled(false).setChemicalTank(handler)));
             }
+            super.buildConfigurator(father);
+        }
     }
 }

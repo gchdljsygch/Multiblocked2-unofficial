@@ -16,6 +16,15 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Configurable synced label for recipe-thread progress digits.
+ *
+ * <p>The value is synchronized from server supplier to client only when it changes, or read
+ * locally for client-side templates. If the text does not already end with {@code %}, the
+ * widget appends the percent sign while drawing. It can optionally anchor itself beside a
+ * {@link ThreadStatusLabelWidget} identified by id, which keeps the progress text aligned
+ * after localized status text changes width.</p>
+ */
 @Configurable(name = "ldlib.gui.editor.register.widget.mbd2.thread_progress_digits_label", collapse = false)
 @LDLRegister(name = "thread_progress_digits_label", group = "widget.mbd2")
 public class ThreadProgressDigitsLabelWidget extends com.lowdragmc.lowdraglib.gui.widget.Widget implements IConfigurableWidget {
@@ -38,28 +47,62 @@ public class ThreadProgressDigitsLabelWidget extends com.lowdragmc.lowdraglib.gu
     @Configurable(name = "mbd2.gui.editor.anchor_status_widget_id")
     private String anchorStatusWidgetId = "";
 
+    /**
+     * Creates a default progress label for editor templates.
+     */
     public ThreadProgressDigitsLabelWidget() {
         this(0, 0, 10, 10);
     }
 
+    /**
+     * Creates a progress label.
+     *
+     * @param x      left position relative to the parent widget
+     * @param y      top position relative to the parent widget
+     * @param width  widget width in pixels
+     * @param height widget height in pixels
+     */
     public ThreadProgressDigitsLabelWidget(int x, int y, int width, int height) {
         super(new Position(x, y), new Size(width, height));
     }
 
+    /**
+     * Sets the progress digits supplier.
+     *
+     * @param progressDigitsSupplier supplier returning digits with or without a trailing
+     *                               percent sign; {@code null} is treated as empty
+     */
     public void setProgressDigitsSupplier(Supplier<String> progressDigitsSupplier) {
         this.progressDigitsSupplier = progressDigitsSupplier == null ? () -> "" : progressDigitsSupplier;
     }
 
+    /**
+     * Sets the text color.
+     *
+     * @param color ARGB/RGB color accepted by Minecraft font rendering
+     * @return this widget for chaining
+     */
     public ThreadProgressDigitsLabelWidget setTextColor(int color) {
         this.color = color;
         return this;
     }
 
+    /**
+     * Controls text shadow rendering.
+     *
+     * @param dropShadow whether the font should draw a shadow
+     * @return this widget for chaining
+     */
     public ThreadProgressDigitsLabelWidget setDropShadow(boolean dropShadow) {
         this.dropShadow = dropShadow;
         return this;
     }
 
+    /**
+     * Sets the id of the status widget used for horizontal anchoring.
+     *
+     * @param statusWidgetId sibling widget id; {@code null} disables id lookup
+     */
     public void setAnchorStatusWidgetId(String statusWidgetId) {
         this.anchorStatusWidgetId = statusWidgetId == null ? "" : statusWidgetId;
     }

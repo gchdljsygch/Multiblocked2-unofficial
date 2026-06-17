@@ -23,8 +23,14 @@ import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.function.Function;
 
+/**
+ * REI display category for ordinary MBD recipes of a single recipe type.
+ */
 public class MBDRecipeTypeDisplayCategory extends ModularUIDisplayCategory<MBDRecipeTypeDisplayCategory.MBDRecipeDisplay> {
 
+    /**
+     * REI display wrapper that supplies an MBD modular recipe UI.
+     */
     public static class MBDRecipeDisplay extends ModularDisplay<Widget> {
 
         private final MBDRecipe recipe;

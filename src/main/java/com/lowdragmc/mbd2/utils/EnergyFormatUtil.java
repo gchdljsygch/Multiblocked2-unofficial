@@ -3,6 +3,9 @@ package com.lowdragmc.mbd2.utils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+/**
+ * Utility methods for formatting and parsing compact energy values.
+ */
 public final class EnergyFormatUtil {
     private static final long[] POW_1000 = {
             1L,

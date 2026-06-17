@@ -7,6 +7,9 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Vector3f;
 
+/**
+ * Graph node that starts a Photon FX instance attached to an MBD machine.
+ */
 @LDLRegister(name = "emit photon fx", group = "graph_processor.node.mbd2.machine.photon", modID = "photon")
 public class EmitPhotonFXNode extends LinearTriggerNode {
     @InputPort
@@ -22,7 +25,7 @@ public class EmitPhotonFXNode extends LinearTriggerNode {
     @InputPort
     public int delay;
     @InputPort(name = "forced death", tips = {"graph_processor.node.mbd2.machine.photon.force_death.tips.0",
-    "graph_processor.node.mbd2.machine.photon.force_death.tips.1", "graph_processor.node.mbd2.machine.photon.force_death.tips.2"})
+            "graph_processor.node.mbd2.machine.photon.force_death.tips.1", "graph_processor.node.mbd2.machine.photon.force_death.tips.2"})
     public boolean forcedDeath;
     @InputPort(name = "replace existing", tips = {
             "graph_processor.node.mbd2.machine.photon.replace_existing.0",
@@ -32,10 +35,11 @@ public class EmitPhotonFXNode extends LinearTriggerNode {
 
     @Override
     protected void process() {
-        if (machine != null && identifier != null && fxLocation != null && ResourceLocation.isValidResourceLocation(fxLocation)) {
-            machine.emitPhotonFx(identifier, new ResourceLocation(fxLocation),
-                    offset == null ? new Vector3f(): offset,
-                    rotation == null ? new Vector3f(): rotation, delay, forcedDeath, replaceExisting);
+        var fxId = fxLocation == null ? null : ResourceLocation.tryParse(fxLocation);
+        if (machine != null && identifier != null && fxId != null) {
+            machine.emitPhotonFx(identifier, fxId,
+                    offset == null ? new Vector3f() : offset,
+                    rotation == null ? new Vector3f() : rotation, delay, forcedDeath, replaceExisting);
         }
     }
 }

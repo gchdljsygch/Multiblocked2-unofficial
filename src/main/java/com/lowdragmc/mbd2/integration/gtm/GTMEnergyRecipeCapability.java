@@ -19,12 +19,16 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for GregTech EU amounts consumed or produced by MBD recipes.
+ */
 public class GTMEnergyRecipeCapability extends RecipeCapability<Long> {
     public final static GTMEnergyRecipeCapability CAP = new GTMEnergyRecipeCapability();
     public static final ResourceBorderTexture HUD_BACKGROUND = new ResourceBorderTexture(
             "mbd2:textures/gui/progress_bar_boiler_empty_steel.png", 54, 10, 1, 1);
     public static final ResourceBorderTexture HUD_BAR = new ResourceBorderTexture(
             "mbd2:textures/gui/progress_bar_boiler_heat.png", 54, 10, 1, 1);
+
     protected GTMEnergyRecipeCapability() {
         super("gtm_energy", SerializerLong.INSTANCE);
     }

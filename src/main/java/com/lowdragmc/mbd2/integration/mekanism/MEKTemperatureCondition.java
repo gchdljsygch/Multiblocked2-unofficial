@@ -21,6 +21,9 @@ import net.minecraft.util.GsonHelper;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 
+/**
+ * Recipe condition that checks Mekanism heat container temperature bounds.
+ */
 @Getter
 @NoArgsConstructor
 public class MEKTemperatureCondition extends RecipeCondition {
@@ -71,7 +74,7 @@ public class MEKTemperatureCondition extends RecipeCondition {
         }
         for (IRecipeHandler<?> handler : toCheck) {
             if (handler instanceof MekHeatCapabilityTrait.HeatRecipeHandler heatRecipeHandler) {
-                var temp = ((MekHeatCapabilityTrait)heatRecipeHandler.trait).getContainer().getTemperature(0);
+                var temp = ((MekHeatCapabilityTrait) heatRecipeHandler.trait).getContainer().getTemperature(0);
                 if (temp >= minTemperature && temp <= maxTemperature) {
                     return true;
                 }

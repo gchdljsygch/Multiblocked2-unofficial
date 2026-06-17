@@ -73,6 +73,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * AE2 pattern provider trait that accepts pushed crafting inputs into machine-readable item and fluid buffers.
+ */
 @Getter
 public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridConnectedBlockEntity, InternalInventoryHost, PatternContainer, ICraftingProvider {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEPatternInputTrait.class);
@@ -126,6 +129,16 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
     private final ItemRecipeHandler itemRecipeHandler = new ItemRecipeHandler();
     private final FluidRecipeHandler fluidRecipeHandler = new FluidRecipeHandler();
 
+    /**
+     * Creates a pattern-input trait for a machine definition.
+     * <p>
+     * Side effects: creates the persisted AE2 grid node, AE-facing input buffer, encoded-pattern inventory, recipe-group
+     * map, and typed item/fluid buffers. The grid node is attached to the world later from the server load lifecycle.
+     * Runtime mutation should happen from the machine/server thread or AE2 callback context.
+     *
+     * @param machine    machine instance that owns this trait
+     * @param definition pattern-input definition that supplies pattern slots and buffer limits
+     */
     public MEPatternInputTrait(MBDMachine machine, MEPatternInputTraitDefinition definition) {
         super(machine, definition);
         mainNode = createMainNode();
@@ -137,6 +150,14 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         fluidStorage = createFluidStorage();
     }
 
+    /**
+     * Builds the AE2 grid node that advertises this trait as a crafting provider.
+     * <p>
+     * The node is in-world, uses the machine drop item for display, and requests provider refreshes whenever AE2 reports
+     * grid state changes.
+     *
+     * @return configured, not-yet-created managed grid node
+     */
     protected SerializableManagedGridNode createMainNode() {
         return (SerializableManagedGridNode) new SerializableManagedGridNode(this, (nodeOwner, node) -> nodeOwner.updateCraftingProvider())
                 .setVisualRepresentation(getMachine().getDropItem())
@@ -145,20 +166,44 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
                 .addService(ICraftingProvider.class, this);
     }
 
+    /**
+     * Creates the AE-facing buffer that accepts generic pattern inputs.
+     *
+     * @return input buffer wired to this trait's content-change callback
+     */
     protected SerializableInputBuffer createInputBuffer() {
         return new SerializableInputBuffer(this::onContentsChanged);
     }
 
+    /**
+     * Creates the encoded-pattern inventory exposed to AE2 pattern terminals.
+     *
+     * @return persistent pattern inventory sized from the trait definition
+     */
     protected SerializablePatternInventory createPatternInventory() {
         return new SerializablePatternInventory(this, getDefinition().getPatternSlotSize());
     }
 
+    /**
+     * Creates the dynamic item buffer used by MBD recipes.
+     * <p>
+     * Side effect: installs a content-change callback that mirrors changes back to the AE-facing input buffer.
+     *
+     * @return empty dynamic item storage with recipe-group tracking
+     */
     protected DynamicItemStorage createItemStorage() {
         var storage = new DynamicItemStorage();
         storage.setOnContentsChanged(this::onTypedStorageChanged);
         return storage;
     }
 
+    /**
+     * Creates the dynamic fluid buffer used by MBD recipes.
+     * <p>
+     * Side effect: installs a content-change callback that mirrors changes back to the AE-facing input buffer.
+     *
+     * @return empty dynamic fluid storage with recipe-group tracking
+     */
     protected DynamicFluidStorage createFluidStorage() {
         var storage = new DynamicFluidStorage();
         storage.setOnContentsChanged(this::onTypedStorageChanged);
@@ -170,11 +215,23 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return (MEPatternInputTraitDefinition) super.getDefinition();
     }
 
+    /**
+     * Handles any persisted inventory or buffer content change.
+     * <p>
+     * Side effects: marks the trait dirty through LDLib listeners and asks AE2 to refresh this crafting provider if the
+     * node is active.
+     */
     public void onContentsChanged() {
         notifyListeners();
         updateCraftingProvider();
     }
 
+    /**
+     * Handles changes to the typed item/fluid buffers.
+     * <p>
+     * Unless the change already came from {@link #inputBuffer}, this rebuilds the AE-facing generic buffer, refreshes
+     * blocking-pattern state, and then runs the normal content-change path.
+     */
     public void onTypedStorageChanged() {
         if (!syncingFromInputBuffer) {
             inputBuffer.rebuildFromTypedStorage();
@@ -183,6 +240,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         onContentsChanged();
     }
 
+    /**
+     * Returns the block entity that hosts this in-world AE2 node.
+     *
+     * @return machine holder block entity
+     */
     public BlockEntity getBlockEntity() {
         return getMachine().getHolder();
     }
@@ -208,12 +270,23 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         updateCraftingProvider();
     }
 
+    /**
+     * Requests an AE2 crafting-provider refresh for this node.
+     * <p>
+     * The request is skipped until the node is active. AE2 processes the update on its normal network tick path.
+     */
     protected void updateCraftingProvider() {
         if (getMainNode().isActive()) {
             ICraftingProvider.requestUpdate(mainNode);
         }
     }
 
+    /**
+     * Rebuilds the decoded pattern cache from the persistent pattern inventory.
+     * <p>
+     * Invalid or undecodable stacks are ignored. Side effect: clears and repopulates {@link #patterns}, then notifies AE2
+     * that the provider's advertised patterns may have changed.
+     */
     protected void updatePatterns() {
         patterns.clear();
         for (var stack : patternInventory) {
@@ -225,6 +298,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         updateCraftingProvider();
     }
 
+    /**
+     * Gets the icon shown for this trait in machine UI menus.
+     *
+     * @return AE2 pattern provider block stack
+     */
     public ItemStack getMainMenuIcon() {
         return AEBlocks.PATTERN_PROVIDER.stack();
     }
@@ -363,10 +441,23 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return false;
     }
 
+    /**
+     * Reports whether strict blocking mode is enabled.
+     *
+     * @return {@code true} when any stored inputs should block additional pattern pushes until cleared
+     */
     public boolean isBlockingMode() {
         return blockingMode;
     }
 
+    /**
+     * Enables or disables strict blocking mode.
+     * <p>
+     * Side effect: clears the tracked blocking pattern when both blocking modes are disabled, otherwise refreshes it from
+     * current stored inputs.
+     *
+     * @param blockingMode {@code true} to reject new pattern pushes while inputs remain buffered
+     */
     public void setBlockingMode(boolean blockingMode) {
         this.blockingMode = blockingMode;
         if (!blockingMode && !smartBlocking) {
@@ -376,10 +467,23 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Reports whether smart blocking mode is enabled.
+     *
+     * @return {@code true} when stored inputs only block pushes from different pattern definitions
+     */
     public boolean isSmartBlocking() {
         return smartBlocking;
     }
 
+    /**
+     * Enables or disables smart blocking mode.
+     * <p>
+     * Side effect: clears the tracked blocking pattern when both blocking modes are disabled, otherwise refreshes it from
+     * current stored inputs.
+     *
+     * @param smartBlocking {@code true} to allow repeats of the same pattern while blocking different patterns
+     */
     public void setSmartBlocking(boolean smartBlocking) {
         this.smartBlocking = smartBlocking;
         if (!blockingMode && !smartBlocking) {
@@ -427,10 +531,26 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         blockingPattern = null;
     }
 
+    /**
+     * Ejects all buffered item and fluid inputs into the connected AE2 network.
+     * <p>
+     * Side effects: removes successfully inserted inputs from local buffers and may clear or update blocking-pattern
+     * state. Nothing is ejected when the node is inactive or has no grid.
+     *
+     * @return total item-count plus fluid-amount inserted into the network
+     */
     public long ejectInputsToNetwork() {
         return ejectItemsToNetwork() + ejectFluidsToNetwork();
     }
 
+    /**
+     * Ejects buffered item inputs into the connected AE2 network.
+     * <p>
+     * Side effects: removes successfully inserted item counts from {@link #itemStorage}. The method must run with a live
+     * server-side grid and returns {@code 0} when no network storage is available.
+     *
+     * @return total item count inserted into AE2 storage
+     */
     public long ejectItemsToNetwork() {
         if (!mainNode.isActive() || getGrid() == null) {
             return 0;
@@ -451,6 +571,14 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return ejected;
     }
 
+    /**
+     * Ejects buffered fluid inputs into the connected AE2 network.
+     * <p>
+     * Side effects: drains successfully inserted fluid amounts from {@link #fluidStorage}, compacts empty tanks, and
+     * refreshes blocking-pattern state. The method returns {@code 0} when the node is inactive or has no grid.
+     *
+     * @return total fluid amount inserted into AE2 storage
+     */
     public long ejectFluidsToNetwork() {
         if (!mainNode.isActive() || getGrid() == null) {
             return 0;
@@ -492,7 +620,7 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
     }
 
     private boolean pushInputs(IPatternDetails patternDetails, KeyCounter[] inputHolder, MEStorage storage, String recipeGroup) {
-        var accepted = new boolean[] { true };
+        var accepted = new boolean[]{true};
         var previousRecipeGroup = currentRecipeGroup;
         currentRecipeGroup = recipeGroup;
         try {
@@ -517,6 +645,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return Collections.emptySet();
     }
 
+    /**
+     * Exposes this pattern input as an in-world AE2 grid node host.
+     */
     public class ManagedGridNodeCap implements ICapabilityProviderTrait<IInWorldGridNodeHost> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -534,6 +665,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Exposes the AE input buffer as AE2's generic internal inventory.
+     */
     public class GenericInternalInventoryCap implements ICapabilityProviderTrait<GenericInternalInventory> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -551,6 +685,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Exposes the AE input buffer as ME storage so the network can push pattern inputs.
+     */
     public class StorageCap implements ICapabilityProviderTrait<MEStorage> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -568,6 +705,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Provides a Forge item handler view over stored pattern inputs.
+     */
     public class ItemHandlerCap implements ICapabilityProviderTrait<IItemHandler> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -585,6 +725,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Provides a Forge fluid handler view over stored pattern inputs.
+     */
     public class FluidHandlerCap implements ICapabilityProviderTrait<IFluidHandler> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -602,11 +745,29 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Consumes item inputs produced by AE2 patterns, optionally filtered by recipe group.
+     */
     public class ItemRecipeHandler extends RecipeHandlerTrait<net.minecraft.world.item.crafting.Ingredient> {
+        /**
+         * Creates the item recipe handler attached to the outer pattern-input trait.
+         * <p>
+         * The handler consumes only stored inputs; it does not request new inputs from AE2. Use it from normal
+         * recipe-processing/server logic.
+         */
         protected ItemRecipeHandler() {
             super(MEPatternInputTrait.this, ItemRecipeCapability.CAP);
         }
 
+        /**
+         * Selects the item buffer used for recipe matching.
+         * <p>
+         * Simulation receives a serialized copy so extraction attempts cannot mutate persisted inputs. Non-simulated
+         * handling returns the live dynamic storage and will remove consumed items.
+         *
+         * @param simulate {@code true} to return an isolated copy, {@code false} to return live storage
+         * @return item storage used by this recipe pass
+         */
         protected DynamicItemStorage getStorage(boolean simulate) {
             return simulate ? itemStorage.copy() : itemStorage;
         }
@@ -665,11 +826,29 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Consumes fluid inputs produced by AE2 patterns, optionally filtered by recipe group.
+     */
     public class FluidRecipeHandler extends RecipeHandlerTrait<FluidIngredient> {
+        /**
+         * Creates the fluid recipe handler attached to the outer pattern-input trait.
+         * <p>
+         * The handler consumes only stored inputs; it does not request new inputs from AE2. Use it from normal
+         * recipe-processing/server logic.
+         */
         protected FluidRecipeHandler() {
             super(MEPatternInputTrait.this, FluidRecipeCapability.CAP);
         }
 
+        /**
+         * Selects the fluid buffer used for recipe matching.
+         * <p>
+         * Simulation receives a serialized copy so drain attempts cannot mutate persisted inputs. Non-simulated handling
+         * returns the live dynamic storage and will remove consumed fluids.
+         *
+         * @param simulate {@code true} to return an isolated copy, {@code false} to return live storage
+         * @return fluid storage used by this recipe pass
+         */
         protected DynamicFluidStorage getStorage(boolean simulate) {
             return simulate ? fluidStorage.copy() : fluidStorage;
         }
@@ -732,18 +911,32 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * AE-facing input buffer that mirrors pushed generic stacks into typed item and fluid storage.
+     */
     public class SerializableInputBuffer extends GenericStackInv implements ITagSerializable<CompoundTag>, IContentChangeAware {
         @Getter
-        private Runnable onContentsChanged = () -> {};
+        private Runnable onContentsChanged = () -> {
+        };
 
+        /**
+         * Creates an AE2 generic-stack input buffer.
+         * <p>
+         * The buffer starts with zero direct slots because pushed inputs are mirrored into typed item/fluid buffers.
+         * Passing {@code null} installs a no-op listener.
+         *
+         * @param listener callback invoked when AE-facing contents change, or {@code null} for no callback
+         */
         public SerializableInputBuffer(@Nullable Runnable listener) {
             super(listener, 0);
-            setOnContentsChanged(listener == null ? () -> {} : listener);
+            setOnContentsChanged(listener == null ? () -> {
+            } : listener);
         }
 
         @Override
         public void setOnContentsChanged(Runnable onContentsChanged) {
-            this.onContentsChanged = onContentsChanged == null ? () -> {} : onContentsChanged;
+            this.onContentsChanged = onContentsChanged == null ? () -> {
+            } : onContentsChanged;
         }
 
         @Override
@@ -803,6 +996,12 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return Component.translatable("config.definition.trait.ae2_me_pattern_input");
         }
 
+        /**
+         * Rebuilds the AE-facing generic-stack view from typed item and fluid buffers.
+         * <p>
+         * Side effects: clears existing generic stacks and reinserts all non-empty typed stacks with this trait's
+         * {@link #actionSource}. Recipe-group metadata remains owned by the typed buffers.
+         */
         public void rebuildFromTypedStorage() {
             clear();
             for (int i = 0; i < itemStorage.getSlots(); i++) {
@@ -822,6 +1021,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             }
         }
 
+        /**
+         * Creates a detached copy of this input buffer.
+         *
+         * @return new buffer populated from this buffer's serialized AE stack data
+         */
         public SerializableInputBuffer copy() {
             var copied = new SerializableInputBuffer(null);
             copied.readFromTag(writeToTag());
@@ -832,28 +1036,53 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return MEPatternInputTrait.this.insertTypedStorage(what, amount, simulate ? itemStorage.copy() : itemStorage, simulate ? fluidStorage.copy() : fluidStorage, currentRecipeGroup);
         }
 
+        /**
+         * Serializes the AE-facing generic-stack data.
+         *
+         * @return tag containing the generic-stack list under {@link #NBT_AE_INPUTS}
+         */
         public CompoundTag serializeNBT() {
             var tag = new CompoundTag();
             tag.put(NBT_AE_INPUTS, writeToTag());
             return tag;
         }
 
+        /**
+         * Restores the AE-facing generic-stack data.
+         * <p>
+         * The caller is responsible for separately restoring typed buffers when loading a full trait snapshot.
+         *
+         * @param tag serialized buffer tag; missing input data restores an empty generic-stack list
+         */
         public void deserializeNBT(CompoundTag tag) {
             readFromTag(tag.getList(NBT_AE_INPUTS, net.minecraft.nbt.Tag.TAG_COMPOUND));
         }
     }
 
+    /**
+     * Persistent encoded-pattern inventory used by the AE2 terminal and crafting provider.
+     */
     public static class SerializablePatternInventory extends AppEngInternalInventory implements ITagSerializable<CompoundTag>, IContentChangeAware {
         @Getter
-        private Runnable onContentsChanged = () -> {};
+        private Runnable onContentsChanged = () -> {
+        };
 
+        /**
+         * Creates a persistent encoded-pattern inventory.
+         * <p>
+         * The inventory accepts one item per slot and filters inserts to encoded AE2 patterns.
+         *
+         * @param host AE2 internal-inventory host notified when slots change
+         * @param size number of pattern slots; must be non-negative
+         */
         public SerializablePatternInventory(InternalInventoryHost host, int size) {
             super(host, size, 1, new PatternItemFilter());
         }
 
         @Override
         public void setOnContentsChanged(Runnable onContentsChanged) {
-            this.onContentsChanged = onContentsChanged == null ? () -> {} : onContentsChanged;
+            this.onContentsChanged = onContentsChanged == null ? () -> {
+            } : onContentsChanged;
         }
 
         @Override
@@ -862,41 +1091,81 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             onContentsChanged.run();
         }
 
+        /**
+         * Serializes encoded pattern stacks.
+         *
+         * @return tag containing the inventory under {@link #NBT_PATTERNS}
+         */
         public CompoundTag serializeNBT() {
             var tag = new CompoundTag();
             writeToNBT(tag, NBT_PATTERNS);
             return tag;
         }
 
+        /**
+         * Restores encoded pattern stacks from NBT.
+         *
+         * @param tag serialized inventory tag; missing pattern data leaves slots empty
+         */
         public void deserializeNBT(CompoundTag tag) {
             readFromNBT(tag, NBT_PATTERNS);
         }
     }
 
+    /**
+     * Persistent mapping from encoded pattern definitions to MBD recipe groups.
+     */
     public static class SerializablePatternRecipeGroups implements ITagSerializable<CompoundTag>, IContentChangeAware {
         @Getter
-        private Runnable onContentsChanged = () -> {};
+        private Runnable onContentsChanged = () -> {
+        };
         private final Map<AEItemKey, String> groups = new LinkedHashMap<>();
 
         @Override
         public void setOnContentsChanged(Runnable onContentsChanged) {
-            this.onContentsChanged = onContentsChanged == null ? () -> {} : onContentsChanged;
+            this.onContentsChanged = onContentsChanged == null ? () -> {
+            } : onContentsChanged;
         }
 
+        /**
+         * Looks up the MBD recipe group assigned to an encoded pattern definition.
+         *
+         * @param definition AE item key representing the encoded pattern stack
+         * @return normalized recipe group, or {@code null} when the pattern has no assigned group
+         */
         @Nullable
         public String get(AEItemKey definition) {
             return groups.get(definition);
         }
 
+        /**
+         * Assigns a recipe group to an encoded pattern definition.
+         * <p>
+         * Side effect: normalizes the group name, updates the persistent map, and invokes the content-change listener.
+         *
+         * @param definition  AE item key representing the encoded pattern stack
+         * @param recipeGroup group name to store; blank or invalid values normalize through {@link RecipeGroup#normalize(String)}
+         */
         public void put(AEItemKey definition, String recipeGroup) {
             groups.put(definition, RecipeGroup.normalize(recipeGroup));
             onContentsChanged.run();
         }
 
+        /**
+         * Checks whether any encoded pattern is assigned to a recipe group.
+         *
+         * @param recipeGroup requested group name; {@code null} or blank maps to the default group
+         * @return {@code true} when a stored pattern uses the normalized group
+         */
         public boolean containsGroup(String recipeGroup) {
             return groups.containsValue(RecipeGroup.normalizeOrDefault(recipeGroup));
         }
 
+        /**
+         * Serializes pattern-definition to recipe-group assignments.
+         *
+         * @return tag containing all assignments under {@link #NBT_PATTERN_GROUPS}
+         */
         public CompoundTag serializeNBT() {
             var tag = new CompoundTag();
             var list = new ListTag();
@@ -910,6 +1179,13 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return tag;
         }
 
+        /**
+         * Restores pattern-definition to recipe-group assignments.
+         * <p>
+         * Invalid or non-item AE keys are ignored. Existing assignments are cleared before loading.
+         *
+         * @param tag serialized assignment tag
+         */
         public void deserializeNBT(CompoundTag tag) {
             groups.clear();
             var list = tag.getList(NBT_PATTERN_GROUPS, net.minecraft.nbt.Tag.TAG_COMPOUND);
@@ -951,9 +1227,17 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return 0;
     }
 
+    /**
+     * Dynamic item input storage that keeps each compacted slot associated with its recipe group.
+     */
     public class DynamicItemStorage extends ItemStackTransfer {
         private List<String> recipeGroups = new ArrayList<>();
 
+        /**
+         * Creates an empty compacting item buffer.
+         * <p>
+         * Slots are added lazily when inputs arrive, and each non-empty slot has matching recipe-group metadata.
+         */
         public DynamicItemStorage() {
             super(0);
         }
@@ -982,10 +1266,27 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return getSlotLimit(slot);
         }
 
+        /**
+         * Inserts an item stack into the default recipe group.
+         *
+         * @param stack stack to store; empty stacks are ignored
+         * @return number of items accepted, in {@code [0, stack.getCount()]}
+         */
         public long insertDynamic(ItemStack stack) {
             return insertDynamic(stack, RecipeGroup.DEFAULT);
         }
 
+        /**
+         * Inserts an item stack into a recipe-group aware dynamic slot.
+         * <p>
+         * Existing compatible slots are reused only when item, tag, and recipe group all match. Otherwise an empty or new
+         * slot is assigned. Side effects: may grow the storage, update slot recipe-group metadata, and fire the inherited
+         * content-change callback through {@link #insertItem(int, ItemStack, boolean)}.
+         *
+         * @param stack       stack to store; empty stacks are ignored
+         * @param recipeGroup recipe group to associate with accepted items; {@code null} maps to the default group
+         * @return number of items accepted, in {@code [0, stack.getCount()]}
+         */
         public long insertDynamic(ItemStack stack, @Nullable String recipeGroup) {
             if (stack.isEmpty()) {
                 return 0;
@@ -1023,6 +1324,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             recipeGroups = compactedRecipeGroups;
         }
 
+        /**
+         * Reports whether any item inputs are currently buffered.
+         *
+         * @return {@code true} when at least one compacted slot is non-empty
+         */
         public boolean hasStoredInputs() {
             for (var stored : stacks) {
                 if (!stored.isEmpty()) {
@@ -1032,6 +1338,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return false;
         }
 
+        /**
+         * Returns the recipe groups currently represented by non-empty item slots.
+         *
+         * @return ordered set of normalized recipe-group names
+         */
         public Set<String> getRecipeGroups() {
             var groups = new LinkedHashSet<String>();
             for (int i = 0; i < getSlots(); i++) {
@@ -1042,6 +1353,13 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return groups;
         }
 
+        /**
+         * Checks whether a slot may satisfy a recipe-group request.
+         *
+         * @param slot        zero-based slot index
+         * @param recipeGroup requested group; {@code null} or blank maps to the default group
+         * @return {@code true} when the slot's stored group matches the normalized request
+         */
         public boolean matchesRecipeGroup(int slot, @Nullable String recipeGroup) {
             return MEPatternInputTrait.matchesRecipeGroup(recipeGroup, getSlotRecipeGroup(slot));
         }
@@ -1127,20 +1445,49 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Dynamic fluid input storage that keeps each tank associated with its recipe group.
+     */
     public class DynamicFluidStorage implements IFluidHandler, ITagSerializable<CompoundTag>, IContentChangeAware {
         @Getter
-        private Runnable onContentsChanged = () -> {};
+        private Runnable onContentsChanged = () -> {
+        };
         private final List<FluidStorage> storages = new ArrayList<>();
         private final List<String> recipeGroups = new ArrayList<>();
 
+        /**
+         * Returns the mutable tank list backing this dynamic fluid buffer.
+         * <p>
+         * Callers that mutate individual {@link FluidStorage} entries must stay on the owning machine/server context and
+         * let the storage callbacks compact empty tanks.
+         *
+         * @return live list of compacted fluid storages
+         */
         public List<FluidStorage> getStorages() {
             return storages;
         }
 
+        /**
+         * Fills fluid into the default recipe group.
+         *
+         * @param stack fluid stack to store; empty stacks are ignored
+         * @return amount accepted, in {@code [0, stack.getAmount()]}
+         */
         public long fillDynamic(com.lowdragmc.lowdraglib.side.fluid.FluidStack stack) {
             return fillDynamic(stack, RecipeGroup.DEFAULT);
         }
 
+        /**
+         * Fills fluid into a recipe-group aware dynamic tank.
+         * <p>
+         * Existing tanks are reused only when fluid identity and recipe group match. Otherwise an empty or new tank is
+         * assigned. Side effects: may grow the tank list, update tank recipe-group metadata, compact empty tanks, and
+         * invoke storage change callbacks.
+         *
+         * @param stack       fluid stack to store; empty stacks are ignored
+         * @param recipeGroup recipe group to associate with accepted fluid; {@code null} maps to the default group
+         * @return amount accepted, in {@code [0, stack.getAmount()]}
+         */
         public long fillDynamic(com.lowdragmc.lowdraglib.side.fluid.FluidStack stack, @Nullable String recipeGroup) {
             if (stack.isEmpty()) {
                 return 0;
@@ -1186,12 +1533,19 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
 
         @Override
         public void setOnContentsChanged(Runnable onContentsChanged) {
-            this.onContentsChanged = onContentsChanged == null ? () -> {} : onContentsChanged;
+            this.onContentsChanged = onContentsChanged == null ? () -> {
+            } : onContentsChanged;
             for (var storage : storages) {
                 storage.setOnContentsChanged(this::onContentsChanged);
             }
         }
 
+        /**
+         * Handles changes from child tanks.
+         * <p>
+         * Side effects: removes empty tanks, keeps recipe-group metadata aligned with the tank list, and invokes the
+         * registered content-change callback synchronously.
+         */
         public void onContentsChanged() {
             removeEmptyStorages();
             onContentsChanged.run();
@@ -1209,6 +1563,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             ensureRecipeGroupSize();
         }
 
+        /**
+         * Reports whether any fluid inputs are currently buffered.
+         *
+         * @return {@code true} when at least one compacted tank contains fluid
+         */
         public boolean hasStoredInputs() {
             for (var storage : storages) {
                 if (!storage.getFluid().isEmpty()) {
@@ -1218,6 +1577,11 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return false;
         }
 
+        /**
+         * Returns the recipe groups currently represented by non-empty fluid tanks.
+         *
+         * @return ordered set of normalized recipe-group names
+         */
         public Set<String> getRecipeGroups() {
             var groups = new LinkedHashSet<String>();
             for (int i = 0; i < storages.size(); i++) {
@@ -1228,6 +1592,13 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             return groups;
         }
 
+        /**
+         * Checks whether a tank may satisfy a recipe-group request.
+         *
+         * @param tank        zero-based tank index
+         * @param recipeGroup requested group; {@code null} or blank maps to the default group
+         * @return {@code true} when the tank's stored group matches the normalized request
+         */
         public boolean matchesRecipeGroup(int tank, @Nullable String recipeGroup) {
             return MEPatternInputTrait.matchesRecipeGroup(recipeGroup, getStorageRecipeGroup(tank));
         }
@@ -1325,16 +1696,39 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
             ensureRecipeGroupSize();
         }
 
+        /**
+         * Creates a detached copy of this fluid buffer.
+         *
+         * @return new dynamic fluid storage populated from this buffer's serialized tanks and recipe groups
+         */
         public DynamicFluidStorage copy() {
             var copied = new DynamicFluidStorage();
             copied.deserializeNBT(serializeNBT());
             return copied;
         }
 
+        /**
+         * Drains matching stored fluid from the default recipe group.
+         *
+         * @param resource requested fluid and maximum amount to drain
+         * @param simulate {@code true} to compute the drain without mutating storage
+         * @return drained fluid stack, or an empty stack when no matching stored fluid exists
+         */
         public com.lowdragmc.lowdraglib.side.fluid.FluidStack drainStored(com.lowdragmc.lowdraglib.side.fluid.FluidStack resource, boolean simulate) {
             return drainStored(resource, simulate, RecipeGroup.DEFAULT);
         }
 
+        /**
+         * Drains matching stored fluid from tanks in the requested recipe group.
+         * <p>
+         * The fluid identity must match the requested resource and the tank recipe group must match the normalized
+         * request. Side effects: when {@code simulate} is {@code false}, drains the matched tank and compacts empty tanks.
+         *
+         * @param resource    requested fluid and maximum amount to drain
+         * @param simulate    {@code true} to compute the drain without mutating storage
+         * @param recipeGroup requested group; {@code null} maps to the default group
+         * @return drained fluid stack, or an empty stack when no matching stored fluid exists
+         */
         public com.lowdragmc.lowdraglib.side.fluid.FluidStack drainStored(com.lowdragmc.lowdraglib.side.fluid.FluidStack resource, boolean simulate, @Nullable String recipeGroup) {
             if (resource.isEmpty()) {
                 return com.lowdragmc.lowdraglib.side.fluid.FluidStack.empty();
@@ -1353,6 +1747,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         }
     }
 
+    /**
+     * Restricts pattern inventory slots to encoded AE2 patterns.
+     */
     public static class PatternItemFilter implements appeng.util.inv.filter.IAEItemFilter {
         @Override
         public boolean allowInsert(InternalInventory inv, int slot, ItemStack stack) {

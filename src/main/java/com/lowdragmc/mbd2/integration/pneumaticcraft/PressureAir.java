@@ -9,8 +9,14 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.GsonHelper;
 
+/**
+ * Recipe content value for either raw air volume or pressure.
+ */
 public record PressureAir(boolean isAir, float value) {
 
+    /**
+     * Serializer for pressure and air recipe content across JSON, NBT, and network payloads.
+     */
     public static class SerializerPressureAir implements IContentSerializer<PressureAir> {
 
         public static final IContentSerializer<PressureAir> INSTANCE = new SerializerPressureAir();
@@ -69,7 +75,8 @@ public record PressureAir(boolean isAir, float value) {
                         var isAir = Boolean.parseBoolean(splits[0]);
                         var value = Float.parseFloat(splits[1]);
                         return new PressureAir(isAir, value);
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
             }
             return new PressureAir(false, 0);

@@ -16,6 +16,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraft.world.level.storage.loot.providers.number.NumberProvider;
 import net.minecraft.client.gui.GuiGraphics;
 
+/**
+ * Development-only registration hooks used for local machine and recipe type experiments.
+ */
 public class MBDTest {
     @SubscribeEvent
     public void onRegisterMachine(MBDRegistryEvent.Machine event) {

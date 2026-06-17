@@ -7,6 +7,9 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 
+/**
+ * KubeJS startup event for creating and removing MBD recipe types.
+ */
 public class MBDRecipeTypeRegistryEventJS extends StartupEventJS {
 
     public MBDRecipeType createRecipeType(ResourceLocation id) {

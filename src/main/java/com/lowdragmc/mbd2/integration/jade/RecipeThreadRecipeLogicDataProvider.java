@@ -22,6 +22,9 @@ import snownee.jade.impl.ui.ProgressStyle;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Jade provider that summarizes and expands multi-threaded recipe logic state.
+ */
 public class RecipeThreadRecipeLogicDataProvider implements IServerDataProvider<BlockAccessor>, IBlockComponentProvider {
     private static final ResourceLocation UID = Objects.requireNonNull(ResourceLocation.tryParse("mbd2:recipe_thread_hud"));
     private static final ResourceLocation MBD2_RECIPE_LOGIC_UID = Objects.requireNonNull(ResourceLocation.tryParse("mbd2:recipe_logic_provider"));

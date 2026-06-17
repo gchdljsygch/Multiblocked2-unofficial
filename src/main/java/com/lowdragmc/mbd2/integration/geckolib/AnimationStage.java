@@ -16,12 +16,17 @@ import software.bernie.geckolib.core.animation.Animation;
 import java.util.HashMap;
 import java.util.List;
 
-
+/**
+ * Single GeckoLib animation step, either a named animation or a timed wait.
+ */
 @Accessors(chain = true)
 @Getter
 @Setter
 public class AnimationStage implements IConfigurable, ITagSerializable<CompoundTag> {
 
+    /**
+     * User-facing loop modes mapped onto GeckoLib loop behavior.
+     */
     public enum LoopType {
         DEFAULT(Animation.LoopType.DEFAULT),
         PLAY_ONCE(Animation.LoopType.PLAY_ONCE),
@@ -39,9 +44,9 @@ public class AnimationStage implements IConfigurable, ITagSerializable<CompoundT
 
     private boolean isWait = false;
     private int additionalTicks = 0;
-    @Configurable(name="geckolib_renderer.animation_stage.animation_name", tips="geckolib_renderer.animation_stage.animation_name.tips")
+    @Configurable(name = "geckolib_renderer.animation_stage.animation_name", tips = "geckolib_renderer.animation_stage.animation_name.tips")
     private String animationName = "";
-    @Configurable(name="geckolib_renderer.animation_stage.loop_type", tips="geckolib_renderer.animation_stage.loop_type.tips")
+    @Configurable(name = "geckolib_renderer.animation_stage.loop_type", tips = "geckolib_renderer.animation_stage.loop_type.tips")
     private AnimationStage.LoopType loopType = AnimationStage.LoopType.DEFAULT;
 
     @Override

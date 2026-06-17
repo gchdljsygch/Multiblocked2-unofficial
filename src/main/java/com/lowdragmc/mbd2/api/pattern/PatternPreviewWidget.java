@@ -44,6 +44,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Client-side widget that renders multiblock pattern previews and candidate
+ * lists for recipe viewers and editor-style UI.
+ *
+ * <p>The business goal is to show players every configured multiblock shape,
+ * layer slices, required parts, catalyst requirements, and predicate-specific
+ * alternatives in one compact interactive widget. This class is client-only and
+ * mutates a shared {@link TrackedDummyWorld}; callers must use it from the
+ * Minecraft client/render UI thread.</p>
+ */
 @OnlyIn(Dist.CLIENT)
 public class PatternPreviewWidget extends WidgetGroup {
     private boolean isLoaded;
@@ -60,6 +70,15 @@ public class PatternPreviewWidget extends WidgetGroup {
     private final DraggableScrollableWidgetGroup candidatesGroup;
     private ButtonWidget pageButton;
 
+    /**
+     * Creates a preview widget for one multiblock controller definition.
+     *
+     * <p>Side effects: initializes scene widgets, loads preview patterns into
+     * the shared dummy world, and prepares candidate/catalyst controls.</p>
+     *
+     * @param controllerDefinition controller definition whose preview shapes are
+     *                             displayed
+     */
     protected PatternPreviewWidget(MultiblockMachineDefinition controllerDefinition) {
         super(0, 0, 160, 160);
         setClientSideWidget();
@@ -98,8 +117,8 @@ public class PatternPreviewWidget extends WidgetGroup {
 
         // buttons
         var buttonTexture = new GuiTextureGroup(
-                new ColorRectTexture(ColorUtils.color(255,221,221,221)),
-                new ColorBorderTexture(-1, ColorUtils.color(255, 73,73,73))
+                new ColorRectTexture(ColorUtils.color(255, 221, 221, 221)),
+                new ColorBorderTexture(-1, ColorUtils.color(255, 73, 73, 73))
         );
         pageButton = new ButtonWidget(136, 11, 18, 18, new GuiTextureGroup(
                 buttonTexture,
@@ -251,6 +270,16 @@ public class PatternPreviewWidget extends WidgetGroup {
         }
     }
 
+    /**
+     * Creates a pattern preview widget backed by the shared dummy world.
+     *
+     * <p>Preconditions: a client level must already be loaded. Side effects:
+     * creates the shared dummy world on first use.</p>
+     *
+     * @param controllerDefinition controller definition to preview
+     * @return new preview widget
+     * @throws IllegalStateException when called before a client level exists
+     */
     public static PatternPreviewWidget getPatternWidget(MultiblockMachineDefinition controllerDefinition) {
         if (LEVEL == null) {
             if (Minecraft.getInstance().level == null) {
@@ -262,6 +291,14 @@ public class PatternPreviewWidget extends WidgetGroup {
         return new PatternPreviewWidget(controllerDefinition);
     }
 
+    /**
+     * Selects the currently displayed preview pattern.
+     *
+     * <p>Side effects: resets layer filtering, updates the scene, part
+     * candidates, and description tooltip. Out-of-range indexes are ignored.</p>
+     *
+     * @param index zero-based preview pattern index
+     */
     public void setPage(int index) {
         if (index >= patterns.length || index < 0) return;
         this.index = index;
@@ -335,6 +372,16 @@ public class PatternPreviewWidget extends WidgetGroup {
         setupPredicateCandidates(candidateStacks, simplePredicates, predicate);
     }
 
+    /**
+     * Allocates a separated dummy-world region for a preview pattern.
+     *
+     * <p>Side effects: advances the static last-position cursor by {@code range}
+     * blocks on X and Z so previews do not overlap.</p>
+     *
+     * @param range spacing between preview regions; should be large enough for
+     *              the rendered multiblock
+     * @return origin for the next preview region
+     */
     public static BlockPos locateNextRegion(int range) {
         BlockPos pos = LAST_POS;
         LAST_POS = LAST_POS.offset(range, 0, range);
@@ -480,6 +527,14 @@ public class PatternPreviewWidget extends WidgetGroup {
             }
         }
 
+        /**
+         * Builds the display stacks for this part requirement.
+         * <p>
+         * Each candidate from the stack key is copied and assigned the aggregated required amount. Empty candidates are
+         * filtered out so recipe viewers receive only usable part entries.
+         *
+         * @return copied candidate stacks with counts set to the required part amount
+         */
         public List<ItemStack> getItemStack() {
             return Arrays.stream(itemStackKey.getItemStack())
                     .map(itemStack -> {
@@ -490,6 +545,16 @@ public class PatternPreviewWidget extends WidgetGroup {
         }
     }
 
+    /**
+     * Baked preview data for one displayed multiblock shape.
+     *
+     * <p>The business goal is to keep the scene block map, required part stacks,
+     * predicate map, temporary controller instance, vertical bounds, and
+     * description together after a shape has been loaded into the dummy world.
+     * Instances are immutable by convention after construction, except that the
+     * referenced controller and dummy-world block entities may mutate as preview
+     * formation toggles.</p>
+     */
     public static class MBPattern {
 
         @NotNull
@@ -503,6 +568,16 @@ public class PatternPreviewWidget extends WidgetGroup {
         final int maxY, minY;
         final List<String> description;
 
+        /**
+         * Creates baked preview data and computes vertical bounds.
+         *
+         * @param blockMap       absolute dummy-world positions to rendered block
+         *                       info
+         * @param parts          grouped item stacks required by the pattern
+         * @param predicateMap   pattern predicates keyed by dummy-world position
+         * @param controllerBase temporary controller backing formed preview
+         * @param description    translation keys shown in the description tooltip
+         */
         public MBPattern(@NotNull Map<BlockPos, BlockInfo> blockMap, @NotNull List<List<ItemStack>> parts,
                          @NotNull Map<BlockPos, TraceabilityPredicate> predicateMap,
                          @NotNull IMultiController controllerBase,
@@ -534,14 +609,52 @@ public class PatternPreviewWidget extends WidgetGroup {
         private List<List<ItemStack>> stacks = Collections.emptyList();
         private List<Function<ItemStack, List<Component>>> tooltipProviders = Collections.emptyList();
 
+        /**
+         * Creates a default input ingredient scroller for recipe viewer displays.
+         * <p>
+         * Uses a seven-column by two-row viewport and exposes proxy slots to XEI integrations. Side effects: creates and
+         * adds the visible slot widgets immediately.
+         *
+         * @param x      left edge in parent-widget coordinates
+         * @param y      top edge in parent-widget coordinates
+         * @param width  viewport width in pixels
+         * @param height viewport height in pixels
+         */
         public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height) {
             this(x, y, width, height, 7, 2, IngredientIO.INPUT);
         }
 
+        /**
+         * Creates an ingredient scroller with proxy slots visible to recipe viewers.
+         *
+         * @param x            left edge in parent-widget coordinates
+         * @param y            top edge in parent-widget coordinates
+         * @param width        viewport width in pixels
+         * @param height       viewport height in pixels
+         * @param columns      number of slot columns; values below {@code 1} are clamped
+         * @param rows         number of visible slot rows; values below {@code 1} are clamped
+         * @param ingredientIO ingredient role reported to XEI integrations
+         */
         public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height, int columns, int rows, IngredientIO ingredientIO) {
             this(x, y, width, height, columns, rows, ingredientIO, true);
         }
 
+        /**
+         * Creates a fixed-size scrolling grid for candidate item stacks.
+         * <p>
+         * The widget keeps a small visible slot pool and rewrites it as the scroll offset changes. When
+         * {@code exposeXEISlots} is {@code true}, matching non-rendered proxy slots are also kept for recipe-viewer
+         * ingredient discovery. Call from the client UI thread.
+         *
+         * @param x              left edge in parent-widget coordinates
+         * @param y              top edge in parent-widget coordinates
+         * @param width          viewport width in pixels
+         * @param height         viewport height in pixels
+         * @param columns        number of slot columns; values below {@code 1} are clamped
+         * @param rows           number of visible slot rows; values below {@code 1} are clamped
+         * @param ingredientIO   ingredient role reported by each slot
+         * @param exposeXEISlots whether recipe viewers should see proxy ingredient slots
+         */
         public XEIIngredientScrollableWidgetGroup(int x, int y, int width, int height, int columns, int rows,
                                                   IngredientIO ingredientIO, boolean exposeXEISlots) {
             super(x, y, width, height);
@@ -572,10 +685,28 @@ public class PatternPreviewWidget extends WidgetGroup {
             }
         }
 
+        /**
+         * Replaces the displayed stack groups without extra tooltips.
+         * <p>
+         * Null input is treated as an empty list. Side effect: clamps the current row-snapped scroll offset and refreshes
+         * the visible slot pool.
+         *
+         * @param stacks candidate stack groups, one group per logical scroller slot
+         */
         public void setStacks(List<List<ItemStack>> stacks) {
             setStacks(stacks, Collections.emptyList());
         }
 
+        /**
+         * Replaces the displayed stack groups and optional tooltip providers.
+         * <p>
+         * The lists are retained rather than copied, so callers should not mutate them while the widget is rendering.
+         * Tooltip providers are indexed by logical stack group; missing providers simply produce no extra tooltip lines.
+         * Side effect: clamps the current row-snapped scroll offset and refreshes the visible slot pool.
+         *
+         * @param stacks           candidate stack groups, one group per logical scroller slot
+         * @param tooltipProviders tooltip callbacks aligned with {@code stacks}
+         */
         public void setStacks(List<List<ItemStack>> stacks, List<Function<ItemStack, List<Component>>> tooltipProviders) {
             this.stacks = stacks == null ? Collections.emptyList() : stacks;
             this.tooltipProviders = tooltipProviders == null ? Collections.emptyList() : tooltipProviders;

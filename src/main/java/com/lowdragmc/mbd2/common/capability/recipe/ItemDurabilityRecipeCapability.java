@@ -40,6 +40,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Recipe capability descriptor for item durability consumption.
+ *
+ * <p>The content format reuses item ingredients, but the sized amount represents durability damage rather than stack
+ * count. Preview and XEI widgets filter to damageable items and animate their damage value so recipe authors can
+ * distinguish durability requirements from ordinary item inputs.</p>
+ */
 public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient> {
     public static final String VANILLA_TYPE = "recipe.capability.item.ingredient.type.vanilla";
     public static final String NBT_TYPE = "recipe.capability.item.ingredient.type.nbt";
@@ -49,15 +56,29 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
 
     public final static ItemDurabilityRecipeCapability CAP = new ItemDurabilityRecipeCapability();
 
+    /**
+     * Creates the singleton item-durability capability.
+     */
     protected ItemDurabilityRecipeCapability() {
         super("item_durability", SerializerIngredient.INSTANCE);
     }
 
+    /**
+     * Returns a representative damageable item ingredient.
+     *
+     * @return sized flint-and-steel ingredient with durability amount {@code 1}
+     */
     @Override
     public Ingredient createDefaultContent() {
         return SizedIngredient.create(Ingredient.of(Items.FLINT_AND_STEEL));
     }
 
+    /**
+     * Creates an animated item preview for damageable candidate stacks.
+     *
+     * @param content item ingredient whose amount represents durability damage
+     * @return non-interactive slot widget with animated damage value
+     */
     @Override
     public Widget createPreviewWidget(Ingredient content) {
         var transfer = new CycleItemStackHandler(List.of(Arrays.stream(content.getItems()).filter(ItemStack::isDamageableItem).toList()));
@@ -78,6 +99,11 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
                 .setDrawHoverOverlay(false).setBackgroundTexture(null);
     }
 
+    /**
+     * Creates the recipe-viewer slot template.
+     *
+     * @return unbound item slot widget
+     */
     @Override
     public Widget createXEITemplate() {
         var slotWidget = new SlotWidget();
@@ -85,6 +111,16 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
         return slotWidget;
     }
 
+    /**
+     * Binds durability content to a recipe-viewer item slot.
+     *
+     * <p>Only damageable candidate stacks are displayed. The amount is shown as a tooltip and interpreted by runtime
+     * handlers as durability damage, not stack size.</p>
+     *
+     * @param widget       slot widget created by {@link #createXEITemplate()}
+     * @param content      recipe content wrapper
+     * @param ingredientIO viewer role for input/output display
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof SlotWidget slotWidget) {
@@ -135,6 +171,13 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
         }
     }
 
+    /**
+     * Creates editor configurators for durability amount and item/tag/NBT candidate selection.
+     *
+     * @param father   parent configurator group
+     * @param supplier current durability ingredient supplier
+     * @param onUpdate callback receiving updated content
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<Ingredient> supplier, Consumer<Ingredient> onUpdate) {
         // sized ingredient amount
@@ -226,7 +269,8 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
                                     if (tagKey.toString().toLowerCase().contains(word.toLowerCase())) {
                                         find.accept(tagKey);
                                     }
-                                }}, ResourceLocation::toString));
+                                }
+                            }, ResourceLocation::toString));
                         }
                         valueGroup.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", slot));
                     });
@@ -267,7 +311,7 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
                 Consumer<ItemStack> updateStack = stack -> {
                     accessor.setStack(stack);
                     itemHandler.setStackInSlot(0, stack);
-                    ((IngredientAccessor)accessor).setItemStacks(null);
+                    ((IngredientAccessor) accessor).setItemStacks(null);
                     if (supplier.get() instanceof SizedIngredient sizedIngredient) {
                         sizedIngredient.updateInnerIngredient(ingredient);
                     }
@@ -304,6 +348,12 @@ public class ItemDurabilityRecipeCapability extends RecipeCapability<Ingredient>
         }));
     }
 
+    /**
+     * Builds a human-readable message for unsatisfied durability ingredients.
+     *
+     * @param left remaining durability contents after recipe matching
+     * @return component listing damage amount, first display stack, and NBT requirement where present
+     */
     @Override
     public Component getLeftErrorInfo(List<Ingredient> left) {
         var result = Component.empty();

@@ -15,6 +15,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+/**
+ * Toggleable fluid predicate used by fluid-tank traits.
+ *
+ * <p>When disabled, every fluid stack is accepted. When enabled, configured fluid stacks and fluid tags are matched
+ * in order and the first match returns the whitelist mode value; if no entry matches, the inverse of whitelist mode
+ * is returned. Matching can include NBT through {@link FluidStack#isFluidEqual(FluidStack)} or compare only the fluid
+ * type.</p>
+ */
 public class FluidFilterSettings implements IToggleConfigurable, Predicate<FluidStack> {
     @Getter
     @Setter
@@ -39,6 +47,12 @@ public class FluidFilterSettings implements IToggleConfigurable, Predicate<Fluid
     @DefaultValue(stringValue = "forge:gaseous")
     private List<ResourceLocation> filterTags = new ArrayList<>();
 
+    /**
+     * Tests whether a fluid stack passes the configured filter.
+     *
+     * @param fluidStack stack to test; expected to be non-null
+     * @return {@code true} when the stack is allowed by the current filter mode
+     */
     @Override
     public boolean test(FluidStack fluidStack) {
         if (!enable) {

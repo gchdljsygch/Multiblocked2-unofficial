@@ -23,6 +23,13 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 
+/**
+ * Loads LDLib static resources defensively and gives renderer resources their UI context.
+ *
+ * <p>MBD renderer resources need {@link UIResourceRendererContext} while they are deserialized so
+ * nested renderer data can resolve workspace-relative assets. This mixin also avoids replacing an
+ * existing cached resource with {@code null} when an edited file is temporarily invalid.</p>
+ */
 @Mixin(value = StaticResource.class, remap = false)
 public abstract class StaticResourceMixin<T> {
     @Shadow
@@ -40,11 +47,21 @@ public abstract class StaticResourceMixin<T> {
     @Shadow
     private boolean isStaticResourceLoaded;
 
+    /**
+     * Replaces LDLib static-resource loading with the guarded MBD implementation.
+     *
+     * @param cir callback receiving whether the visible static resource set changed
+     */
     @Inject(method = "loadAndUpdateStaticResource", at = @At("HEAD"), cancellable = true)
     private void mbd2$loadAndUpdateStaticResourceSafely(CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(mbd2$loadAndUpdateStaticResourceSafely());
     }
 
+    /**
+     * Scans the resource's static folder, reloads changed files, and removes disappeared entries.
+     *
+     * @return {@code true} when the cached resource map changed
+     */
     @Unique
     private boolean mbd2$loadAndUpdateStaticResourceSafely() {
         if (resource == null) {
@@ -95,6 +112,12 @@ public abstract class StaticResourceMixin<T> {
         return changed;
     }
 
+    /**
+     * Reads one static resource file, applying renderer deserialization context when needed.
+     *
+     * @param file static resource file on disk
+     * @return decoded resource value, or {@code null} when the file is invalid or unreadable
+     */
     @Nullable
     @Unique
     @SuppressWarnings("unchecked")

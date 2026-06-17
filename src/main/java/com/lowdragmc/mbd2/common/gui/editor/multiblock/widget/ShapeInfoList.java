@@ -23,12 +23,30 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+/**
+ * Scrollable toolbox list for selecting and managing multiblock shape previews.
+ *
+ * <p>If the project has explicit shape infos, the list displays those entries and exposes a
+ * right-click delete action for the selected one. If no explicit shape infos exist, it
+ * builds preview variants from the project's pattern and aisle repetition ranges; those
+ * auto-built entries are preview-only and are not exposed as editable configurables.</p>
+ *
+ * <p>The list shares one {@link com.lowdragmc.lowdraglib.utils.TrackedDummyWorld} from the
+ * owning panel and offsets every preview far apart to avoid block overlap. It is
+ * client-editor UI and is not thread-safe.</p>
+ */
 @Getter
 public class ShapeInfoList extends DraggableScrollableWidgetGroup {
     private final MultiblockShapeInfoPanel panel;
     @Nullable
     private MultiblockShapeInfo selectedShapeInfo;
 
+    /**
+     * Creates the shape-info list for the editor tool panel.
+     *
+     * @param panel owning preview panel
+     * @param size  available tool-panel size in pixels
+     */
     public ShapeInfoList(MultiblockShapeInfoPanel panel, Size size) {
         super(0, 0, size.width, size.height);
         this.panel = panel;
@@ -36,6 +54,13 @@ public class ShapeInfoList extends DraggableScrollableWidgetGroup {
         reloadShapeInfos();
     }
 
+    /**
+     * Rebuilds all preview entries from project data.
+     *
+     * <p>The method clears the shared dummy world before repopulating it. Controller markers
+     * are converted to fake machine blocks with the correct facing, and their preview block
+     * entities receive a machine instance so trait renderers can initialize.</p>
+     */
     public void reloadShapeInfos() {
         clearAllWidgets();
         var level = panel.getLevel();
@@ -43,7 +68,7 @@ public class ShapeInfoList extends DraggableScrollableWidgetGroup {
         var offset = new BlockPos(0, 0, 0);
         var shapes = new ArrayList<>(panel.getProject().getMultiblockShapeInfos());
         var isBuiltin = shapes.isEmpty();
-        if(isBuiltin) {
+        if (isBuiltin) {
             var blockPattern = MultiblockMachineProject.createBlockPattern(
                     panel.getProject().getBlockPlaceholders(),
                     panel.getProject().getLayerAxis(),
@@ -105,7 +130,7 @@ public class ShapeInfoList extends DraggableScrollableWidgetGroup {
             selectableWidgetGroup.addWidget(scene);
             // label
             selectableWidgetGroup.addWidget(new ImageWidget(0, 80, selectableWidgetGroup.getSizeWidth(), 15,
-                    new TextTexture(isBuiltin ? "auto-built": "page: " + i)
+                    new TextTexture(isBuiltin ? "auto-built" : "page: " + i)
                             .setColor(isBuiltin ? ColorPattern.GRAY.color : ColorPattern.WHITE.color)
                             .setType(TextTexture.TextType.ROLL)
                             .setWidth(selectableWidgetGroup.getSizeWidth())));

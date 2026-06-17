@@ -21,10 +21,14 @@ import vazkii.botania.common.block.BotaniaBlocks;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Copyable Botania mana pool backed by an MBD machine and synchronized as an integer tag.
+ */
 public class CopiableManaPool implements ManaPool, ITagSerializable<IntTag>, IContentChangeAware, SparkAttachable {
     @Getter
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
 
     private final MBDMachine machine;
     @Getter
@@ -45,7 +49,7 @@ public class CopiableManaPool implements ManaPool, ITagSerializable<IntTag>, ICo
     }
 
     public CopiableManaPool copy() {
-        return new CopiableManaPool(machine, maxMana,canAttachSpark, mana);
+        return new CopiableManaPool(machine, maxMana, canAttachSpark, mana);
     }
 
     @Override
@@ -125,7 +129,7 @@ public class CopiableManaPool implements ManaPool, ITagSerializable<IntTag>, ICo
 
     @Override
     public ManaSpark getAttachedSpark() {
-        List<Entity> sparks =  machine.getLevel().getEntitiesOfClass(Entity.class,
+        List<Entity> sparks = machine.getLevel().getEntitiesOfClass(Entity.class,
                 new AABB(machine.getPos().above(), machine.getPos().above().offset(1, 1, 1)),
                 Predicates.instanceOf(ManaSpark.class));
         if (sparks.size() == 1) {

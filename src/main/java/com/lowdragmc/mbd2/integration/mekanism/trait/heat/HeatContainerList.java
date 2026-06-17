@@ -2,6 +2,9 @@ package com.lowdragmc.mbd2.integration.mekanism.trait.heat;
 
 import mekanism.api.heat.IHeatHandler;
 
+/**
+ * Combined Mekanism heat handler view over multiple heat handlers.
+ */
 public record HeatContainerList(IHeatHandler[] containers) implements IHeatHandler {
 
     @Override

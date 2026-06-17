@@ -14,12 +14,34 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Hooks server chunk block-state writes so cached multiblock structures can react to
+ * changes inside their watched areas.
+ *
+ * <p>The injected callback runs during {@link LevelChunk#setBlockState}. It only acts on
+ * server levels and only for controller structures already indexed at the changed position.
+ * The structure update is scheduled on the server executor because the chunk mutation may
+ * be in the middle of vanilla state replacement.</p>
+ */
 @Mixin(LevelChunk.class)
 public class ChunkMixin {
-    @Final @Shadow Level level;
+    @Final
+    @Shadow
+    Level level;
 
+    /**
+     * Notifies matching multiblock structures that a cached block state changed.
+     *
+     * <p>This callback deliberately does minimal work before returning to vanilla chunk
+     * mutation. It does not load chunks and ignores client worlds.</p>
+     *
+     * @param pos      changed block position
+     * @param state    new state being placed into the chunk
+     * @param isMoving vanilla movement flag passed through from {@code setBlockState}
+     * @param cir      mixin callback info for the original return value
+     */
     // We want to be as quick as possible here
-    @Inject(method = "setBlockState", at =@At(
+    @Inject(method = "setBlockState", at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/level/block/state/BlockState;hasBlockEntity()Z",
             ordinal = 2))

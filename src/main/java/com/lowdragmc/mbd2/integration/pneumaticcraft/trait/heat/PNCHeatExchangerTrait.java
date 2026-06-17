@@ -23,11 +23,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Machine trait that exposes PneumaticCraft heat storage and recipe heat handling.
+ */
 @Getter
 public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCHeatExchangerTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -74,6 +80,9 @@ public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
         handler.initializeAsHull(getMachine().getLevel(), getMachine().getPos(), IHeatExchangerLogic.ALL_BLOCKS, Direction.values());
     }
 
+    /**
+     * Recipe handler that consumes or produces heat through the trait's exchanger.
+     */
     public class HeatRecipeHandler extends RecipeHandlerTrait<Double> {
         protected HeatRecipeHandler() {
             super(PNCHeatExchangerTrait.this, PNCHeatRecipeCapability.CAP);
@@ -124,7 +133,10 @@ public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
         return List.of(heatExchangerCap);
     }
 
-    public class HeatExchangerCap implements ICapabilityProviderTrait<IHeatExchangerLogic>{
+    /**
+     * Capability provider exposing the trait heat exchanger to PneumaticCraft.
+     */
+    public class HeatExchangerCap implements ICapabilityProviderTrait<IHeatExchangerLogic> {
 
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {

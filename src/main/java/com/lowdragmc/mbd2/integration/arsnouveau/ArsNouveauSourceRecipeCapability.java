@@ -20,6 +20,13 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Ars Nouveau Source amounts.
+ *
+ * <p>The content value is an integer Source amount. Preview and XEI widgets render it as a Source
+ * Jar icon or compact mana-style bar, while recipe handling is delegated to traits exposing
+ * {@link com.hollingsworth.arsnouveau.api.source.ISourceTile} storage.</p>
+ */
 public class ArsNouveauSourceRecipeCapability extends RecipeCapability<Integer> {
     public static final ArsNouveauSourceRecipeCapability CAP = new ArsNouveauSourceRecipeCapability();
     public static final ResourceTexture HUD_BACKGROUND = new ResourceTexture("mbd2:textures/gui/mana_hud.png").getSubTexture(0, 0, 1, 0.5);
@@ -34,6 +41,12 @@ public class ArsNouveauSourceRecipeCapability extends RecipeCapability<Integer> 
         return 1000;
     }
 
+    /**
+     * Creates the small icon preview used in recipe editors and recipe lists.
+     *
+     * @param content Source amount to display in the corner label
+     * @return widget containing a Source Jar icon and amount overlay
+     */
     @Override
     public Widget createPreviewWidget(Integer content) {
         var previewGroup = new WidgetGroup(0, 0, 18, 18);
@@ -42,6 +55,11 @@ public class ArsNouveauSourceRecipeCapability extends RecipeCapability<Integer> 
         return previewGroup;
     }
 
+    /**
+     * Creates the progress-bar template used by JEI/EMI/REI category bindings.
+     *
+     * @return empty Source bar whose overlay is updated by {@link #bindXEIWidget}
+     */
     @Override
     public Widget createXEITemplate() {
         var sourceBar = new ProgressWidget(ProgressWidget.JEIProgress, 0, 0, 100, 5, new ProgressTexture(
@@ -52,6 +70,13 @@ public class ArsNouveauSourceRecipeCapability extends RecipeCapability<Integer> 
         return sourceBar;
     }
 
+    /**
+     * Writes the recipe Source amount into an XEI template widget.
+     *
+     * @param widget template widget returned by {@link #createXEITemplate()}
+     * @param content recipe content payload
+     * @param ingredientIO input/output role supplied by the recipe category
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof ProgressWidget sourceBar) {
@@ -66,12 +91,25 @@ public class ArsNouveauSourceRecipeCapability extends RecipeCapability<Integer> 
         }
     }
 
+    /**
+     * Adds the numeric Source editor for recipe content.
+     *
+     * @param father parent configurator group
+     * @param supplier current Source amount supplier
+     * @param onUpdate callback receiving validated Source amounts in the range {@code [1, Integer.MAX_VALUE]}
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<Integer> supplier, Consumer<Integer> onUpdate) {
         father.addConfigurators(new NumberConfigurator("recipe.capability.ars_nouveau_source.source", supplier::get,
                 number -> onUpdate.accept(number.intValue()), 1, true).setRange(1, Integer.MAX_VALUE));
     }
 
+    /**
+     * Summarizes missing Source for recipe-error tooltips.
+     *
+     * @param left unhandled Source requirements
+     * @return literal Source deficit text
+     */
     @Override
     public Component getLeftErrorInfo(List<Integer> left) {
         return Component.literal(left.stream().mapToInt(Integer::intValue).sum() + " source");

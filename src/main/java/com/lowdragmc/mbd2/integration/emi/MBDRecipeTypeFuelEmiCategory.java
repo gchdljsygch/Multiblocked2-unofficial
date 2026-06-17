@@ -17,7 +17,13 @@ import net.minecraft.resources.ResourceLocation;
 import javax.annotation.Nullable;
 import java.util.function.Function;
 
+/**
+ * EMI category for fuel recipes used by an MBD recipe type.
+ */
 public class MBDRecipeTypeFuelEmiCategory extends EmiRecipeCategory {
+    /**
+     * EMI recipe wrapper that supplies an MBD modular fuel UI.
+     */
     public static class MBDEmiRecipe extends ModularEmiRecipe<Widget> {
         final MBDRecipeTypeFuelEmiCategory category;
         final MBDRecipe recipe;
@@ -43,7 +49,7 @@ public class MBDRecipeTypeFuelEmiCategory extends EmiRecipeCategory {
     public final MBDRecipeType recipeType;
 
     public MBDRecipeTypeFuelEmiCategory(MBDRecipeType recipeType) {
-        super(recipeType.getFuelRegistryName(), IGui2Renderable.toDrawable(recipeType.getFuelIcon(), 16,  16));
+        super(recipeType.getFuelRegistryName(), IGui2Renderable.toDrawable(recipeType.getFuelIcon(), 16, 16));
         this.recipeType = recipeType;
     }
 

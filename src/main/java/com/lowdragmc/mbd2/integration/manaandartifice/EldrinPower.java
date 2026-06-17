@@ -13,6 +13,9 @@ import org.apache.commons.lang3.math.NumberUtils;
 
 import java.util.Locale;
 
+/**
+ * Mana and Artifice Eldrin power amount tagged with an affinity.
+ */
 public record EldrinPower(Affinity affinity, float amount) {
     public EldrinPower {
         if (affinity == null) {
@@ -32,6 +35,9 @@ public record EldrinPower(Affinity affinity, float amount) {
         }
     }
 
+    /**
+     * Content serializer for Eldrin power recipe values.
+     */
     public static class SerializerEldrinPower implements IContentSerializer<EldrinPower> {
         public static final IContentSerializer<EldrinPower> INSTANCE = new SerializerEldrinPower();
 

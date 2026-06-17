@@ -16,6 +16,14 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Serializer and script coercion helper for {@link RedstoneSignal}.
+ *
+ * <p>Accepted input forms include numbers for exact input strength, strings such as {@code "15 20"} for output
+ * strength/duration, strings such as {@code "[3,8)"} for input ranges, maps/JSON objects with {@code strength},
+ * {@code duration}, {@code min}/{@code max}, or {@code from}/{@code to}, and arrays/iterables where the first two
+ * values are strength and duration. Invalid or missing data falls back to exact input {@code 0}.</p>
+ */
 public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSignal> {
     public static final SerializerRedstoneSignal INSTANCE = new SerializerRedstoneSignal();
     private static final Pattern INPUT_RANGE = Pattern.compile("^\\[\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*\\)$");
@@ -23,6 +31,12 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
     private SerializerRedstoneSignal() {
     }
 
+    /**
+     * Writes strength, max strength, and duration to the network.
+     *
+     * @param buf     destination buffer
+     * @param content signal content to encode
+     */
     @Override
     public void toNetwork(FriendlyByteBuf buf, RedstoneSignal content) {
         buf.writeVarInt(content.strength());
@@ -30,11 +44,23 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         buf.writeVarInt(content.duration());
     }
 
+    /**
+     * Reads a normalized signal from network data.
+     *
+     * @param buf source buffer
+     * @return decoded signal
+     */
     @Override
     public RedstoneSignal fromNetwork(FriendlyByteBuf buf) {
         return new RedstoneSignal(buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
     }
 
+    /**
+     * Serializes exact input as an int tag and ranged/output forms as a compound.
+     *
+     * @param content signal content to encode
+     * @return NBT representation
+     */
     @Override
     public Tag toNBT(RedstoneSignal content) {
         if (!content.isOutput() && content.isExactInput()) {
@@ -50,6 +76,12 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         return tag;
     }
 
+    /**
+     * Reads a signal from compact or compound NBT.
+     *
+     * @param nbt source tag
+     * @return decoded signal, or exact input {@code 0} for unsupported tags
+     */
     @Override
     public RedstoneSignal fromNBT(Tag nbt) {
         if (nbt instanceof IntTag intTag) {
@@ -66,6 +98,12 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         return RedstoneSignal.input(0);
     }
 
+    /**
+     * Reads a signal from JSON recipe data.
+     *
+     * @param json primitive or object JSON value
+     * @return decoded signal, defaulting to exact input {@code 0}
+     */
     @Override
     public RedstoneSignal fromJson(JsonElement json) {
         if (json == null || json.isJsonNull()) {
@@ -91,6 +129,12 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         return new RedstoneSignal(strength, duration);
     }
 
+    /**
+     * Writes a compact JSON representation.
+     *
+     * @param content signal content to encode
+     * @return number for exact input, range string for ranged input, or object for output pulse
+     */
     @Override
     public JsonElement toJson(RedstoneSignal content) {
         if (!content.isOutput() && content.isExactInput()) {
@@ -105,6 +149,12 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         return object;
     }
 
+    /**
+     * Coerces builder/script values to a redstone signal.
+     *
+     * @param o supported value type, or any other object for default input {@code 0}
+     * @return normalized signal
+     */
     @Override
     public RedstoneSignal of(Object o) {
         if (o instanceof RedstoneSignal signal) {
@@ -128,16 +178,35 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
         return RedstoneSignal.input(0);
     }
 
+    /**
+     * Redstone signal content is scalar and does not scale with content modifiers.
+     *
+     * @param content  source signal
+     * @param modifier ignored modifier
+     * @return original immutable signal
+     */
     @Override
     public RedstoneSignal copyWithModifier(RedstoneSignal content, ContentModifier modifier) {
         return content;
     }
 
+    /**
+     * Returns the immutable signal instance.
+     *
+     * @param content source signal
+     * @return original signal
+     */
     @Override
     public RedstoneSignal copyInner(RedstoneSignal content) {
         return content;
     }
 
+    /**
+     * Returns the immutable signal instance.
+     *
+     * @param content source signal
+     * @return original signal
+     */
     @Override
     public RedstoneSignal deepCopyInner(RedstoneSignal content) {
         return content;

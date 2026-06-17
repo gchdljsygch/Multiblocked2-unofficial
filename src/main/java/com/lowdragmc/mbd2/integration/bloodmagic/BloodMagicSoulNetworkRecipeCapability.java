@@ -22,6 +22,13 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Blood Magic Life Essence stored in a bound Soul Network.
+ *
+ * <p>The content value is an integer LP amount. Runtime handling is performed by
+ * {@link com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicSoulNetworkTrait}, which
+ * requires a bound Blood Orb in the machine UI.</p>
+ */
 public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Integer> {
     public static final BloodMagicSoulNetworkRecipeCapability CAP = new BloodMagicSoulNetworkRecipeCapability();
 
@@ -34,6 +41,12 @@ public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Inte
         return 1000;
     }
 
+    /**
+     * Creates the editor/list preview for a Life Essence amount.
+     *
+     * @param content LP amount to display
+     * @return Blood Orb icon with amount overlay
+     */
     @Override
     public Widget createPreviewWidget(Integer content) {
         var previewGroup = new WidgetGroup(0, 0, 18, 18);
@@ -43,6 +56,11 @@ public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Inte
         return previewGroup;
     }
 
+    /**
+     * Creates the textual XEI template used for Life Essence recipe rows.
+     *
+     * @return left-aligned text widget updated by {@link #bindXEIWidget}
+     */
     @Override
     public Widget createXEITemplate() {
         return new TextTextureWidget(0, 0, 100, 10,
@@ -50,6 +68,13 @@ public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Inte
                 .textureStyle(t -> t.setType(TextTexture.TextType.LEFT));
     }
 
+    /**
+     * Binds an LP amount into an XEI text widget.
+     *
+     * @param widget template widget
+     * @param content recipe content payload
+     * @param ingredientIO input/output role supplied by the recipe category
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof TextTextureWidget textTexture) {
@@ -60,6 +85,13 @@ public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Inte
         }
     }
 
+    /**
+     * Adds the numeric LP content configurator.
+     *
+     * @param father parent configurator group
+     * @param supplier current LP amount supplier
+     * @param onUpdate callback receiving values in the range {@code [1, Integer.MAX_VALUE]}
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<Integer> supplier, Consumer<Integer> onUpdate) {
         father.addConfigurators(new NumberConfigurator("recipe.capability.bloodmagic_soul_network.life_essence",
@@ -67,6 +99,9 @@ public class BloodMagicSoulNetworkRecipeCapability extends RecipeCapability<Inte
                 .setRange(1, Integer.MAX_VALUE));
     }
 
+    /**
+     * Summarizes unsatisfied LP for recipe error display.
+     */
     @Override
     public Component getLeftErrorInfo(List<Integer> left) {
         var amount = left.stream().mapToLong(Integer::longValue).sum();

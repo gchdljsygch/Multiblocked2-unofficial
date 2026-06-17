@@ -18,6 +18,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
+/**
+ * Replaces LDLib phantom-tank clicks with long amount editing semantics.
+ *
+ * <p>The behavior mirrors {@link PhantomFluidWidgetMixin} but writes through a real tank backing
+ * the widget. Amount increases are capped at the tank capacity, while middle click clears the tank
+ * and notifies the configured fluid updater.</p>
+ */
 @Mixin(PhantomTankWidget.class)
 public abstract class PhantomTankWidgetMixin extends TankWidget {
     @Unique
@@ -26,6 +33,13 @@ public abstract class PhantomTankWidgetMixin extends TankWidget {
     @Shadow(remap = false)
     private Consumer<FluidStack> fluidStackUpdater;
 
+    /**
+     * Handles the custom synchronized click action sent by server-backed widgets.
+     *
+     * @param id     LDLib client-action id
+     * @param buffer action payload containing button and shift state
+     * @param ci     callback cancelled when MBD consumes the action
+     */
     @Inject(method = "handleClientAction", at = @At("HEAD"), cancellable = true, remap = false)
     private void mbd2$handleCustomPhantomClickAction(int id, FriendlyByteBuf buffer, CallbackInfo ci) {
         if (id != MBD2TOOLS_ACTION_CLICK) {
@@ -38,6 +52,14 @@ public abstract class PhantomTankWidgetMixin extends TankWidget {
         ci.cancel();
     }
 
+    /**
+     * Replaces LDLib mouse handling for clicks inside this phantom-tank widget.
+     *
+     * @param mouseX mouse X in widget coordinates
+     * @param mouseY mouse Y in widget coordinates
+     * @param button mouse button id
+     * @param cir    callback receiving {@code true} when this widget consumes the click
+     */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = false)
     private void mbd2$replaceMouseClickBehavior(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (!isMouseOverElement(mouseX, mouseY)) {
@@ -56,6 +78,12 @@ public abstract class PhantomTankWidgetMixin extends TankWidget {
         cir.setReturnValue(true);
     }
 
+    /**
+     * Applies MBD phantom-tank click rules.
+     *
+     * @param button    mouse button id; middle click clears the tank
+     * @param shiftDown whether shift was held for halve/double behavior
+     */
     @Unique
     private void mbd2$handlePhantomClick(int button, boolean shiftDown) {
         if (fluidTank == null) {
@@ -95,6 +123,15 @@ public abstract class PhantomTankWidgetMixin extends TankWidget {
         mbd2$applyPhantomFluid(current.copy(updatedAmount));
     }
 
+    /**
+     * Computes the next tank amount from the current amount and click gesture.
+     *
+     * @param currentAmount current fluid amount
+     * @param button        mouse button id
+     * @param shiftDown     whether shift was held
+     * @param capacity      tank capacity used as the upper bound
+     * @return next amount in the range {@code [0, capacity]}
+     */
     @Unique
     private long mbd2$adjustAmount(long currentAmount, int button, boolean shiftDown, long capacity) {
         long maxAmount = Math.max(capacity, 0L);
@@ -118,6 +155,11 @@ public abstract class PhantomTankWidgetMixin extends TankWidget {
         return currentAmount;
     }
 
+    /**
+     * Replaces the tank contents and notifies LDLib's configured updater.
+     *
+     * @param stack selected fluid stack, or {@code null} to clear
+     */
     @Unique
     private void mbd2$applyPhantomFluid(@Nullable FluidStack stack) {
         fluidTank.drain(fluidTank.getTankCapacity(tank), false);

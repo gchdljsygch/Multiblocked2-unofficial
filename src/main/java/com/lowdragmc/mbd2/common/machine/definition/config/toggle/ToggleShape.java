@@ -14,29 +14,68 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Toggle wrapper for a voxel shape stored as editable AABB boxes.
+ * <p>
+ * Machine states use this to override inherited collision/selection shapes.
+ * The editor operates on the {@link #aabbs} list, while runtime callers receive
+ * a lazily rebuilt {@link VoxelShape}. Any edit to the AABB list invalidates
+ * the cached shape.
+ * <p>
+ * Coordinates are block-local and are typically in {@code 0..1}, although the
+ * serializer preserves whatever box coordinates the editor stores.
+ */
 public class ToggleShape extends ToggleObject<VoxelShape> implements ITagSerializable<CompoundTag> {
+    /**
+     * Full block box used as the default editor cube.
+     */
     public static final AABB BLOCK = new AABB(0, 0, 0, 1, 1, 1);
     private final List<AABB> aabbs = new ArrayList<>();
     // run-time
     private VoxelShape value;
 
+    /**
+     * Creates a shape toggle from a voxel shape.
+     *
+     * @param value  shape whose boxes should be copied into editable storage
+     * @param enable whether this shape should override inherited/default shape
+     */
     public ToggleShape(VoxelShape value, boolean enable) {
         setValue(value);
         this.enable = enable;
     }
 
+    /**
+     * Creates an enabled shape toggle.
+     *
+     * @param value shape whose boxes should be copied into editable storage
+     */
     public ToggleShape(VoxelShape value) {
         this(value, true);
     }
 
+    /**
+     * Creates a toggle storing a full-block shape.
+     *
+     * @param enable initial enabled state
+     */
     public ToggleShape(boolean enable) {
         this(Shapes.block(), enable);
     }
 
+    /**
+     * Creates a disabled shape toggle.
+     */
     public ToggleShape() {
         this(false);
     }
 
+    /**
+     * Returns the cached voxel shape, rebuilding it from editable boxes when
+     * necessary.
+     *
+     * @return union of all stored AABBs, or an empty shape when no boxes exist
+     */
     public VoxelShape getValue() {
         if (value == null) {
             value = aabbs.stream().map(Shapes::create).reduce(Shapes.empty(), Shapes::or);
@@ -44,6 +83,12 @@ public class ToggleShape extends ToggleObject<VoxelShape> implements ITagSeriali
         return value;
     }
 
+    /**
+     * Replaces the editable boxes with the boxes from a voxel shape and
+     * invalidates the runtime cache.
+     *
+     * @param value source shape to decompose into AABBs
+     */
     @Override
     public void setValue(VoxelShape value) {
         this.value = null;

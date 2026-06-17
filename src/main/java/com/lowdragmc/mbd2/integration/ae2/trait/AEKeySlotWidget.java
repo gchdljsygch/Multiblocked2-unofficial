@@ -55,6 +55,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+/**
+ * LDLib slot widget for displaying and editing AE2 {@link GenericStack} item or fluid keys.
+ */
 @LDLRegister(name = "ae_key_slot", group = "widget.container", modID = "ae2")
 @Accessors(chain = true)
 public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IGhostIngredientTarget, IConfigurableWidget {
@@ -99,10 +102,28 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
     @Getter
     protected GenericStack lastStack;
 
+    /**
+     * Creates an unbound AE key slot at the origin.
+     * <p>
+     * The widget can still display a manually assigned stack through {@link #setAEStack(GenericStack)}. Bind it to a
+     * {@link ConfigInventory} with {@link #setConfigInventory(ConfigInventory, int)} before using it as a live AE2 slot.
+     */
     public AEKeySlotWidget() {
         this(null, 0, 0, 0);
     }
 
+    /**
+     * Creates an AE key slot bound to an optional config inventory.
+     * <p>
+     * The slot displays and edits one {@link GenericStack}. Item amounts are limited to {@link Integer#MAX_VALUE};
+     * fluid amounts may use the full {@code long} range supported by AE2. Widget mutation should run on the UI thread or
+     * through LDLib client actions.
+     *
+     * @param inventory backing AE2 config inventory, or {@code null} for display-only/manual stack mode
+     * @param slotIndex zero-based slot index in {@code inventory}
+     * @param x         widget x position in parent coordinates
+     * @param y         widget y position in parent coordinates
+     */
     public AEKeySlotWidget(@Nullable ConfigInventory inventory, int slotIndex, int x, int y) {
         super(x, y, 18, 18);
         this.inventory = inventory;
@@ -121,6 +142,15 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return this;
     }
 
+    /**
+     * Rebinds this widget to a config inventory slot.
+     * <p>
+     * Side effect: if this is already a client-side widget, refreshes {@link #lastStack} from the new backing slot.
+     *
+     * @param inventory backing AE2 config inventory, or {@code null} to detach
+     * @param slotIndex zero-based slot index in {@code inventory}
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setConfigInventory(@Nullable ConfigInventory inventory, int slotIndex) {
         this.inventory = inventory;
         this.slotIndex = slotIndex;
@@ -130,31 +160,73 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return this;
     }
 
+    /**
+     * Sets the displayed/backing AE stack.
+     * <p>
+     * If a valid inventory slot is bound, normal permission checks apply and the inventory is updated. If no valid slot
+     * is bound, the value is stored in {@link #lastStack} for display.
+     *
+     * @param stack AE key stack to set, or {@code null} to clear
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setAEStack(@Nullable GenericStack stack) {
         setStack(stack);
         return this;
     }
 
+    /**
+     * Controls whether the slot can be cleared or extracted from through this widget.
+     *
+     * @param canTakeItems {@code true} to allow clearing/extracting when the backing inventory permits extraction
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setCanTakeItems(boolean canTakeItems) {
         this.canTakeItems = canTakeItems;
         return this;
     }
 
+    /**
+     * Controls whether the slot can be filled or replaced through this widget.
+     *
+     * @param canPutItems {@code true} to allow inserting/replacing when the backing inventory permits insertion
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setCanPutItems(boolean canPutItems) {
         this.canPutItems = canPutItems;
         return this;
     }
 
+    /**
+     * Controls whether ghost ingredients from recipe viewers may set this slot.
+     *
+     * @param canAcceptPhantom {@code true} to allow phantom/ghost ingredient assignment
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setCanAcceptPhantom(boolean canAcceptPhantom) {
         this.canAcceptPhantom = canAcceptPhantom;
         return this;
     }
 
+    /**
+     * Controls whether the client amount dialog can change the stored stack amount.
+     *
+     * @param canSetAmount {@code true} to allow amount edits for the current stack key
+     * @return this widget for chaining
+     */
     public AEKeySlotWidget setCanSetAmount(boolean canSetAmount) {
         this.canSetAmount = canSetAmount;
         return this;
     }
 
+    /**
+     * Lets callers append widget-specific tooltip lines.
+     * <p>
+     * The supplied list is mutated in place by {@link #onAddedTooltips} when a callback is installed, then returned for
+     * further tooltip composition.
+     *
+     * @param list mutable tooltip list to extend
+     * @return the same tooltip list after custom additions
+     */
     public List<Component> getAdditionalToolTips(List<Component> list) {
         if (this.onAddedTooltips != null) {
             this.onAddedTooltips.accept(this, list);
@@ -387,6 +459,15 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         }
     }
 
+    /**
+     * Converts cross-viewer item and fluid ingredients into AE2 generic stacks for display or phantom assignment.
+     * <p>
+     * Supports AE2 stacks, vanilla/Forge item and fluid stacks, LDLib fluid stacks, and optional EMI/JEI wrapper types
+     * when those integrations are loaded. The conversion does not mutate the source ingredient.
+     *
+     * @param ingredient ingredient object supplied by a recipe viewer, carried stack, or AE2 caller
+     * @return equivalent AE2 stack, or {@code null} when the object is empty or not convertible
+     */
     @Nullable
     public static GenericStack toGenericStack(@Nullable Object ingredient) {
         if (ingredient instanceof GenericStack stack) {
@@ -429,11 +510,24 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return null;
     }
 
+    /**
+     * Gets the stack that should currently be rendered by the widget.
+     * <p>
+     * Client-side bound widgets read directly from the backing inventory when the slot is valid so editor and screen
+     * refreshes see local changes immediately. Detached or server-side display falls back to the last synchronized stack.
+     *
+     * @return stack to display, or {@code null} when the slot is empty or invalid
+     */
     @Nullable
     protected GenericStack getDisplayStack() {
         return inventory != null && isValidSlot() && isClientSideWidget ? getInventoryStack() : lastStack;
     }
 
+    /**
+     * Reads the backing AE2 config inventory at {@link #slotIndex}.
+     *
+     * @return current inventory stack, or {@code null} when no inventory is bound or the index is outside its range
+     */
     @Nullable
     protected GenericStack getInventoryStack() {
         var inventory = this.inventory;
@@ -443,14 +537,34 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return inventory.getStack(slotIndex);
     }
 
+    /**
+     * Checks whether the currently bound inventory contains {@link #slotIndex}.
+     *
+     * @return {@code true} when this widget can safely read or write its configured slot
+     */
     protected boolean isValidSlot() {
         return isValidSlot(inventory);
     }
 
+    /**
+     * Checks whether the supplied inventory can be addressed with this widget's slot index.
+     *
+     * @param inventory candidate config inventory, or {@code null}
+     * @return {@code true} when {@code inventory} is non-null and {@link #slotIndex} is in {@code [0, size)}
+     */
     protected boolean isValidSlot(@Nullable ConfigInventory inventory) {
         return inventory != null && slotIndex >= 0 && slotIndex < inventory.size();
     }
 
+    /**
+     * Applies a new stack to the backing inventory or detached display state.
+     * <p>
+     * Bound slots respect insert/extract permissions and allowed-key filters. Detached widgets keep the stack only in
+     * {@link #lastStack}. Side effects: may mutate the backing {@link ConfigInventory}, updates {@link #lastStack}, and
+     * invokes {@link #notifyChangeListener()} after an accepted change.
+     *
+     * @param stack stack to store, or {@code null} to clear
+     */
     protected void setStack(@Nullable GenericStack stack) {
         var inventory = this.inventory;
         if (isValidSlot(inventory)) {
@@ -469,6 +583,15 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         notifyChangeListener();
     }
 
+    /**
+     * Changes only the amount of the current stack key.
+     * <p>
+     * The requested stack must have the same AE key as the current display/inventory stack. Non-positive amounts clear
+     * the slot, while positive amounts reuse {@link #setStack(GenericStack)} so normal permission checks and side effects
+     * still apply.
+     *
+     * @param requested stack carrying the target key and desired amount; amount must be within AE2's valid range
+     */
     protected void setStackAmount(GenericStack requested) {
         var current = isRemote() || isClientSideWidget ? getDisplayStack() : getInventoryStack();
         if (current == null || !current.what().equals(requested.what())) {
@@ -481,12 +604,25 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         }
     }
 
+    /**
+     * Sends the current backing inventory stack to the client.
+     * <p>
+     * Called after server-side client actions mutate the slot. Side effects: refreshes {@link #lastStack} from the
+     * inventory and writes an {@link #UPDATE_STACK} packet through LDLib.
+     */
     protected void syncStackToClient() {
         var stack = getInventoryStack();
         this.lastStack = stack;
         writeUpdateInfo(UPDATE_STACK, buffer -> GenericStack.writeBuffer(stack, buffer));
     }
 
+    /**
+     * Tests whether a non-null stack may replace or populate the bound inventory slot.
+     *
+     * @param stack stack requested for insertion or replacement
+     * @return {@code true} when putting is enabled, the slot is valid, the inventory accepts insertion, replacement is
+     * allowed for the current contents, and the key passes the inventory filter
+     */
     protected boolean maySetStack(GenericStack stack) {
         var inventory = this.inventory;
         if (!canPutItems || !isValidSlot(inventory)) {
@@ -498,23 +634,57 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
                 && inventory.isAllowed(stack);
     }
 
+    /**
+     * Tests whether the bound inventory slot may be cleared.
+     *
+     * @return {@code true} when taking is enabled, the slot is valid, and the inventory permits extraction
+     */
     protected boolean mayClearStack() {
         var inventory = this.inventory;
         return canTakeItems && isValidSlot(inventory) && inventory.canExtract();
     }
 
+    /**
+     * Tests whether the active side may set a stack.
+     * <p>
+     * Bound slots use the backing inventory permission checks. Detached slots rely on the widget flag only because no
+     * inventory can reject the change.
+     *
+     * @param stack stack requested for insertion or replacement
+     * @return {@code true} when this side may accept the stack
+     */
     protected boolean maySetStackOnThisSide(GenericStack stack) {
         return isValidSlot() ? maySetStack(stack) : canPutItems;
     }
 
+    /**
+     * Tests whether a recipe-viewer phantom ingredient may populate this slot on the active side.
+     *
+     * @param stack phantom stack proposed by the recipe viewer
+     * @return {@code true} when phantom input is enabled and normal set permissions allow the stack
+     */
     protected boolean mayAcceptPhantomOnThisSide(GenericStack stack) {
         return canAcceptPhantom && maySetStackOnThisSide(stack);
     }
 
+    /**
+     * Tests whether the active side may clear the current stack.
+     *
+     * @return {@code true} when a bound slot can extract, or when a detached slot has taking enabled
+     */
     protected boolean mayClearStackOnThisSide() {
         return isValidSlot() ? mayClearStack() : canTakeItems;
     }
 
+    /**
+     * Tests whether the active side may apply an amount edit for the current key.
+     * <p>
+     * The requested key must match the displayed key. A zero amount follows clear permissions; positive amounts follow
+     * normal set permissions.
+     *
+     * @param requested stack carrying the current key and desired amount
+     * @return {@code true} when the amount edit is valid for the current side and permissions
+     */
     protected boolean maySetAmountOnThisSide(GenericStack requested) {
         var current = getDisplayStack();
         if (current == null || !current.what().equals(requested.what())) {
@@ -526,6 +696,15 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return maySetStackOnThisSide(requested);
     }
 
+    /**
+     * Opens the client-side amount editor for the displayed key.
+     * <p>
+     * Side effects: creates a modal dialog, validates numeric input in the range {@code [0, getMaxAmount(stack)]}, updates
+     * local state on submit, and sends an {@link #ACTION_SET_AMOUNT} client action. Must only be called from the client UI
+     * thread while {@link #gui} is available.
+     *
+     * @param stack current stack whose key will be preserved while editing the amount
+     */
     @OnlyIn(Dist.CLIENT)
     protected void openAmountDialog(GenericStack stack) {
         var dialog = new DialogWidget(gui.mainGroup, true);
@@ -605,6 +784,12 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         return stack.what() instanceof AEFluidKey ? Long.MAX_VALUE : Integer.MAX_VALUE;
     }
 
+    /**
+     * Notifies listeners that this widget's logical stack changed.
+     * <p>
+     * The callback runs synchronously on the caller's thread, so callers should invoke this from the same UI/server
+     * context that owns the surrounding widget state.
+     */
     protected void notifyChangeListener() {
         if (changeListener != null) {
             changeListener.run();

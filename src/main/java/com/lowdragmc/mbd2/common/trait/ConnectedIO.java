@@ -7,6 +7,15 @@ import net.minecraft.core.Direction;
 
 import javax.annotation.Nullable;
 
+/**
+ * Per-side connection mask for visual or logical connectivity.
+ *
+ * <p>The business goal is to decide whether a side should be considered
+ * connected relative to the machine's front facing. This is a lightweight
+ * mutable configuration object; {@link #getConnection(Direction, Direction)} is
+ * side-effect free and safe to call from render or recipe checks when the
+ * configuration is not being edited concurrently.</p>
+ */
 @Getter
 @Setter
 public class ConnectedIO {
@@ -28,6 +37,18 @@ public class ConnectedIO {
     @Configurable(name = "config.definition.trait.capability_io.bottom")
     private boolean bottomIO = true;
 
+    /**
+     * Resolves whether a queried world side is connected.
+     *
+     * <p>For vertical fronts, front/back use their dedicated flags and all other
+     * sides use {@code topIO}. For horizontal fronts, horizontal sides are
+     * interpreted relative to front. A {@code null} side is treated as
+     * disconnected.</p>
+     *
+     * @param front machine front direction
+     * @param side  world side being queried, or {@code null}
+     * @return {@code true} when the side is enabled for connection
+     */
     public boolean getConnection(Direction front, @Nullable Direction side) {
         if (front.getAxis() == Direction.Axis.Y) {
             if (side == front) {

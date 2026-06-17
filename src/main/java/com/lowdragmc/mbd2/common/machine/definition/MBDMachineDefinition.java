@@ -76,25 +76,68 @@ import java.util.function.Supplier;
 @Accessors(fluent = true)
 @LDLRegister(name = "single_machine", group = "machine_definition")
 public class MBDMachineDefinition implements IConfigurable, IPersistedSerializable {
+    /**
+     * Factory for per-definition machine settings.
+     *
+     * <p>The supplier is stored during definition construction and invoked from
+     * {@link #loadFactory()} after registry setup has completed. Implementations should
+     * return a fresh mutable {@link ConfigMachineSettings} instance for this definition.</p>
+     */
     @FunctionalInterface
-    public interface ConfigMachineSettingsFactory extends Supplier<ConfigMachineSettings> {}
-
-    @FunctionalInterface
-    public interface ConfigPartSettingsFactory extends Supplier<ConfigPartSettings> {}
+    public interface ConfigMachineSettingsFactory extends Supplier<ConfigMachineSettings> {
+    }
 
     /**
-     * used for block initialization.
+     * Factory for optional proxy-part settings.
+     *
+     * <p>The supplier is only used when {@link #allowPartSettings()} is {@code true}; it is
+     * invoked from {@link #loadFactory()} and should return a fresh mutable
+     * {@link ConfigPartSettings} instance for this definition.</p>
+     */
+    @FunctionalInterface
+    public interface ConfigPartSettingsFactory extends Supplier<ConfigPartSettings> {
+    }
+
+    /**
+     * Definition context used while Forge constructs the block instance for this definition.
+     * <p>
+     * The value is thread-local because Forge registration can call the block constructor through registry helpers. It
+     * must be set immediately before block creation and cleared in the same registration callback.
      */
     static final ThreadLocal<MBDMachineDefinition> STATE = new ThreadLocal<>();
 
+    /**
+     * Returns the definition currently being used to construct a machine block.
+     * <p>
+     * Preconditions: call only from code running inside a registration block guarded by {@link #set(MBDMachineDefinition)}
+     * and {@link #clear()}. Outside that window this returns {@code null}. Thread safety is provided only by
+     * {@link ThreadLocal}; definitions themselves are not synchronized.
+     *
+     * @return current block-construction definition for this thread, or {@code null} when no definition is being
+     * registered
+     */
     public static MBDMachineDefinition get() {
         return STATE.get();
     }
 
+    /**
+     * Sets the definition context for the current registration thread.
+     * <p>
+     * Side effect: subsequent block-construction code on this thread can obtain {@code state} through {@link #get()}.
+     * Always pair this with {@link #clear()} in the same logical registration operation.
+     *
+     * @param state definition whose block is about to be created; must not be {@code null}
+     */
     public static void set(MBDMachineDefinition state) {
         STATE.set(state);
     }
 
+    /**
+     * Clears the current thread's block-construction definition context.
+     * <p>
+     * Side effect: removes the thread-local value so later registrations or runtime code cannot observe a stale
+     * definition.
+     */
     public static void clear() {
         STATE.remove();
     }
@@ -137,6 +180,25 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     private IRenderer itemRenderer;
     private Function<MBDMachine, WidgetGroup> uiCreator;
 
+    /**
+     * Creates a machine definition from builder or project data.
+     * <p>
+     * The constructor wires static configuration and stores factories that are loaded later by {@link #loadFactory()}.
+     * It does not register blocks, items, block entities, or client renderers. Missing optional arguments are replaced
+     * with default settings objects.
+     *
+     * @param id                     registry id for the machine definition; when {@code null}, a placeholder id is used until project data
+     *                               overwrites it
+     * @param rootState              root visual/shape state for the state machine; when {@code null}, {@link #createDefaultRootState()}
+     *                               is used
+     * @param blockProperties        block behavior settings; when {@code null}, default block properties are built
+     * @param itemProperties         item settings; when {@code null}, default item properties are built
+     * @param machineSettingsFactory factory that creates runtime machine settings during {@link #loadFactory()}; when
+     *                               {@code null}, default machine settings are built
+     * @param recipeLogicSettings    recipe-processing settings; when {@code null}, default recipe logic settings are built
+     * @param partSettingsFactory    optional proxy-part settings factory; ignored when {@link #allowPartSettings()} returns
+     *                               {@code false}
+     */
     protected MBDMachineDefinition(ResourceLocation id,
                                    @Nullable MachineState rootState,
                                    @Nullable ConfigBlockProperties blockProperties,
@@ -144,7 +206,7 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                                    @Nullable ConfigMachineSettingsFactory machineSettingsFactory,
                                    @Nullable ConfigRecipeLogicSettings recipeLogicSettings,
                                    @Nullable ConfigPartSettingsFactory partSettingsFactory) {
-        this.id = id == null ? new ResourceLocation("mbd2", "undefined") : id;
+        this.id = id == null ? MBD2.id("undefined") : id;
         this.stateMachine = new StateMachine<>(rootState == null ? createDefaultRootState() : rootState);
         this.blockProperties = blockProperties == null ? ConfigBlockProperties.builder().build() : blockProperties;
         this.itemProperties = itemProperties == null ? ConfigItemProperties.builder().build() : itemProperties;
@@ -154,30 +216,72 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         this.machineEvents = createMachineEvents();
     }
 
+    /**
+     * Indicates whether this definition can create proxy part settings.
+     * <p>
+     * Single-block machines allow part settings so they can act as proxy parts for multiblocks. Definitions that are
+     * themselves controllers, such as multiblocks, should return {@code false}.
+     *
+     * @return {@code true} when {@link ConfigPartSettings} should be created and loaded for this definition
+     */
     public boolean allowPartSettings() {
         return true;
     }
 
+    /**
+     * Creates the machine event configuration container for this definition.
+     * <p>
+     * Subclasses can extend the registered event groups before project data is loaded. The returned object becomes the
+     * persisted {@link #machineEvents} instance for this definition.
+     *
+     * @return fresh event configuration with the base machine event group registered
+     */
     public ConfigMachineEvents createMachineEvents() {
         return new ConfigMachineEvents().registerEventGroup("MachineEvent");
     }
 
+    /**
+     * Creates the default root state used when no explicit root state is supplied.
+     * <p>
+     * The default state is intentionally minimal and is suitable for editor/project bootstrap before a real renderer and
+     * shape are configured.
+     *
+     * @return root machine state for a new definition state machine
+     */
     public MachineState createDefaultRootState() {
         return StateMachine.createDefault(MachineState::builder);
     }
 
     /**
-     * Load factory settings. Called after all registry finished.
+     * Loads settings produced by definition factories.
+     * <p>
+     * Preconditions: call after machine definition, trait, and recipe capability registries have been populated so
+     * factory-created settings can resolve registered references. Side effects: assigns {@link #machineSettings} and,
+     * when part settings are supported, {@link #partSettings}. This should run on the mod-loading thread before runtime
+     * machine instances are created.
      */
     public void loadFactory() {
         machineSettings = machineSettingsFactory.get();
         if (partSettingsFactory != null) partSettings = partSettingsFactory.get();
     }
 
+    /**
+     * Starts a builder for a single-block machine definition.
+     *
+     * @return mutable builder with no fields set
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Creates a placeholder single-block machine definition with default settings.
+     * <p>
+     * This is used by editor/bootstrap paths that need a structurally valid definition before project-specific data is
+     * loaded. The returned definition is not registered automatically.
+     *
+     * @return default unregistered machine definition using the {@code mbd2:dummy} id
+     */
     public static MBDMachineDefinition createDefault() {
         return new MBDMachineDefinition(
                 MBD2.id("dummy"),
@@ -207,12 +311,20 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     /**
-     * Load definition from project tag for product usage.
-     * only {@link MBDMachineDefinition#blockProperties}, {@link MBDMachineDefinition#itemProperties} and {@link MBDMachineDefinition#stateMachine}
-     * will be loaded immediately, others will be loaded during the postTask.
-     * @param projectTag project tag.
-     * @param postTask Called when the mod is loaded completed. To make sure all resources are available.
-     *                 <br/> e.g. items, blocks and other registries are ready.
+     * Loads definition data from a persisted project tag for production/runtime use.
+     * <p>
+     * Block properties, item properties, and the state machine are loaded immediately because they are needed during
+     * block and item registration. Settings that depend on registries, resources, traits, or UI templates are deferred
+     * into {@code postTask}; callers must run those tasks after mod registries and project resources are available.
+     * <p>
+     * Side effects: updates this definition id and persisted configuration, stores {@code file} for future reloads, and
+     * may install a UI factory that binds project widgets to runtime machine data. This method is not thread-safe and is
+     * intended for startup/editor reload flows.
+     *
+     * @param file       project file used as the reload source, or {@code null} for in-memory project data
+     * @param projectTag root project NBT containing {@code definition}, {@code resources}, and optional {@code ui} data
+     * @param postTask   queue that receives deferred loading work; callers must execute it after registry/resource loading
+     * @return this definition after immediate data has been loaded
      */
     public MBDMachineDefinition loadProductiveTag(@Nullable File file, CompoundTag projectTag, Deque<Runnable> postTask) {
         this.projectFile = file;
@@ -220,7 +332,8 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         rendererResource.deserializeNBT(projectTag.getCompound("resources").getCompound(IRendererResource.RESOURCE_NAME));
         var definitionTag = projectTag.getCompound("definition");
         try (var ignored = UIResourceRendererContext.push(rendererResource, false)) {
-            id = new ResourceLocation(definitionTag.getString("id"));
+            var parsedId = ResourceLocation.tryParse(definitionTag.getString("id"));
+            id = parsedId == null ? MBD2.id("undefined") : parsedId;
             blockProperties.deserializeNBT(definitionTag.getCompound("blockProperties"));
             itemProperties.deserializeNBT(definitionTag.getCompound("itemProperties"));
             stateMachine.deserializeNBT(definitionTag.getCompound("stateMachine"));
@@ -255,14 +368,21 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     }
 
     /**
-     * Indicate if the definition is created from project file.
+     * Indicates whether this definition was loaded from a project file.
+     *
+     * @return {@code true} when {@link #loadProductiveTag(File, CompoundTag, Deque)} was given a non-null file
      */
     public boolean isCreatedFromProjectFile() {
         return projectFile != null;
     }
 
     /**
-     * Reload definition from project file. Not all properties will be updated, because the block and item are already registered.
+     * Reloads editable definition data from the remembered project file.
+     * <p>
+     * Preconditions: this definition must have been loaded from a project file. Side effects mirror
+     * {@link #loadProductiveTag(File, CompoundTag, Deque)} and immediately run deferred tasks. Registry-bound objects
+     * such as the already registered block, item, and block entity type are not recreated, so changes to those properties
+     * require a full restart/re-registration.
      */
     public void reloadFromProjectFile() {
         if (projectFile != null) {
@@ -273,10 +393,21 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                     loadProductiveTag(projectFile, tag, postTask);
                     postTask.forEach(Runnable::run);
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
+    /**
+     * Binds project-authored UI widgets to a runtime machine instance.
+     * <p>
+     * The method attaches suppliers/callbacks for standard ids such as {@code ui:machine_name}, progress/fuel bars, XEI
+     * lookup buttons, trait UI widgets, and proxy-controller trait views. Side effects mutate the supplied widget tree.
+     * Call on the UI/client setup path after the machine's traits and recipe logic are available.
+     *
+     * @param machine machine whose runtime state is displayed by the UI
+     * @param ui      root widget group loaded from the project template
+     */
     protected void bindMachineUI(MBDMachine machine, WidgetGroup ui) {
         WidgetUtils.widgetByIdForEach(ui, "^ui:machine_name$", TextTextureWidget.class,
                 nameWidget -> nameWidget.setText(() -> {
@@ -335,10 +466,28 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         }
     }
 
+    /**
+     * Resolves the display name shown by machine UI templates.
+     * <p>
+     * Subclasses may override this to use entity names, controller-specific names, or other runtime data. The default
+     * name is taken from the registered block.
+     *
+     * @param machine runtime machine requesting its display name
+     * @return localized component used when the machine has no custom name
+     */
     protected Component getMachineName(MBDMachine machine) {
         return block().getName();
     }
 
+    /**
+     * Registers the Forge block, item, and block entity type for this definition.
+     * <p>
+     * Side effects: writes {@link #block}, {@link #item}, and {@link #blockEntityType}. This must run during the Forge
+     * registration event for the matching registries. The block registration temporarily sets the thread-local definition
+     * context used by block construction.
+     *
+     * @param event Forge registration event dispatching block, item, and block entity type registry helpers
+     */
     public void onRegistry(RegisterEvent event) {
         event.register(ForgeRegistries.BLOCKS.getRegistryKey(), helper -> {
             MBDMachineDefinition.set(this);
@@ -350,28 +499,70 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                 helper.register(id, blockEntityType = BlockEntityType.Builder.of(this::createBlockEntity, block).build(null)));
     }
 
+    /**
+     * Creates the Forge block instance for this machine definition.
+     * <p>
+     * Preconditions: call during block registration before runtime machines exist. Side effects are limited to the new
+     * block object; the caller stores it in {@link #block}.
+     *
+     * @return unregistered machine block configured with this definition's block properties and state machine
+     */
     public Block createBlock() {
         return new MBDMachineBlock(blockProperties.apply(stateMachine, BlockBehaviour.Properties.of()), this);
     }
 
+    /**
+     * Creates the Forge item instance that represents this machine block.
+     *
+     * @param block block instance produced by {@link #createBlock()}; must be an {@link MBDMachineBlock}
+     * @return unregistered block item configured with this definition's item properties
+     * @throws ClassCastException when {@code block} is not an {@link MBDMachineBlock}
+     */
     public Item createItem(Block block) {
-        return new MBDMachineItem((MBDMachineBlock)block, itemProperties.apply(new Item.Properties()));
+        return new MBDMachineItem((MBDMachineBlock) block, itemProperties.apply(new Item.Properties()));
     }
 
+    /**
+     * Creates a block entity for a placed machine block.
+     * <p>
+     * The returned entity uses {@link #createMachine(IMachineBlockEntity)} as its runtime machine factory.
+     *
+     * @param pos   world position of the block entity
+     * @param state placed block state
+     * @return block entity bound to this definition's registered block entity type
+     */
     public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
         return new MachineBlockEntity(blockEntityType(), pos, state, this::createMachine);
     }
 
+    /**
+     * Creates the runtime machine object stored by a machine block entity.
+     * <p>
+     * Definitions with part settings create {@link MBDPartMachine}; other definitions create {@link MBDMachine}. The
+     * factory is called from block entity construction/loading and should not perform registration.
+     *
+     * @param blockEntity owning block entity wrapper
+     * @return runtime machine instance for the owner
+     */
     public MBDMachine createMachine(IMachineBlockEntity blockEntity) {
         return partSettings != null ? new MBDPartMachine(blockEntity, this) : new MBDMachine(blockEntity, this);
     }
 
+    /**
+     * Initializes client-side renderers for the registered block entity and block render layers.
+     * <p>
+     * Preconditions: {@link #onRegistry(RegisterEvent)} must have assigned the block and block entity type. Side effects:
+     * creates cached block/item renderers, registers the block entity renderer provider, and configures render-layer
+     * predicates for the block.
+     *
+     * @param event Forge client renderer registration event
+     */
     @OnlyIn(Dist.CLIENT)
     public void initRenderer(EntityRenderersEvent.RegisterRenderers event) {
         blockRenderer = createBlockRenderer();
         itemRenderer = createItemRenderer();
         event.registerBlockEntityRenderer(blockEntityType, createBESRR());
-        ItemBlockRenderTypes.setRenderLayer(block(), renderType -> {
+        setBlockRenderLayer(renderType -> {
             if (renderType == RenderType.translucent()) {
                 return blockProperties.renderTypes().translucent();
             } else if (renderType == RenderType.cutout()) {
@@ -385,39 +576,98 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         });
     }
 
+    @SuppressWarnings("removal")
+    private void setBlockRenderLayer(java.util.function.Predicate<RenderType> renderTypePredicate) {
+        ItemBlockRenderTypes.setRenderLayer(block(), renderTypePredicate);
+    }
+
+    /**
+     * Creates the renderer used for in-world block model rendering.
+     * <p>
+     * The renderer reads ambient-occlusion and root-state renderer suppliers lazily so editor/project reloads can update
+     * those values without recreating the renderer.
+     *
+     * @return client block renderer for this definition
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer createBlockRenderer() {
         return new MBDBlockRenderer(blockProperties::useAO, () -> stateMachine.getRootState().getRealRenderer());
     }
 
+    /**
+     * Creates the renderer used when this machine appears as an item.
+     * <p>
+     * The item renderer uses explicit item renderer settings when enabled, otherwise it falls back to the root machine
+     * state renderer.
+     *
+     * @return client item renderer for machine stacks
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer createItemRenderer() {
         return new MBDItemRenderer(itemProperties::useBlockLight, itemProperties::isGui3d, () -> itemProperties.renderer().isEnable() ? itemProperties.renderer().getValue() : stateMachine.getRootState().getRealRenderer());
     }
 
+    /**
+     * Creates the block entity renderer provider for machine block entities.
+     *
+     * @return provider that reuses or creates the shared MBD block entity renderer for a render context
+     */
     @OnlyIn(Dist.CLIENT)
     public BlockEntityRendererProvider<BlockEntity> createBESRR() {
         return MBDBESRenderer::getOrCreate;
     }
 
+    /**
+     * Finds a named machine state in this definition's state machine.
+     *
+     * @param name state name configured in the state machine; matching is delegated to {@link StateMachine#getState(String)}
+     * @return matching state, or {@code null} when no state with that name exists
+     */
     public MachineState getState(String name) {
         return stateMachine.getState(name);
     }
 
+    /**
+     * Returns the translation key for this machine's block/item display name.
+     *
+     * @return description id from the registered block
+     */
     public String getDescriptionId() {
         return block().getDescriptionId();
     }
 
+    /**
+     * Creates a one-count item stack for this machine.
+     * <p>
+     * If the item has not been registered yet, a barrier stack is returned as a visible placeholder instead of throwing.
+     *
+     * @return machine item stack or a barrier placeholder before item registration
+     */
     public ItemStack asStack() {
         return item() == null ? new ItemStack(Items.BARRIER) : new ItemStack(item());
     }
 
+    /**
+     * Creates an item stack for this machine with an explicit count.
+     * <p>
+     * Preconditions: the machine item must have been registered. Unlike {@link #asStack()}, this method does not provide
+     * a placeholder for unregistered items.
+     *
+     * @param count stack size to request; normal Minecraft item stack limits still apply to downstream consumers
+     * @return machine item stack with the requested count
+     */
     public ItemStack asStack(int count) {
         return new ItemStack(item(), count);
     }
 
     /**
-     * Append the machine's tooltip.
+     * Appends static item tooltip lines configured by the machine definition.
+     * <p>
+     * Side effect: mutates {@code tooltip}. This method does not inspect the stack's NBT and is safe to call from normal
+     * client tooltip construction.
+     *
+     * @param stack   stack being inspected; currently used only to match the standard item tooltip signature
+     * @param tooltip mutable tooltip list that receives configured item tooltip components
      */
     public void appendHoverText(ItemStack stack, List<Component> tooltip) {
         tooltip.addAll(itemProperties().itemTooltips());
@@ -435,18 +685,45 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         @Nullable
         protected ConfigPartSettingsFactory partSettings;
 
+        /**
+         * Creates an empty machine definition builder.
+         * <p>
+         * Builder instances are mutable and not thread-safe.
+         */
         protected Builder() {
         }
 
+        /**
+         * Configures the recipe logic to use a fixed maximum parallel value.
+         * <p>
+         * Side effect: creates recipe logic settings when needed and mutates their recipe modifiers. Values less than
+         * one are accepted here and interpreted later by {@link ConfigRecipeLogicSettings} / recipe logic.
+         *
+         * @param maxParallel maximum number of recipe operations this machine may run in parallel
+         * @return this builder for chaining
+         */
         public Builder setMaxParallel(int maxParallel) {
             getOrCreateRecipeLogicSettings().recipeModifiers().setMaxParallel(maxParallel);
             return this;
         }
 
+        /**
+         * Fluent alias for {@link #setMaxParallel(int)}.
+         *
+         * @param maxParallel maximum number of recipe operations this machine may run in parallel
+         * @return this builder for chaining
+         */
         public Builder maxParallel(int maxParallel) {
             return setMaxParallel(maxParallel);
         }
 
+        /**
+         * Returns mutable recipe logic settings, creating default settings if the builder has none yet.
+         * <p>
+         * Side effect: may assign {@link #recipeLogicSettings}.
+         *
+         * @return recipe logic settings owned by this builder
+         */
         protected ConfigRecipeLogicSettings getOrCreateRecipeLogicSettings() {
             if (recipeLogicSettings == null) {
                 recipeLogicSettings = ConfigRecipeLogicSettings.builder().build();
@@ -454,6 +731,14 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
             return recipeLogicSettings;
         }
 
+        /**
+         * Builds a single-block machine definition from the current builder state.
+         * <p>
+         * Missing optional fields are resolved by the definition constructor. Calling this does not register the
+         * definition, create Forge objects, or load deferred factory settings.
+         *
+         * @return new machine definition instance
+         */
         public MBDMachineDefinition build() {
             return new MBDMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, partSettings);
         }

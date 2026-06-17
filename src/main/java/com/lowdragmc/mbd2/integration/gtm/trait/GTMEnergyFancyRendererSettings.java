@@ -25,6 +25,9 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Fancy renderer settings for visualizing stored GregTech EU inside a machine block.
+ */
 public class GTMEnergyFancyRendererSettings extends FancyRendererSettings {
     private final GTMEnergyCapabilityTraitDefinition definition;
 

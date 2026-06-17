@@ -45,38 +45,88 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+/**
+ * Multi-mode developer gadget for building and debugging MBD machines.
+ *
+ * <p>The item uses damage values as modes: {@code 0} is the multiblock builder, {@code 1} is the recipe debugger, and
+ * {@code 2} is the multiblock debugger. Builder-specific state such as slow-build, selected pattern, and material
+ * bindings is stored on the stack NBT via {@link BuilderMaterialBindings}; recipe-debugger state stores the selected
+ * recipe id on the stack. Item state is mutable and should be read or changed on the logical thread that owns the
+ * player inventory.</p>
+ */
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemUIHolder {
 
+    /**
+     * Creates the non-stackable fire-resistant gadget item.
+     */
     public MBDGadgetsItem() {
         super(new Item.Properties()
                 .fireResistant()
                 .stacksTo(1));
     }
 
+    /**
+     * Checks whether the stack is in multiblock-builder mode.
+     *
+     * @param stack gadget stack to inspect
+     * @return {@code true} when the damage value is {@code 0}
+     */
     public boolean isMultiblockBuilder(ItemStack stack) {
         return stack.getDamageValue() == 0;
     }
 
+    /**
+     * Checks whether the stack is in recipe-debugger mode.
+     *
+     * @param stack gadget stack to inspect
+     * @return {@code true} when the damage value is {@code 1}
+     */
     public boolean isRecipeDebugger(ItemStack stack) {
         return stack.getDamageValue() == 1;
     }
 
+    /**
+     * Checks whether the stack is in multiblock-debugger mode.
+     *
+     * @param stack gadget stack to inspect
+     * @return {@code true} when the damage value is {@code 2}
+     */
     public boolean isMultiblockDebugger(ItemStack stack) {
         return stack.getDamageValue() == 2;
     }
 
+    /**
+     * Reads the recipe id selected by the recipe debugger.
+     *
+     * @param stack gadget stack carrying optional debugger NBT
+     * @return selected recipe id, or {@code null} when missing or invalid
+     */
     @Nullable
     public ResourceLocation getRecipe(ItemStack stack) {
         var tag = stack.getTag();
-        return tag != null ? (tag.contains("recipe") ? new ResourceLocation(tag.getString("recipe")) : null) : null;
+        return tag != null && tag.contains("recipe") ? ResourceLocation.tryParse(tag.getString("recipe")) : null;
     }
 
+    /**
+     * Stores the recipe id selected by the recipe debugger.
+     *
+     * <p>Side effects: creates or updates the stack NBT.</p>
+     *
+     * @param stack  gadget stack to mutate
+     * @param recipe non-null recipe id
+     */
     public void setRecipe(ItemStack stack, ResourceLocation recipe) {
         stack.getOrCreateTag().putString("recipe", recipe.toString());
     }
 
+    /**
+     * Returns the translation key for the current gadget mode.
+     *
+     * @param pStack stack being displayed
+     * @return base item id plus the mode suffix, or builder variant key when builder bindings mark slow/instant build
+     */
     @Override
     public String getDescriptionId(ItemStack pStack) {
         if (BuilderMaterialBindings.isBuilder(pStack)) {
@@ -95,6 +145,17 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
         return id;
     }
 
+    /**
+     * Adds mode-specific tooltip lines.
+     *
+     * <p>The tooltip reports the selected recipe id for recipe debugging and builder state such as selected pattern and
+     * bound item/fluid source coordinates. Side effects: appends components only.</p>
+     *
+     * @param stack      stack being inspected
+     * @param level      optional level context
+     * @param components mutable tooltip list
+     * @param isAdvanced vanilla advanced-tooltip flag
+     */
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> components, TooltipFlag isAdvanced) {
         super.appendHoverText(stack, level, components, isAdvanced);
@@ -131,6 +192,18 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
 
     private boolean isUsed;
 
+    /**
+     * Handles right-click-in-air behavior for gadget modes.
+     *
+     * <p>Recipe-debugger mode opens its held-item UI on the server. Crouching passes through so block interactions can
+     * bind builder sources or clear/debug multiblock state. The {@code isUsed} guard consumes the follow-up use call
+     * that vanilla can issue after a block interaction was already handled.</p>
+     *
+     * @param pLevel    level containing the player
+     * @param pPlayer   player using the item
+     * @param pUsedHand hand containing the stack
+     * @return held-item result for the interaction
+     */
     @Override
     public InteractionResultHolder<ItemStack> use(Level pLevel, Player pPlayer, InteractionHand pUsedHand) {
         var stack = pPlayer.getItemInHand(pUsedHand);
@@ -147,6 +220,19 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
         return super.use(pLevel, pPlayer, pUsedHand);
     }
 
+    /**
+     * Handles block-targeted gadget behavior before vanilla item use.
+     *
+     * <p>Builder mode can bind adjacent item/fluid handlers while crouching or auto-build a controller pattern while
+     * standing. Multiblock-debugger mode reports structure validation results and sends the first pattern error
+     * position to the client for preview. Recipe-debugger mode checks the selected recipe against the clicked machine,
+     * including recipe modification hooks, and prints diagnostic messages to the player. Server-side interactions can
+     * mutate stack NBT and player inventory dirty state; client-side multiblock mismatch preview is visual only.</p>
+     *
+     * @param stack   stack being used
+     * @param context clicked-block context
+     * @return success when a gadget mode handled the click, otherwise pass
+     */
     @Override
     public InteractionResult onItemUseFirst(ItemStack stack, UseOnContext context) {
         var player = context.getPlayer();
@@ -318,10 +404,27 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
         return InteractionResult.PASS;
     }
 
+    /**
+     * Shows a temporary client preview for multiblock occupied-position mismatches.
+     *
+     * @param multiblock    multiblock machine being inspected
+     * @param controllerPos controller block position
+     * @param durationTicks preview duration in ticks; non-positive values are left to the client helper to interpret
+     */
     private static void showOccupiedMismatchPreview(MBDMultiblockMachine multiblock, BlockPos controllerPos, int durationTicks) {
         com.lowdragmc.mbd2.client.MultiblockDebuggerClient.showPreviewWithOccupiedMismatch(multiblock, controllerPos, durationTicks);
     }
 
+    /**
+     * Reads and clamps the builder's selected pattern index for a controller.
+     *
+     * <p>If the stored index is beyond the controller definition's pattern count, the stack NBT is updated to the
+     * highest valid zero-based index before returning it.</p>
+     *
+     * @param stack      builder stack carrying pattern selection
+     * @param controller target multiblock controller
+     * @return selected zero-based pattern index
+     */
     private static int getSelectedPatternIndex(ItemStack stack, IMultiController controller) {
         int patternIndex = BuilderMaterialBindings.getPatternIndex(stack);
         if (controller instanceof MBDMultiblockMachine multiblock) {
@@ -337,6 +440,17 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
         return patternIndex;
     }
 
+    /**
+     * Creates the held-item UI for selecting a recipe to debug.
+     *
+     * <p>The search box lists all registered MBD recipe ids from the current integrated/dedicated server and writes the
+     * selected id to the held stack. The UI is meaningful for recipe-debugger mode but can be created for any held
+     * gadget stack by LowDragLib.</p>
+     *
+     * @param entityPlayer player viewing the UI
+     * @param holder       LowDragLib held-item holder that exposes the mutable stack
+     * @return modular UI for recipe id selection
+     */
     @Override
     public ModularUI createUI(Player entityPlayer, HeldItemUIFactory.HeldItemHolder holder) {
         var x = (200 - 150) / 2;
@@ -375,7 +489,7 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
 
                     @Override
                     public ResourceLocation deserialize(FriendlyByteBuf buf) {
-                        return new ResourceLocation(buf.readUtf());
+                        return ResourceLocation.parse(buf.readUtf());
                     }
                 }, true);
         var currentRecipe = getRecipe(holder.getHeld());

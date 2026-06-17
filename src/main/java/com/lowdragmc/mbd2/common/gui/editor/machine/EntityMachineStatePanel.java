@@ -14,15 +14,29 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * State-configuration panel for entity-machine definitions.
+ *
+ * <p>The panel uses entity preview widgets and wraps selected {@link MachineState} configurators so entity states expose
+ * the entity renderer settings instead of block front-renderer settings.</p>
+ */
 public class EntityMachineStatePanel extends MachineConfigPanel {
     private static final String RENDERER_CONFIG = "config.machine_state.renderer";
     private static final String ENTITY_RENDERER_CONFIG = "config.entity_machine.state.renderer";
     private static final String FRONT_RENDERER_CONFIG = "config.machine_state.front_renderer";
 
+    /**
+     * Creates an entity-machine state panel.
+     *
+     * @param editor owning machine editor
+     */
     public EntityMachineStatePanel(MachineEditor editor) {
         super(editor);
     }
 
+    /**
+     * Rebuilds the entity-machine preview scene without forcing a specific state.
+     */
     @Override
     public void resetScene() {
         level.clear();
@@ -31,6 +45,9 @@ public class EntityMachineStatePanel extends MachineConfigPanel {
         reloadAdditionalTraits();
     }
 
+    /**
+     * Builds the entity-machine state preview tree.
+     */
     @Override
     public void loadMachineState() {
         if (editor.getCurrentProject() instanceof EntityMachineProject project) {
@@ -51,6 +68,11 @@ public class EntityMachineStatePanel extends MachineConfigPanel {
         }
     }
 
+    /**
+     * Adds an entity-machine state preview widget for a newly created state.
+     *
+     * @param newState state to show in the overlay
+     */
     @Override
     public void onStateAdded(MachineState newState) {
         var preview = new EntityMachineStatePreview(this, newState);
@@ -58,6 +80,11 @@ public class EntityMachineStatePanel extends MachineConfigPanel {
         floatView.addWidgetAnima(preview, new Transform().duration(200).scale(0.2f));
     }
 
+    /**
+     * Opens an entity-state-specific configurator and switches the preview machine to the selected state.
+     *
+     * @param state selected machine state
+     */
     @Override
     public void onStateSelected(MachineState state) {
         editor.getConfigPanel().openConfigurator(MachineEditor.SECOND, new EntityMachineStateConfigurable(state));
@@ -66,7 +93,17 @@ public class EntityMachineStatePanel extends MachineConfigPanel {
         }
     }
 
+    /**
+     * Configurable wrapper that adapts block-machine state configurators for entity-machine state editing.
+     *
+     * @param state state being configured
+     */
     private record EntityMachineStateConfigurable(MachineState state) implements IConfigurable {
+        /**
+         * Builds the wrapped state configurator and replaces block renderer controls with entity renderer controls.
+         *
+         * @param father target configurator group
+         */
         @Override
         public void buildConfigurator(ConfiguratorGroup father) {
             state.buildConfigurator(father);

@@ -27,6 +27,18 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Consumer;
 
+/**
+ * Scrollable editor for recipe input or output content stacks.
+ *
+ * <p>The container displays mutable {@link Content} entries grouped by
+ * {@link RecipeCapability}. Selecting a row opens both generic content fields and the
+ * capability-specific content configurator. Context-menu add, copy, and remove operations
+ * update the supplied content map directly and call {@code onContentUpdate} so the owning
+ * recipe list can refresh its compact preview.</p>
+ *
+ * <p>This widget is client editor UI. It is not thread-safe and assumes all mutations occur
+ * on the render/UI thread.</p>
+ */
 public class ContentContainer extends WidgetGroup {
     private final Map<RecipeCapability<?>, List<Content>> contents;
     private final IO io;
@@ -39,10 +51,31 @@ public class ContentContainer extends WidgetGroup {
     @Nullable
     private Runnable onSelected;
 
+    /**
+     * Creates a content editor that can add either input or output defaults.
+     *
+     * @param x               left position relative to the parent widget
+     * @param y               top position relative to the parent widget
+     * @param width           widget width in pixels
+     * @param height          widget height in pixels
+     * @param contents        mutable capability-to-content map to edit
+     * @param onContentUpdate callback invoked after add, copy, or remove operations
+     */
     public ContentContainer(int x, int y, int width, int height, Map<RecipeCapability<?>, List<Content>> contents, Runnable onContentUpdate) {
         this(x, y, width, height, contents, onContentUpdate, IO.BOTH);
     }
 
+    /**
+     * Creates a content editor for a specific recipe side.
+     *
+     * @param x               left position relative to the parent widget
+     * @param y               top position relative to the parent widget
+     * @param width           widget width in pixels
+     * @param height          widget height in pixels
+     * @param contents        mutable capability-to-content map to edit
+     * @param onContentUpdate callback invoked after structural changes to {@code contents}
+     * @param io              side used when creating capability default content and configurators
+     */
     public ContentContainer(int x, int y, int width, int height, Map<RecipeCapability<?>, List<Content>> contents, Runnable onContentUpdate, IO io) {
         super(x, y, width, height);
         this.contents = contents;
@@ -56,15 +89,21 @@ public class ContentContainer extends WidgetGroup {
         reloadContents();
     }
 
+    /**
+     * Clears the selected row without modifying the backing content map.
+     */
     public void clearSelected() {
         container.setSelected(null);
     }
 
+    /**
+     * Creates fixed column labels for metadata fields.
+     */
     private void createTitle() {
         var width = container.getSizeWidth() - 5;
         var dur = 5;
         var x = 0;
-        var textFieldWidth = Math.max(50, (width - 20 -dur - 20 -dur) / 4 - dur);
+        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / 4 - dur);
         appendTitleWidget(x, 20, "C");
         x += (20 + dur);
         if (x + 20 > width) return;
@@ -83,10 +122,20 @@ public class ContentContainer extends WidgetGroup {
         appendTitleWidget(x, textFieldWidth, "editor.machine.recipe_type.content.ui_name");
     }
 
-    private void appendTitleWidget(int x, int width, String C) {
-        addWidget(new ImageWidget(x, 0, width, 15, new TextTexture(C).setWidth(width)));
+    /**
+     * Adds one title label to the metadata header.
+     *
+     * @param x     left offset in pixels
+     * @param width label width in pixels
+     * @param label translation key or literal text to display
+     */
+    private void appendTitleWidget(int x, int width, String label) {
+        addWidget(new ImageWidget(x, 0, width, 15, new TextTexture(label).setWidth(width)));
     }
 
+    /**
+     * Rebuilds row widgets from the current content map.
+     */
     private void reloadContents() {
         container.clearAllWidgets();
         for (var entry : contents.entrySet()) {
@@ -125,23 +174,30 @@ public class ContentContainer extends WidgetGroup {
         }
     }
 
+    /**
+     * Creates one selectable content row.
+     *
+     * @param cap     capability that owns and renders the content payload
+     * @param content mutable recipe content metadata and value
+     * @return selectable row with preview widget and editable metadata fields
+     */
     private SelectableWidgetGroup createContentLine(RecipeCapability<?> cap, Content content) {
         var width = container.getSizeWidth() - 5;
         var contentLine = new SelectableWidgetGroup(0, 0, width, 20);
         var contentWidget = new ContentWidget<>(0, 0, cap, content);
         var dur = 5;
         var x = 0;
-        var textFieldWidth = Math.max(50, (width - 20 -dur - 20 -dur) / 4 - dur);
+        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / 4 - dur);
         contentLine.addWidget(contentWidget);
         x += (20 + dur);
         if (x + 20 > width) return contentLine;
         contentLine.addWidget(new SwitchWidget(x + 1, 1, 18, 18,
-                (cd, pressed) -> content.perTick= pressed)
+                (cd, pressed) -> content.perTick = pressed)
                 .setSupplier(() -> content.perTick)
                 .setTexture(
                         new GuiTextureGroup(ColorPattern.WHITE.borderTexture(-2)).scale(0.6f),
                         new GuiTextureGroup(ColorPattern.WHITE.borderTexture(-2), ColorPattern.WHITE.rectTexture().scale(0.5f)).scale(0.6f)
-                        ));
+                ));
         x += (20 + dur);
         if (x + textFieldWidth > width) return contentLine;
         createFloatField(contentLine, x, textFieldWidth, content.chance, f -> content.chance = f, 0, 1);
@@ -157,6 +213,9 @@ public class ContentContainer extends WidgetGroup {
         return contentLine;
     }
 
+    /**
+     * Adds a bounded float text field to a content row.
+     */
     private static void createFloatField(WidgetGroup contentLine, int x, int textFieldWidth, float initial, Consumer<Float> setter, float min, float max) {
         var textField = new TextFieldWidget(x + 3, 5, textFieldWidth - 3, 10, null,
                 s -> setter.accept(Float.parseFloat(s)))
@@ -168,6 +227,9 @@ public class ContentContainer extends WidgetGroup {
         contentLine.addWidget(textField);
     }
 
+    /**
+     * Adds a free-form string text field to a content row.
+     */
     private static void createStringField(WidgetGroup contentLine, int x, int textFieldWidth, @Nullable String initial, Consumer<String> setter) {
         var textField = new TextFieldWidget(x + 3, 5, textFieldWidth - 3, 10, null, setter)
                 .setCurrentString(initial == null ? "" : initial);

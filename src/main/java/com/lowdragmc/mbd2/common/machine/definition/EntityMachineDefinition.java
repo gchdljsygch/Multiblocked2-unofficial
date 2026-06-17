@@ -46,10 +46,34 @@ import java.util.Deque;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+/**
+ * Machine definition whose runtime is represented by a Minecraft entity rather
+ * than a placed block entity.
+ * <p>
+ * Entity machine definitions still inherit most machine-definition behavior
+ * from {@link MBDMachineDefinition}, including recipe logic, traits, states,
+ * items, renderers, and editor serialization. At Forge registration time they
+ * register an {@link EntityType} plus an item that can place/spawn the entity
+ * machine. Entity-specific AI/event graphs are stored in
+ * {@link ConfigEntityAISettings}.
+ * <p>
+ * Thread safety: definition registration and renderer initialization follow
+ * Forge's normal mod-loading/client setup threads. Runtime entity access should
+ * stay on the logical level thread that owns the entity.
+ */
 @LDLRegister(name = "entity_machine", group = "machine_definition")
 public class EntityMachineDefinition extends MBDMachineDefinition {
+    /**
+     * Entity implementation family used for registration.
+     */
     public enum EntityKind {
+        /**
+         * Basic non-living entity machine.
+         */
         ENTITY,
+        /**
+         * LivingEntity-backed machine with registered living attributes.
+         */
         LIVING
     }
 
@@ -86,6 +110,18 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
     @OnlyIn(Dist.CLIENT)
     private IRenderer entityItemRenderer;
 
+    /**
+     * Creates an entity machine definition.
+     *
+     * @param id                     registry id for the entity type and item
+     * @param rootState              root state tree; default state tree is used by the base
+     *                               definition when {@code null}
+     * @param blockProperties        block/item renderer backing properties inherited
+     *                               from regular machine definitions
+     * @param itemProperties         item form configuration
+     * @param machineSettingsFactory factory for general machine settings
+     * @param recipeLogicSettings    recipe logic configuration
+     */
     public EntityMachineDefinition(ResourceLocation id,
                                    @Nullable MachineState rootState,
                                    @Nullable ConfigBlockProperties blockProperties,
@@ -97,6 +133,11 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         entityModelSettings = new EntityMachineModelSettings(defaultRenderer == null ? IRenderer.EMPTY : defaultRenderer);
     }
 
+    /**
+     * Creates the editor/default entity machine definition.
+     *
+     * @return default definition with dummy id and empty renderer
+     */
     public static EntityMachineDefinition createDefault() {
         return new EntityMachineDefinition(
                 MBD2.id("dummy"),
@@ -107,6 +148,11 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
                 ConfigRecipeLogicSettings.builder().build());
     }
 
+    /**
+     * Creates a fluent builder for entity machine definitions.
+     *
+     * @return new builder
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -183,12 +229,26 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         }
     }
 
+    /**
+     * Registers living attributes when this definition uses
+     * {@link EntityKind#LIVING}.
+     *
+     * @param event Forge attribute creation event
+     */
     public void registerEntityAttributes(EntityAttributeCreationEvent event) {
         if (entityKind == EntityKind.LIVING && entityType != null) {
             event.put((EntityType<? extends LivingEntity>) entityType, LivingEntity.createLivingAttributes().build());
         }
     }
 
+    /**
+     * Creates the entity type configured by this definition.
+     * <p>
+     * Width, height, tracking range, and update interval are clamped to valid
+     * positive values before building the type.
+     *
+     * @return new entity type instance
+     */
     public EntityType<?> createEntityType() {
         var width = Math.max(0.01f, entityWidth);
         var height = Math.max(0.01f, entityHeight);
@@ -210,6 +270,12 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
                 .build(id().toString());
     }
 
+    /**
+     * Creates an unregistered preview entity for editor/client rendering.
+     *
+     * @param level level used by the preview entity
+     * @return preview entity matching {@link #entityKind}
+     */
     public Entity createPreviewEntity(Level level) {
         if (entityKind == EntityKind.LIVING) {
             return new RegisteredMBDLivingMachineEntity(EntityType.ARMOR_STAND, level, this);
@@ -217,6 +283,11 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         return new RegisteredMBDMachineEntity(EntityType.MARKER, level, this);
     }
 
+    /**
+     * Creates the item form used to place/spawn this entity machine.
+     *
+     * @return new item instance configured with {@link #itemProperties()}
+     */
     public Item createItem() {
         return new EntityMachineItem(this, itemProperties().apply(new Item.Properties()));
     }
@@ -251,10 +322,21 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         return entityItemRenderer;
     }
 
+    /**
+     * Returns the entity type assigned during registration.
+     *
+     * @return registered entity type, or {@code null} before Forge registration or lazy creation completes
+     */
     public EntityType<?> entityType() {
         return entityType;
     }
 
+    /**
+     * Returns the registered entity type, creating a standalone type when
+     * registration has not populated it yet.
+     *
+     * @return entity type for this definition
+     */
     public EntityType<?> getOrCreateEntityType() {
         if (entityType == null) {
             entityType = createEntityType();
@@ -262,36 +344,82 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         return entityType;
     }
 
+    /**
+     * Returns the base behavior category used when constructing the entity type.
+     *
+     * @return entity kind controlling vanilla base entity behavior
+     */
     public EntityKind entityKind() {
         return entityKind;
     }
 
+    /**
+     * Returns the configured entity hitbox width.
+     *
+     * @return width in blocks; expected to be positive
+     */
     public float entityWidth() {
         return entityWidth;
     }
 
+    /**
+     * Returns the configured entity hitbox height.
+     *
+     * @return height in blocks; expected to be positive
+     */
     public float entityHeight() {
         return entityHeight;
     }
 
+    /**
+     * Returns the mutable model and renderer settings for this entity machine.
+     *
+     * @return entity model settings owned by this definition
+     */
     public EntityMachineModelSettings entityModelSettings() {
         return entityModelSettings;
     }
 
+    /**
+     * Returns the mutable AI settings used by spawned entity machines.
+     *
+     * @return entity AI settings owned by this definition
+     */
     public ConfigEntityAISettings entityAISettings() {
         return entityAISettings;
     }
 
+    /**
+     * Returns the renderer used by the entity machine in world.
+     *
+     * @return renderer resolved from entity model settings or root state
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer entityRenderer() {
         return getEntityStateBlockRenderer(stateMachine().getRootState());
     }
 
+    /**
+     * Returns the renderer for a specific entity state.
+     *
+     * @param state       machine state being rendered
+     * @param frontFacing front direction; currently ignored by entity renderers
+     * @return renderer for the state/entity
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer getEntityStateRenderer(MachineState state, Direction frontFacing) {
         return getEntityStateBlockRenderer(state);
     }
 
+    /**
+     * Resolves the block-style renderer used for an entity state.
+     * <p>
+     * Non-root state renderers override the entity renderer; otherwise the
+     * entity model renderer is used before falling back to the state's renderer.
+     *
+     * @param state state to render
+     * @return renderer for the state
+     */
     @OnlyIn(Dist.CLIENT)
     public IRenderer getEntityStateBlockRenderer(MachineState state) {
         var stateRenderer = findExplicitEntityStateRenderer(state);
@@ -326,6 +454,13 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         return new MBDEntityMachine(blockEntity, this);
     }
 
+    /**
+     * Returns this definition's machine runtime for an entity.
+     *
+     * @param entity entity to inspect
+     * @return machine runtime when the entity is an MBD entity machine using
+     * this definition; otherwise {@code null}
+     */
     @Nullable
     public MBDEntityMachine getMachine(Entity entity) {
         if (entity instanceof IMachineEntity machineEntity && machineEntity.getMetaMachine() instanceof MBDEntityMachine machine) {
@@ -349,24 +484,52 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         return Component.translatable(id().toLanguageKey("machine"));
     }
 
+    /**
+     * Checks whether a trait definition is safe/supported for entity machines.
+     *
+     * @param traitDefinition trait definition to test
+     * @return {@code true} when the current entity trait filter accepts it
+     */
     public boolean isTraitSupportedOnEntity(TraitDefinition traitDefinition) {
         return entityTraitFilter.test(traitDefinition);
     }
 
+    /**
+     * Sets the filter that decides which trait definitions are allowed on this
+     * entity machine definition.
+     *
+     * @param entityTraitFilter predicate to use; {@code null} rejects all traits
+     * @return this definition
+     */
     public EntityMachineDefinition entityTraitFilter(Predicate<TraitDefinition> entityTraitFilter) {
         this.entityTraitFilter = entityTraitFilter == null ? trait -> false : entityTraitFilter;
         return this;
     }
 
+    /**
+     * Reads the entity's front-facing direction.
+     *
+     * @param entity entity machine instance
+     * @return current direction when available
+     */
     public Optional<Direction> getEntityFrontFacing(Entity entity) {
         return Optional.ofNullable(entity.getDirection());
     }
 
+    /**
+     * Updates the entity yaw/head yaw to match a front-facing direction.
+     *
+     * @param entity entity machine instance
+     * @param facing desired front direction
+     */
     public void setEntityFrontFacing(Entity entity, Direction facing) {
         entity.setYRot(facing.toYRot());
         entity.setYHeadRot(facing.toYRot());
     }
 
+    /**
+     * Fluent builder for entity machine definitions.
+     */
     @Setter
     @Accessors(chain = true, fluent = true)
     public static class Builder extends MBDMachineDefinition.Builder {
@@ -377,9 +540,23 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
         private int clientTrackingRange = 8;
         private int updateInterval = 3;
 
+        /**
+         * Creates a builder with entity-safe defaults.
+         * <p>
+         * Defaults build a standard entity-sized machine with default entity-safe traits, tracking range {@code 8}, and
+         * update interval {@code 3}. Use {@link EntityMachineDefinition#builder()} to obtain instances.
+         */
         protected Builder() {
         }
 
+        /**
+         * Sets the filter that decides which trait definitions are allowed on
+         * entity machine definitions built by this builder.
+         *
+         * @param entityTraitFilter predicate to use; {@code null} rejects all
+         *                          traits
+         * @return this builder
+         */
         public Builder entityTraitFilter(Predicate<TraitDefinition> entityTraitFilter) {
             this.entityTraitFilter = entityTraitFilter == null ? trait -> false : entityTraitFilter;
             return this;
@@ -397,6 +574,11 @@ public class EntityMachineDefinition extends MBDMachineDefinition {
             return this;
         }
 
+        /**
+         * Builds the entity machine definition.
+         *
+         * @return new entity machine definition
+         */
         public EntityMachineDefinition build() {
             var definition = new EntityMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings)
                     .entityTraitFilter(entityTraitFilter);

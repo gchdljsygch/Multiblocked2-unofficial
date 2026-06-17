@@ -18,6 +18,9 @@ import com.lowdragmc.mbd2.utils.WidgetUtils;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Configurable definition for an AE2 ME interface trait.
+ */
 @LDLRegister(name = "ae2_me_interface", group = "trait", modID = "ae2")
 public class MEInterfaceTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter

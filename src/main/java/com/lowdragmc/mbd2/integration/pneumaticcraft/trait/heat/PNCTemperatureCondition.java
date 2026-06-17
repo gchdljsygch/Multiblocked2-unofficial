@@ -22,6 +22,9 @@ import net.minecraft.util.GsonHelper;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 
+/**
+ * Recipe condition that restricts PneumaticCraft heat recipes by exchanger temperature.
+ */
 @Getter
 @NoArgsConstructor
 public class PNCTemperatureCondition extends RecipeCondition {
@@ -70,7 +73,7 @@ public class PNCTemperatureCondition extends RecipeCondition {
         }
         for (IRecipeHandler<?> handler : toCheck) {
             if (handler instanceof PNCHeatExchangerTrait.HeatRecipeHandler heatRecipeHandler) {
-                var temp = ((PNCHeatExchangerTrait)heatRecipeHandler.trait).getHandler().getTemperature() - 273;
+                var temp = ((PNCHeatExchangerTrait) heatRecipeHandler.trait).getHandler().getTemperature() - 273;
                 if (temp >= minTemperature && temp <= maxTemperature) {
                     return true;
                 }

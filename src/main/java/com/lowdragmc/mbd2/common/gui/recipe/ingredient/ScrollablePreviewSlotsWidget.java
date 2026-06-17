@@ -22,6 +22,18 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+/**
+ * Scrollable XEI preview container for item and fluid recipe contents.
+ *
+ * <p>The widget creates capability-specific XEI template widgets, binds them to recipe
+ * {@link Content}, and lays them out in a fixed-size grid. It is intended for recipe UI
+ * templates that need more slots than fit in a static row. Slot ids follow the
+ * {@code @scrollable_preview_slot_<capability>_<side>_<index>} convention so other binding
+ * code can find generated widgets predictably.</p>
+ *
+ * <p>Runtime binding preserves the current vertical scroll offset and snaps scrolling to
+ * whole slot rows. The widget is UI-thread state and is not thread-safe.</p>
+ */
 @Configurable(name = "ldlib.gui.editor.register.widget.container.scrollable_preview_slots", collapse = false)
 @LDLRegister(name = "scrollable_preview_slots", group = "widget.container")
 public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup implements IConfigurableWidget {
@@ -36,31 +48,66 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
     protected IngredientIO previewSlotIngredientIO = IngredientIO.RENDER_ONLY;
     protected List<PreviewSlot> lastPreviewSlots = Collections.emptyList();
 
+    /**
+     * Creates a default 72x36 preview-slot container for editor registration.
+     */
     public ScrollablePreviewSlotsWidget() {
         this(0, 0, 72, 36);
     }
 
+    /**
+     * Creates a preview-slot container.
+     *
+     * @param x      left position relative to the parent widget
+     * @param y      top position relative to the parent widget
+     * @param width  widget width in pixels
+     * @param height widget height in pixels
+     */
     public ScrollablePreviewSlotsWidget(int x, int y, int width, int height) {
         super(x, y, width, height);
         setXScrollBarHeight(0);
         setYScrollBarWidth(4);
     }
 
+    /**
+     * Sets each generated slot's square size.
+     *
+     * @param slotSize size in pixels; values below 1 are clamped to 1
+     * @return this widget for chaining
+     */
     public ScrollablePreviewSlotsWidget setSlotSize(int slotSize) {
         this.slotSize = Math.max(1, slotSize);
         return this;
     }
 
+    /**
+     * Sets the gap between generated slots.
+     *
+     * @param slotGap gap in pixels; negative values are clamped to 0
+     * @return this widget for chaining
+     */
     public ScrollablePreviewSlotsWidget setSlotGap(int slotGap) {
         this.slotGap = Math.max(0, slotGap);
         return this;
     }
 
+    /**
+     * Sets the number of columns in the generated grid.
+     *
+     * @param columns column count; values below 1 are clamped to 1
+     * @return this widget for chaining
+     */
     public ScrollablePreviewSlotsWidget setColumns(int columns) {
         this.columns = Math.max(1, columns);
         return this;
     }
 
+    /**
+     * Rebuilds slots from all supported capabilities in the provided recipe content map.
+     *
+     * @param values recipe content map keyed by capability
+     * @param io     recipe side used for ingredient role and generated ids
+     */
     public void bindXEIContents(Map<RecipeCapability<?>, List<Content>> values, IO io) {
         int scrollYOffset = getScrollYOffset();
         clearAllWidgets();
@@ -77,10 +124,24 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
         setScrollYOffset(scrollYOffset);
     }
 
+    /**
+     * Rebuilds slots for one exact capability name.
+     *
+     * @param values         recipe content map keyed by capability
+     * @param io             recipe side used for ingredient role and generated ids
+     * @param capabilityName exact capability name to display
+     */
     public void bindXEIContents(Map<RecipeCapability<?>, List<Content>> values, IO io, String capabilityName) {
         bindXEIContents(values, io, Pattern.compile(Pattern.quote(capabilityName)));
     }
 
+    /**
+     * Rebuilds slots for capabilities whose names match a pattern.
+     *
+     * @param values         recipe content map keyed by capability
+     * @param io             recipe side used for ingredient role and generated ids
+     * @param capabilityName pattern matched against {@link RecipeCapability#name}
+     */
     public void bindXEIContents(Map<RecipeCapability<?>, List<Content>> values, IO io, Pattern capabilityName) {
         int scrollYOffset = getScrollYOffset();
         clearAllWidgets();
@@ -101,6 +162,12 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
         setScrollYOffset(scrollYOffset);
     }
 
+    /**
+     * Rebuilds slots from precomputed preview slot descriptors.
+     *
+     * @param previewSlots ordered slot descriptors to render
+     * @param ingredientIO XEI ingredient role to bind to every generated widget
+     */
     public void bindXEIContents(List<PreviewSlot> previewSlots, IngredientIO ingredientIO) {
         int scrollYOffset = getScrollYOffset();
         lastPreviewSlots = List.copyOf(previewSlots);
@@ -117,6 +184,18 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
         setScrollYOffset(scrollYOffset);
     }
 
+    /**
+     * Configures live slot data for client-side preview updates.
+     *
+     * <p>On each screen update the supplier is compared against the last rendered slot list.
+     * The widget only rebuilds when the list changes.</p>
+     *
+     * @param previewSlotSupplier supplier for ordered preview slots; {@code null} disables
+     *                            dynamic updates
+     * @param ingredientIO        XEI ingredient role to bind to supplied slots; {@code null} maps
+     *                            to {@link IngredientIO#RENDER_ONLY}
+     * @return this widget for chaining
+     */
     public ScrollablePreviewSlotsWidget setPreviewSlotSupplier(Supplier<List<PreviewSlot>> previewSlotSupplier, IngredientIO ingredientIO) {
         this.previewSlotSupplier = previewSlotSupplier;
         this.previewSlotIngredientIO = ingredientIO == null ? IngredientIO.RENDER_ONLY : ingredientIO;
@@ -151,15 +230,35 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
                 .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
     }
 
+    /**
+     * Calculates the top-left position for a generated slot.
+     *
+     * @param index zero-based visible slot index
+     * @return slot position relative to this widget
+     */
     public Position getSlotPosition(int index) {
         int pitch = getSlotPitch();
         return new Position((index % columns) * pitch, (index / columns) * pitch);
     }
 
+    /**
+     * Returns the slot-to-slot distance in pixels.
+     */
     public int getSlotPitch() {
         return slotSize + slotGap;
     }
 
+    /**
+     * Binds all scrollable preview widgets inside a recipe UI template.
+     *
+     * <p>Widgets with id {@code @scrollable_preview_<side>} receive all supported contents
+     * for that side. Widgets with id {@code @scrollable_preview_<side>_<capability>} receive
+     * only matching capability contents.</p>
+     *
+     * @param ui     recipe UI root to search
+     * @param values recipe content map keyed by capability
+     * @param io     recipe side to bind
+     */
     public static void bindXEIRecipeUI(com.lowdragmc.lowdraglib.gui.widget.WidgetGroup ui, Map<RecipeCapability<?>, List<Content>> values, IO io) {
         WidgetUtils.widgetByIdForEach(ui, "^@scrollable_preview_%s$".formatted(io.name), ScrollablePreviewSlotsWidget.class,
                 previewSlots -> previewSlots.bindXEIContents(values, io));
@@ -171,6 +270,13 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
                 });
     }
 
+    /**
+     * Collects supported item/fluid contents into ordered slot descriptors.
+     *
+     * @param values recipe content map keyed by capability
+     * @param io     recipe side represented by the collected slots
+     * @return immutable-empty or mutable ordered list of preview slots
+     */
     public static List<PreviewSlot> collectPreviewSlots(Map<RecipeCapability<?>, List<Content>> values, IO io) {
         if (values == null || values.isEmpty()) {
             return Collections.emptyList();
@@ -203,6 +309,13 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
         };
     }
 
+    /**
+     * One content entry to render in a scrollable preview slot.
+     *
+     * @param capability capability that creates and binds the preview widget
+     * @param content    recipe content value and metadata to display
+     * @param io         recipe side associated with the content
+     */
     public record PreviewSlot(RecipeCapability<?> capability, Content content, IO io) {
     }
 }

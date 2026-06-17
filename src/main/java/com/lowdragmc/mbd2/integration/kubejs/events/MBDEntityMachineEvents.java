@@ -14,9 +14,15 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
+/**
+ * KubeJS event group and JS-facing wrappers for MBD entity machine events.
+ */
 public class MBDEntityMachineEvents {
     public static EventGroup MBD_ENTITY_MACHINE_EVENTS = EventGroup.of("MBDEntityMachineEvents");
 
+    /**
+     * Base JS event wrapper that exposes the backing entity machine and entity.
+     */
     @Getter
     public static class EntityMachineEventJS extends EntityEventJS {
         public final MBDEntityMachine machine;

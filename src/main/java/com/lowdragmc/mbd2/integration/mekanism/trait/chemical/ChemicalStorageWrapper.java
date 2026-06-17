@@ -19,6 +19,9 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+/**
+ * IO-filtered Mekanism chemical handler exposed through machine capability sides.
+ */
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public abstract class ChemicalStorageWrapper<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> implements IChemicalHandler<CHEMICAL, STACK> {

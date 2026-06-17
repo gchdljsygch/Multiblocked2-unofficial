@@ -9,6 +9,14 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Mixin configuration plugin that disables optional integration mixins when their target
+ * mods are not loaded.
+ *
+ * <p>The plugin is evaluated during mixin discovery. Mixins outside optional integration
+ * packages are applied normally. Optional checks use Forge's loading mod list or class
+ * presence for integrations that do not have a simple mod-file lookup.</p>
+ */
 public class MBDMixinPlugin implements IMixinConfigPlugin, MixinPluginShared {
     @Override
     public void onLoad(String mixinPackage) {

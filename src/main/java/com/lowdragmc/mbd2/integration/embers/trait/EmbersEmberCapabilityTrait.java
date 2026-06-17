@@ -21,11 +21,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Machine trait that stores Embers ember energy and exposes it as an Embers power capability.
+ */
 @Getter
 public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EmbersEmberCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -78,7 +84,7 @@ public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements
                                     true),
                             true));
         }
-        if (io.support(IO.OUT)){
+        if (io.support(IO.OUT)) {
             Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
                     .flatMap(be -> be.getCapability(EmbersCapabilities.EMBER_CAPABILITY, side.getOpposite()).resolve())
                     .ifPresent(target -> target.addAmount(
@@ -88,6 +94,9 @@ public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements
         }
     }
 
+    /**
+     * Consumes or fills ember storage for recipe inputs and outputs.
+     */
     public class EmberRecipeHandler extends RecipeHandlerTrait<Double> {
         protected EmberRecipeHandler() {
             super(EmbersEmberCapabilityTrait.this, EmbersEmberRecipeCapability.CAP);
@@ -112,6 +121,9 @@ public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements
         }
     }
 
+    /**
+     * Provides the Embers power capability with side-aware IO filtering.
+     */
     public class EmberCap implements ICapabilityProviderTrait<IEmberCapability> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {

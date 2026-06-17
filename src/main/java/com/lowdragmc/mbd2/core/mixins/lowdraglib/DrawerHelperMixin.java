@@ -11,9 +11,24 @@ import org.spongepowered.asm.mixin.Overwrite;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+/**
+ * Replaces LDLib item-stack drawing with count text that remains readable for oversized stacks.
+ *
+ * <p>MBD traits can expose item counts far above a native stack. Rendering the raw integer in a
+ * 16x16 slot is unreadable, so this overwrite keeps LDLib's render-state behavior while using the
+ * compact suffix formatter for counts of one thousand or more.</p>
+ */
 @Mixin(DrawerHelper.class)
 public abstract class DrawerHelperMixin {
     /**
+     * Draws an item stack and its decoration text with compact count formatting.
+     *
+     * @param graphics  GUI graphics context
+     * @param itemStack stack to render
+     * @param x         left slot coordinate
+     * @param y         top slot coordinate
+     * @param color     ARGB tint applied before rendering
+     * @param altTxt    optional explicit decoration text; when non-null it is used as-is
      * @author pingsu
      * @reason Render compact K/M/G suffixes for oversized item counts in LDLib item slots.
      */

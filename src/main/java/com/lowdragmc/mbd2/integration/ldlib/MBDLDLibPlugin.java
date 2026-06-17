@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * LDLib plugin that discovers MBD predicates, machine events, and synced field accessors.
+ */
 @LDLibPlugin
 public class MBDLDLibPlugin implements ILDLibPlugin {
     public static final Map<String, AnnotationDetector.Wrapper<LDLRegister, ? extends SimplePredicate>> REGISTER_PREDICATES = new HashMap<>();

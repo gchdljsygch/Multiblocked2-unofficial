@@ -8,6 +8,14 @@ import net.minecraft.core.Direction;
 
 import javax.annotation.Nullable;
 
+/**
+ * Per-side Forge capability access configuration.
+ *
+ * <p>The business goal is to answer whether a queried side should allow import,
+ * export, both, or no access for a simple capability trait. Instances are mutable
+ * editor/definition state and should be read from the owning machine thread once
+ * runtime traits exist.</p>
+ */
 @Getter
 @Setter
 public class CapabilityIO {
@@ -26,6 +34,18 @@ public class CapabilityIO {
     @Configurable(name = "config.definition.trait.capability_io.bottom")
     private IO bottomIO = IO.BOTH;
 
+    /**
+     * Resolves capability IO for a queried world side.
+     *
+     * <p>{@code side == null} represents an internal/unsided capability query and
+     * returns {@code internal} for non-vertical fronts. For vertical fronts, only
+     * the front and back directions are directional; all other sides use
+     * {@code internal}. Side effects: none.</p>
+     *
+     * @param front machine front direction
+     * @param side  queried world side, or {@code null} for unsided access
+     * @return configured capability IO for that query
+     */
     public IO getIO(Direction front, @Nullable Direction side) {
         if (front.getAxis() == Direction.Axis.Y) {
             if (side == front) {

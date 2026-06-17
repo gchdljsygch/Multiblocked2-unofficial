@@ -19,11 +19,29 @@ import org.joml.Vector3i;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Side-panel widget for navigating pattern pages, layer axes, layer visibility, and aisle
+ * repetition ranges.
+ *
+ * <p>The list is backed directly by the owning {@link MultiblockPatternPanel}'s project.
+ * Pattern add/copy/remove buttons mutate project pattern storage, axis buttons change the
+ * layer axis, and repetition fields write into the selected pattern's aisle repetition
+ * table. Block rows mirror the scene selection and delegate selection changes back to the
+ * panel.</p>
+ *
+ * <p>This widget is client-editor UI and is not thread-safe.</p>
+ */
 @Getter
 public class PatternLayerList extends WidgetGroup {
     private final MultiblockPatternPanel panel;
     private final DraggableScrollableWidgetGroup layerContainer;
 
+    /**
+     * Creates a layer navigator sized to the editor tool panel.
+     *
+     * @param panel pattern panel that owns selection and project mutations
+     * @param size  available tool-panel size in pixels
+     */
     public PatternLayerList(MultiblockPatternPanel panel, Size size) {
         super(0, 0, size.width, size.height);
         this.panel = panel;
@@ -87,6 +105,13 @@ public class PatternLayerList extends WidgetGroup {
         reloadLayers();
     }
 
+    /**
+     * Rebuilds the layer tree from the current pattern and axis.
+     *
+     * <p>This method preserves project data but recreates all row widgets, so callers should
+     * invoke it after switching patterns, changing the layer axis, or replacing block
+     * placeholders.</p>
+     */
     public void reloadLayers() {
         layerContainer.clearAllWidgets();
         var placeholders = panel.getProject().getBlockPlaceholders();
@@ -106,6 +131,13 @@ public class PatternLayerList extends WidgetGroup {
         layerContainer.addWidget(container);
     }
 
+    /**
+     * Builds one expandable layer row.
+     *
+     * @param axis  current layer axis
+     * @param index zero-based layer index along {@code axis}
+     * @return row widget containing layer controls and all block entries in the slice
+     */
     private WidgetGroup createLayerGroup(Direction.Axis axis, int index) {
         var placeholders = panel.getProject().getBlockPlaceholders();
         var slice = getSliceByAxis(placeholders, axis, index);
@@ -184,7 +216,8 @@ public class PatternLayerList extends WidgetGroup {
                         repetition[0] = Integer.parseInt(s);
                         if (repetition[0] > repetition[1]) {
                             repetition[1] = repetition[0];
-                        }})
+                        }
+                    })
                     .setCurrentString(repetition[0] + "")
                     .setBordered(false)
                     .setNumbersOnly(1, 100)
@@ -196,7 +229,8 @@ public class PatternLayerList extends WidgetGroup {
                         repetition[1] = Integer.parseInt(s);
                         if (repetition[0] > repetition[1]) {
                             repetition[0] = repetition[1];
-                        }})
+                        }
+                    })
                     .setCurrentString(repetition[1] + "")
                     .setBordered(false)
                     .setNumbersOnly(1, 100)
@@ -213,6 +247,15 @@ public class PatternLayerList extends WidgetGroup {
         return group;
     }
 
+    /**
+     * Extracts a two-dimensional slice from the three-dimensional placeholder grid.
+     *
+     * @param placeholders active pattern grid indexed as x/y/z
+     * @param axis         axis to slice along
+     * @param index        zero-based layer index along {@code axis}
+     * @return a two-dimensional view-like array for the requested slice; contained
+     * placeholders are the original mutable instances
+     */
     private BlockPlaceholder[][] getSliceByAxis(BlockPlaceholder[][][] placeholders, Direction.Axis axis, int index) {
         return switch (axis) {
             case X -> placeholders[index];

@@ -12,6 +12,16 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Synced label that renders a localized status and optional progress percentage on one
+ * line.
+ *
+ * <p>On server-backed UIs the status and progress suppliers are sampled in
+ * {@link #detectAndSendChanges()} and only changed strings are sent to the client. In
+ * client-side templates the suppliers are sampled locally in {@link #updateScreen()}.
+ * Status text is passed through localization and falls back to the raw string if
+ * localization fails.</p>
+ */
 public class StatusProgressLabelWidget extends com.lowdragmc.lowdraglib.gui.widget.Widget {
 
     private Supplier<String> statusSupplier = () -> "";
@@ -26,23 +36,55 @@ public class StatusProgressLabelWidget extends com.lowdragmc.lowdraglib.gui.widg
     private int color = -1;
     private boolean dropShadow = true;
 
+    /**
+     * Creates a synced status/progress label.
+     *
+     * @param x      left position relative to the parent widget
+     * @param y      top position relative to the parent widget
+     * @param width  widget width in pixels
+     * @param height widget height in pixels
+     */
     public StatusProgressLabelWidget(int x, int y, int width, int height) {
         super(new Position(x, y), new Size(width, height));
     }
 
+    /**
+     * Sets the status text supplier.
+     *
+     * @param statusSupplier supplier returning a translation key or raw status text;
+     *                       {@code null} is treated as an empty supplier
+     */
     public void setStatusSupplier(Supplier<String> statusSupplier) {
         this.statusSupplier = statusSupplier == null ? () -> "" : statusSupplier;
     }
 
+    /**
+     * Sets the progress digits supplier.
+     *
+     * @param progressDigitsSupplier supplier returning digits with or without a trailing
+     *                               percent sign; {@code null} is treated as empty
+     */
     public void setProgressDigitsSupplier(Supplier<String> progressDigitsSupplier) {
         this.progressDigitsSupplier = progressDigitsSupplier == null ? () -> "" : progressDigitsSupplier;
     }
 
+    /**
+     * Sets the text color.
+     *
+     * @param color ARGB/RGB color accepted by Minecraft font rendering
+     * @return this widget for chaining
+     */
     public StatusProgressLabelWidget setTextColor(int color) {
         this.color = color;
         return this;
     }
 
+    /**
+     * Controls text shadow rendering.
+     *
+     * @param dropShadow whether the font should draw a shadow
+     * @return this widget for chaining
+     */
     public StatusProgressLabelWidget setDropShadow(boolean dropShadow) {
         this.dropShadow = dropShadow;
         return this;

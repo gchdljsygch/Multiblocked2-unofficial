@@ -23,6 +23,18 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Toggleable machine-state sound configuration.
+ * <p>
+ * Enabled sound settings create {@link MachineSound} instances when a machine
+ * enters the owning state. The stored sound id is resolved lazily from Forge
+ * sound registries and missing ids fall back to {@link SoundEvents#EMPTY}.
+ * Client configurators preview the selected sound as a UI sound.
+ * <p>
+ * Thread safety: the resolved {@link #soundEvent} cache is not synchronized and
+ * is expected to be accessed from the normal client/server logical thread that
+ * handles rendering or state changes.
+ */
 @Getter
 @Setter
 public class ToggleMachineSound implements IToggleConfigurable {
@@ -50,6 +62,11 @@ public class ToggleMachineSound implements IToggleConfigurable {
     // runtime
     private SoundEvent soundEvent;
 
+    /**
+     * Resolves and caches the configured sound event.
+     *
+     * @return registered sound event, or {@link SoundEvents#EMPTY} when missing
+     */
     public SoundEvent getSoundEvent() {
         if (soundEvent == null) {
             soundEvent = Optional.ofNullable(ForgeRegistries.SOUND_EVENTS.getValue(sound)).orElse(SoundEvents.EMPTY);
@@ -57,6 +74,15 @@ public class ToggleMachineSound implements IToggleConfigurable {
         return soundEvent;
     }
 
+    /**
+     * Creates a client-side sound instance for a machine state.
+     *
+     * @param pos       block position where the sound should play
+     * @param predicate live predicate used by looping sounds to decide whether
+     *                  they should continue
+     * @return machine sound configured with this toggle's loop, delay, volume,
+     * and pitch settings
+     */
     @OnlyIn(Dist.CLIENT)
     public MachineSound createMachineSound(BlockPos pos, BooleanSupplier predicate) {
         return new MachineSound(getSoundEvent(), soundSource, predicate, pos, loop, loopWithShuffle, delay, volume, pitch);
@@ -68,6 +94,17 @@ public class ToggleMachineSound implements IToggleConfigurable {
         IToggleConfigurable.super.buildConfigurator(father);
     }
 
+    /**
+     * Creates a searchable client-side sound selector.
+     * <p>
+     * Selecting a sound updates the target id and immediately plays a UI preview
+     * using the current pitch.
+     *
+     * @param name   configurator translation key/name
+     * @param setter setter for the selected sound id
+     * @param getter getter for the current sound id
+     * @return sound selector configurator
+     */
     @OnlyIn(Dist.CLIENT)
     public Configurator createSoundConfigurator(String name, Consumer<ResourceLocation> setter, Supplier<ResourceLocation> getter) {
         return new SearchComponentConfigurator<>(name, getter, sound -> {

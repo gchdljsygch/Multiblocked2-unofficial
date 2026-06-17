@@ -12,6 +12,9 @@ import mekanism.api.chemical.pigment.PigmentStack;
 import mekanism.api.chemical.slurry.SlurryStack;
 import net.minecraft.nbt.CompoundTag;
 
+/**
+ * Sync-data accessor for serializing Mekanism chemical stacks through NBT payloads.
+ */
 public class ChemicalStackAccessor extends CustomObjectAccessor<ChemicalStack> {
 
     public ChemicalStackAccessor() {

@@ -16,19 +16,51 @@ import net.minecraft.world.item.ItemStack;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Fired when a player interacts with an entity-backed machine.
+ * <p>
+ * Graph handlers can set {@link #interactionResult} through the boolean graph
+ * parameter {@code interactionResult}: {@code true} maps to
+ * {@link InteractionResult#SUCCESS}, {@code false} maps to
+ * {@link InteractionResult#PASS}.
+ */
 @Getter
 @LDLRegister(name = "EntityMachineInteractEvent", group = "EntityMachineEvent")
 public class EntityMachineInteractEvent extends EntityMachineEvent {
+    /**
+     * Player performing the interaction.
+     */
     @GraphParameterGet
     public final Player player;
+    /**
+     * Stack held in {@link #hand} when the event was created.
+     */
     @GraphParameterGet
     public final ItemStack heldItem;
+    /**
+     * Hand used for the interaction.
+     */
     @GraphParameterGet
     public final InteractionHand hand;
+    /**
+     * Mutable interaction result returned to the entity interaction caller.
+     */
     @Setter
     @GraphParameterSet(displayName = "interaction result", type = Boolean.class)
     public InteractionResult interactionResult = InteractionResult.PASS;
 
+    /**
+     * Creates an interaction event for an entity-backed machine.
+     * <p>
+     * Side effect: snapshots the item currently held in {@code hand}. Graph handlers may replace the final
+     * {@link #interactionResult}; {@code SUCCESS} consumes the interaction, while {@code PASS} lets later handling
+     * continue.
+     *
+     * @param machine entity machine runtime being interacted with
+     * @param entity  backing Minecraft entity
+     * @param player  interacting player
+     * @param hand    hand used for the interaction
+     */
     public EntityMachineInteractEvent(MBDEntityMachine machine, Entity entity, Player player, InteractionHand hand) {
         super(machine, entity);
         this.player = player;

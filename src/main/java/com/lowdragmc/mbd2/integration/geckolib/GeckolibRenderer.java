@@ -76,6 +76,9 @@ import java.io.File;
 import java.util.*;
 import java.util.function.Consumer;
 
+/**
+ * Serializable renderer that draws MBD machines and items with GeckoLib models and animations.
+ */
 @LDLRegisterClient(name = "geckolib", group = "renderer", modID = "geckolib")
 @Getter
 @OnlyIn(Dist.CLIENT)
@@ -169,7 +172,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
     public void onPrepareTextureAtlas(ResourceLocation atlasName, Consumer<ResourceLocation> register) {
         if (atlasName.equals(TextureAtlas.LOCATION_BLOCKS)) {
             particleTexture = getTexturePath();
-            particleTexture = new ResourceLocation(particleTexture.getNamespace(), particleTexture.getPath().replace("textures/", "").replace(".png", ""));
+            particleTexture = resourceLocation(particleTexture.getNamespace(), particleTexture.getPath().replace("textures/", "").replace(".png", ""));
             register.accept(particleTexture);
         }
     }
@@ -555,7 +558,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         var modelPathGroup = new ConfiguratorGroup("geckolib_renderer.model_path", false);
         modelPathGroup.setCanCollapse(false);
         var modelConfigurator = new StringConfigurator("", () -> modelPath.toString(),
-                s -> modelPath = new ResourceLocation(s), DEFAULT_MODEL_PATH.toString(), false);
+                s -> modelPath = resourceLocation(s), DEFAULT_MODEL_PATH.toString(), false);
         modelPathGroup.addConfigurators(modelConfigurator, new WrapperConfigurator(new WidgetGroup(0, 0, 100, 15)
                 .addWidget(new ButtonWidget(0, 2, 100, 10, selectTexture,
                         cd -> DialogWidget.showFileDialog(Editor.INSTANCE, "geckolib_renderer.model_path",
@@ -575,7 +578,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         var animationPathGroup = new ConfiguratorGroup("geckolib_renderer.animation_path", false);
         animationPathGroup.setCanCollapse(false);
         var animationConfigurator = new StringConfigurator("", () -> animationPath.toString(),
-                s -> animationPath = new ResourceLocation(s), DEFAULT_ANIMATION_PATH.toString(), false);
+                s -> animationPath = resourceLocation(s), DEFAULT_ANIMATION_PATH.toString(), false);
         animationPathGroup.addConfigurators(animationConfigurator, new WrapperConfigurator(new WidgetGroup(0, 0, 100, 15)
                 .addWidget(new ButtonWidget(0, 2, 100, 10, selectTexture,
                         cd -> DialogWidget.showFileDialog(Editor.INSTANCE, "geckolib_renderer.animation_path",
@@ -595,7 +598,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         var texturePathGroup = new ConfiguratorGroup("geckolib_renderer.texture_path", false);
         texturePathGroup.setCanCollapse(false);
         var textureConfigurator = new StringConfigurator("", () -> texturePath.toString(),
-                s -> texturePath = new ResourceLocation(s), DEFAULT_TEXTURE_PATH.toString(), false);
+                s -> texturePath = resourceLocation(s), DEFAULT_TEXTURE_PATH.toString(), false);
         texturePathGroup.addConfigurators(textureConfigurator, new WrapperConfigurator(new WidgetGroup(0, 0, 100, 15)
                 .addWidget(new ButtonWidget(0, 2, 100, 10, selectTexture,
                         cd -> DialogWidget.showFileDialog(Editor.INSTANCE, "geckolib_renderer.texture_path",
@@ -613,7 +616,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
         itemTransformModelGroup.setCanCollapse(false);
         itemTransformModelGroup.setTips("geckolib_renderer.item_transform_model.tips");
         var itemTransformModelConfigurator = new StringConfigurator("", () -> itemTransformModel.toString(),
-                s -> itemTransformModel = new ResourceLocation(s), DEFAULT_ITEM_TRANSFORM_MODEL.toString(), false);
+                s -> itemTransformModel = resourceLocation(s), DEFAULT_ITEM_TRANSFORM_MODEL.toString(), false);
         itemTransformModelGroup.addConfigurators(itemTransformModelConfigurator, new WrapperConfigurator(new WidgetGroup(0, 0, 100, 15)
                 .addWidget(new ButtonWidget(0, 2, 100, 10, selectTexture,
                         cd -> DialogWidget.showFileDialog(Editor.INSTANCE, "geckolib_renderer.item_transform_model",
@@ -621,7 +624,7 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
                                 DialogWidget.suffixFilter(".json"), s -> {
                                     if (s != null && s.isFile()) {
                                         var location = getResourceFromFile(new File(Editor.INSTANCE.getWorkSpace(), "models"), s);
-                                        location = new ResourceLocation(location.getNamespace(), location.getPath().replace(".json", ""));
+                                        location = resourceLocation(location.getNamespace(), location.getPath().replace(".json", ""));
                                         itemTransformModelConfigurator.setValue(location.toString());
                                         setItemTransformModel(location);
                                     }
@@ -634,7 +637,17 @@ public class GeckolibRenderer implements ISerializableRenderer, GeoRenderer<GeoA
 
     private static ResourceLocation getResourceFromFile(File path, File r) {
         var id = path.getPath().replace('\\', '/').split("assets/")[1].split("/")[0];
-        return new ResourceLocation(id, r.getPath().replace(path.getPath(), "").replace('\\', '/').substring(1));
+        return resourceLocation(id, r.getPath().replace(path.getPath(), "").replace('\\', '/').substring(1));
+    }
+
+    @SuppressWarnings("removal")
+    private static ResourceLocation resourceLocation(String location) {
+        return new ResourceLocation(location);
+    }
+
+    @SuppressWarnings("removal")
+    private static ResourceLocation resourceLocation(String namespace, String path) {
+        return new ResourceLocation(namespace, path);
     }
 
 }

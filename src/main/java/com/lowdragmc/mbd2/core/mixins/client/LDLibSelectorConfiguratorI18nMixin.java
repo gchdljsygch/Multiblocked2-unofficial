@@ -14,12 +14,37 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Localizes LDLib selector candidates while preserving their backing objects.
+ *
+ * <p>SelectorConfigurator stores both a display mapping and a reverse name-to-value map. The
+ * mixin wraps the display mapping at construction time and rebuilds {@code nameMap} with the
+ * translated labels so user selections continue to resolve to the original candidate objects.</p>
+ */
 @Mixin(value = SelectorConfigurator.class, remap = false)
 public class LDLibSelectorConfiguratorI18nMixin {
-    @Shadow protected List<Object> candidates;
-    @Shadow protected Function<Object, String> mapping;
-    @Shadow protected Map<String, Object> nameMap;
+    @Shadow
+    protected List<Object> candidates;
+    @Shadow
+    protected Function<Object, String> mapping;
+    @Shadow
+    protected Map<String, Object> nameMap;
 
+    /**
+     * Wraps the selector display mapper and rebuilds reverse lookup entries.
+     *
+     * <p>If two candidates translate to the same visible label, the raw label is appended to keep
+     * the reverse map unambiguous.</p>
+     *
+     * @param name         configurator field name
+     * @param supplier     value supplier passed to LDLib
+     * @param onUpdate     update callback passed to LDLib
+     * @param defaultValue default candidate value
+     * @param forceUpdate  whether LDLib forces callback updates
+     * @param candidates   configured candidate list
+     * @param mapping      original display mapping
+     * @param ci           mixin callback info
+     */
     @Inject(method = "<init>", at = @At("TAIL"), remap = false)
     private void mbd2$wrapMappingForI18n(String name, java.util.function.Supplier<?> supplier, java.util.function.Consumer<?> onUpdate, Object defaultValue, boolean forceUpdate, List<?> candidates, Function<?, String> mapping, CallbackInfo ci) {
         Function<Object, String> original = this.mapping;
@@ -37,6 +62,12 @@ public class LDLibSelectorConfiguratorI18nMixin {
         this.nameMap = rebuilt;
     }
 
+    /**
+     * Resolves selector display text through MBD2 graph keys and direct translation keys.
+     *
+     * @param raw original display text
+     * @return translated text when available, otherwise trimmed raw text
+     */
     private static String translateText(String raw) {
         if (raw == null) return "";
         String trimmed = raw.trim();
@@ -47,6 +78,12 @@ public class LDLibSelectorConfiguratorI18nMixin {
         return trimmed;
     }
 
+    /**
+     * Converts selector labels to graph translation-key suffixes.
+     *
+     * @param key raw selector label
+     * @return sanitized, lower-case key suffix
+     */
     private static String normalizeKey(String key) {
         String k = key.trim().toLowerCase(Locale.ROOT);
         if (k.isEmpty()) return "";

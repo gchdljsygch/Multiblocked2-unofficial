@@ -16,6 +16,14 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Configurable synced label for recipe-thread status text.
+ *
+ * <p>The supplier value is synchronized from server to client when it changes. In
+ * client-side templates the supplier is sampled locally. The rendered value is localized
+ * when possible and falls back to the raw string, which allows callers to pass either
+ * translation keys or already formatted status text.</p>
+ */
 @Configurable(name = "ldlib.gui.editor.register.widget.mbd2.thread_status_label", collapse = false)
 @LDLRegister(name = "thread_status_label", group = "widget.mbd2")
 public class ThreadStatusLabelWidget extends com.lowdragmc.lowdraglib.gui.widget.Widget implements IConfigurableWidget {
@@ -31,28 +39,62 @@ public class ThreadStatusLabelWidget extends com.lowdragmc.lowdraglib.gui.widget
     @Configurable(name = "ldlib.gui.editor.name.isShadow")
     private boolean dropShadow = true;
 
+    /**
+     * Creates a default status label for editor templates.
+     */
     public ThreadStatusLabelWidget() {
         this(0, 0, 10, 10);
     }
 
+    /**
+     * Creates a status label.
+     *
+     * @param x      left position relative to the parent widget
+     * @param y      top position relative to the parent widget
+     * @param width  widget width in pixels
+     * @param height widget height in pixels
+     */
     public ThreadStatusLabelWidget(int x, int y, int width, int height) {
         super(new Position(x, y), new Size(width, height));
     }
 
+    /**
+     * Sets the status text supplier.
+     *
+     * @param statusSupplier supplier returning a translation key or raw text; {@code null}
+     *                       is treated as an empty supplier
+     */
     public void setStatusSupplier(Supplier<String> statusSupplier) {
         this.statusSupplier = statusSupplier == null ? () -> "" : statusSupplier;
     }
 
+    /**
+     * Sets the text color.
+     *
+     * @param color ARGB/RGB color accepted by Minecraft font rendering
+     * @return this widget for chaining
+     */
     public ThreadStatusLabelWidget setTextColor(int color) {
         this.color = color;
         return this;
     }
 
+    /**
+     * Controls text shadow rendering.
+     *
+     * @param dropShadow whether the font should draw a shadow
+     * @return this widget for chaining
+     */
     public ThreadStatusLabelWidget setDropShadow(boolean dropShadow) {
         this.dropShadow = dropShadow;
         return this;
     }
 
+    /**
+     * Returns the localized status text currently rendered by this widget.
+     *
+     * @return localized status text, raw text on localization failure, or an empty string
+     */
     public String getRenderedStatusText() {
         return safeFormatOrRaw(safeString(lastStatusValue));
     }

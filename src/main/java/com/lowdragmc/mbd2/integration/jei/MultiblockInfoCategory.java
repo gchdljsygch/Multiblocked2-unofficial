@@ -15,8 +15,14 @@ import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * JEI category that shows preview pages for registered multiblock machine structures.
+ */
 public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockInfoCategory.MultiblockInfoWrapper> {
 
+    /**
+     * JEI wrapper for a single multiblock machine definition preview.
+     */
     public static class MultiblockInfoWrapper extends ModularWrapper<PatternPreviewWidget> {
 
         public final MultiblockMachineDefinition definition;
@@ -67,6 +73,7 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
         return Component.translatable("mbd2.jei.multiblock_info");
     }
 
+    @SuppressWarnings("removal")
     @NotNull
     @Override
     public IDrawable getBackground() {

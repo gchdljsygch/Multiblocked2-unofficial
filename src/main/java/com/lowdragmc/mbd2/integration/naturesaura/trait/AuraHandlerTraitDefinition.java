@@ -20,6 +20,9 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Trait definition for configuring a Nature's Aura handler and its status UI.
+ */
 @LDLRegister(name = "aura_handler", group = "trait", modID = "naturesaura")
 public class AuraHandlerTraitDefinition extends RecipeCapabilityTraitDefinition implements IUIProviderTrait {
 

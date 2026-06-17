@@ -26,6 +26,13 @@ import org.joml.Quaternionf;
 
 import java.util.List;
 
+/**
+ * Fancy renderer settings for item slot traits.
+ *
+ * <p>The renderer draws non-empty stored stacks in block space, optionally showing multiple visual copies based on
+ * stack size and applying the shared transform settings from {@link FancyRendererSettings}. Rendering is client-only
+ * and reads item contents from the owning machine or a proxied part.</p>
+ */
 public class ItemFancyRendererSettings extends FancyRendererSettings {
     private final ItemSlotCapabilityTraitDefinition definition;
 
@@ -39,10 +46,20 @@ public class ItemFancyRendererSettings extends FancyRendererSettings {
     @Configurable(name = "config.definition.trait.fancy_renderer.render_stack", tips = "config.definition.trait.fancy_renderer.render_stack.tooltip")
     private boolean renderStack = true;
 
+    /**
+     * Creates item renderer settings bound to one item-slot trait definition.
+     *
+     * @param definition definition whose runtime trait supplies item stacks to render
+     */
     public ItemFancyRendererSettings(ItemSlotCapabilityTraitDefinition definition) {
         this.definition = definition;
     }
 
+    /**
+     * Creates the cached item stack renderer.
+     *
+     * @return renderer that draws stored item stacks for the bound definition
+     */
     @Override
     public IRenderer createFancyRenderer() {
         return new Renderer();

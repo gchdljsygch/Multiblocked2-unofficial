@@ -24,9 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Runtime trait that bridges Create kinetic speed and stress into MBD recipe capabilities.
+ */
 public class CreateRotationTrait implements ITrait {
     protected List<Runnable> listeners = new ArrayList<>();
 
+    /**
+     * Internal trait definition injected into kinetic machines by their block entity.
+     */
     public static class CreateRotationTraitDefinition extends TraitDefinition implements IUIProviderTrait {
         @Override
         public ITrait createTrait(MBDMachine machine) {
@@ -151,6 +157,9 @@ public class CreateRotationTrait implements ITrait {
         return List.of(stressRecipeHandler, rpmRecipeHandler);
     }
 
+    /**
+     * Recipe handler that consumes available stress or schedules generated stress.
+     */
     public class StressRecipeHandler implements IRecipeHandlerTrait<Float> {
 
         public CreateRotationTrait getTrait() {
@@ -212,6 +221,9 @@ public class CreateRotationTrait implements ITrait {
 
     }
 
+    /**
+     * Recipe handler that checks available RPM or schedules generated RPM.
+     */
     public class RPMRecipeHandler implements IRecipeHandlerTrait<Float> {
 
         public CreateRotationTrait getTrait() {

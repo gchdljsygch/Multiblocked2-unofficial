@@ -26,6 +26,9 @@ import org.joml.Quaternionf;
 
 import java.util.function.Supplier;
 
+/**
+ * UI widget that renders a rotating Create cogwheel and synchronized stress text.
+ */
 @LDLRegister(name = "create_stress", group = "widget.container", modID = "create")
 public class CreateStressWidget extends Widget implements IConfigurableWidget {
     @Getter
@@ -107,8 +110,8 @@ public class CreateStressWidget extends Widget implements IConfigurableWidget {
         var pose = graphics.pose();
 
         pose.pushPose();
-        pose.scale(itemW / 16.0F, (float)itemH / 16.0F, 1.0F);
-        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float)itemH, -200.0F);
+        pose.scale(itemW / 16.0F, (float) itemH / 16.0F, 1.0F);
+        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float) itemH, -200.0F);
 
         RenderSystem.setShaderColor(1, 1, 1, 1);
         RenderSystem.enableDepthTest();
@@ -118,7 +121,7 @@ public class CreateStressWidget extends Widget implements IConfigurableWidget {
         pose.translate(0.0F, 0.0F, 232.0F);
 
         pose.pushPose();
-        pose.translate(8, 8, (float)(150));
+        pose.translate(8, 8, (float) (150));
 
         try {
             pose.mulPoseMatrix((new Matrix4f()).scaling(1.0F, -1.0F, 1.0F));
@@ -145,7 +148,8 @@ public class CreateStressWidget extends Widget implements IConfigurableWidget {
             buffers.endBatch();
             RenderSystem.enableDepthTest();
 
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
 
         pose.popPose();
 

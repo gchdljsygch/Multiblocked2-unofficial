@@ -14,14 +14,30 @@ import lombok.Setter;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Item;
 
+/**
+ * Serializable AE2 interface logic with expanded item and fluid capacities for MBD machine interfaces.
+ */
 @Getter
 @Setter
 public class SerializableInterfaceLogic extends InterfaceLogic implements ITagSerializable<CompoundTag>, IContentChangeAware {
     private static final long MAX_INTERFACE_AMOUNT = Integer.MAX_VALUE;
     private static final long MAX_FLUID_AMOUNT = Long.MAX_VALUE;
 
-    private Runnable onContentsChanged = () -> {};
+    private Runnable onContentsChanged = () -> {
+    };
 
+    /**
+     * Creates serializable interface logic with MBD-sized config and storage inventories.
+     * <p>
+     * Side effects: delegates to AE2 {@link InterfaceLogic}, then replaces its default config/storage rows with
+     * {@link ConfigInventory} instances that use registered capacities and allow long fluid amounts. Construct and access
+     * this object from the owning machine/server context because AE2 inventory callbacks are not thread-safe.
+     *
+     * @param gridNode managed grid node that owns the interface logic
+     * @param host     AE2 host used for callbacks, neighbor notifications, and save requests
+     * @param is       item used by AE2 as the interface representation
+     * @param slots    number of config/storage slots; must be non-negative
+     */
     public SerializableInterfaceLogic(IManagedGridNode gridNode, InterfaceLogicHost host, Item is, int slots) {
         super(gridNode, host, is, slots);
         replaceInterfaceInventories(slots);

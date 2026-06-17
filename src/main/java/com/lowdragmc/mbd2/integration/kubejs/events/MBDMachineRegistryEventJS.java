@@ -11,6 +11,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * KubeJS startup event for creating and removing MBD machine definitions.
+ */
 public class MBDMachineRegistryEventJS extends StartupEventJS {
     public final static Map<String, Supplier<? extends MBDMachineDefinition.Builder>> BUILDERS = new HashMap<>();
     private final Map<ResourceLocation, MBDMachineDefinition.Builder> machineBuilders = new HashMap<>();

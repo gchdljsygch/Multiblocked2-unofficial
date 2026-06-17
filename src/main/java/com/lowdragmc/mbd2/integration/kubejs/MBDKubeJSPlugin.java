@@ -25,6 +25,9 @@ import net.minecraft.world.phys.shapes.Shapes;
 
 import java.util.Map;
 
+/**
+ * KubeJS plugin that exposes MBD registries, bindings, recipe schemas, and events to scripts.
+ */
 public class MBDKubeJSPlugin extends KubeJSPlugin {
 
     @Override

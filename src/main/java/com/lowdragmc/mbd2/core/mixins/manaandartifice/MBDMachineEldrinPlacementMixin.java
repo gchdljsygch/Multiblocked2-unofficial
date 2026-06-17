@@ -9,8 +9,22 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * Records Mana and Artifice ownership data when an MBD machine with Eldrin traits is placed.
+ *
+ * <p>The placement hook runs after normal MBD placement handling so all additional traits are
+ * already available. Only {@link ManaAndArtificeEldrinCapabilityTrait} instances receive the
+ * owner update.</p>
+ */
 @Mixin(value = MBDMachine.class, remap = false)
 public abstract class MBDMachineEldrinPlacementMixin {
+    /**
+     * Forwards the placer entity to every Eldrin capability trait on the machine.
+     *
+     * @param entity placing entity, typically a player
+     * @param stack  item stack used to place the machine
+     * @param ci     mixin callback info
+     */
     @Inject(method = "onMachinePlaced", at = @At("TAIL"))
     private void mbd2$setEldrinOwner(LivingEntity entity, ItemStack stack, CallbackInfo ci) {
         var machine = (MBDMachine) (Object) this;

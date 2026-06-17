@@ -12,6 +12,14 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Small overlay label that renders a compact numeric value in the lower-right corner of a
+ * recipe slot.
+ *
+ * <p>The value is formatted through {@link TextFormattingUtil#formatLongToCompactString}
+ * with three significant characters and an optional unit suffix. This widget only draws on
+ * the client and does not perform network synchronization by itself.</p>
+ */
 @Accessors(chain = true)
 public class CornerNumberWidget extends Widget {
     @Getter
@@ -21,6 +29,14 @@ public class CornerNumberWidget extends Widget {
     @Setter
     public String unit = "";
 
+    /**
+     * Creates a compact corner-number widget.
+     *
+     * @param x      left position relative to the parent widget
+     * @param y      top position relative to the parent widget
+     * @param width  widget width in pixels
+     * @param height widget height in pixels
+     */
     public CornerNumberWidget(int x, int y, int width, int height) {
         super(x, y, width, height);
     }

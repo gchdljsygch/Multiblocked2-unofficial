@@ -16,6 +16,9 @@ import snownee.jade.api.config.IPluginConfig;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Jade tooltip provider for unformed multiblocks and their catalyst hints.
+ */
 public class MultiblockProvider implements IBlockComponentProvider {
     @Override
     public void appendTooltip(ITooltip tooltip, BlockAccessor blockAccessor, IPluginConfig config) {

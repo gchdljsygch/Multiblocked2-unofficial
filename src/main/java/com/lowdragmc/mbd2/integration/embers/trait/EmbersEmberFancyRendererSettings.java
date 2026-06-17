@@ -25,6 +25,9 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Fancy renderer settings for drawing the stored Embers ember volume on a machine block.
+ */
 public class EmbersEmberFancyRendererSettings extends FancyRendererSettings {
     private final EmbersEmberCapabilityTraitDefinition definition;
 
@@ -46,6 +49,9 @@ public class EmbersEmberFancyRendererSettings extends FancyRendererSettings {
         return new Renderer();
     }
 
+    /**
+     * TESR renderer that draws ember storage as a translucent colored cube.
+     */
     private class Renderer implements IRenderer {
         @Override
         @OnlyIn(Dist.CLIENT)
@@ -91,7 +97,7 @@ public class EmbersEmberFancyRendererSettings extends FancyRendererSettings {
 
                     RenderBufferUtils.drawCubeFace(poseStack, buffer,
                             0, 0, 0, 1,
-                            percentHeight ? (float)(storage.getEmber() / storage.getEmberCapacity()) : 1, 1,
+                            percentHeight ? (float) (storage.getEmber() / storage.getEmberCapacity()) : 1, 1,
                             ColorUtils.red(color), ColorUtils.green(color), ColorUtils.blue(color), ColorUtils.alpha(color),
                             true);
 

@@ -14,6 +14,15 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraftforge.eventbus.api.Cancelable;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Event fired while converting an external recipe into an MBD recipe.
+ *
+ * <p>The business goal is to let integrations inspect the original vanilla or
+ * modded recipe, replace the generated {@link #mbdRecipe}, or cancel conversion
+ * entirely. The event is posted during recipe-manager loading/conversion and
+ * should avoid world mutation. Graph processors can read the proxy fields and
+ * write {@link #mbdRecipe} through the annotated output parameter.</p>
+ */
 @Getter
 @Cancelable
 @LDLRegister(name = "TransferProxyRecipeEvent", group = "RecipeTypeEvent")
@@ -31,6 +40,17 @@ public class TransferProxyRecipeEvent extends RecipeTypeEvent {
     @GraphParameterSet(identity = "drops.out")
     public MBDRecipe mbdRecipe;
 
+    /**
+     * Creates a proxy-transfer event.
+     *
+     * @param recipeType    MBD recipe type receiving the converted recipe
+     * @param proxyTypeId   registry id of the external recipe type
+     * @param proxyType     external recipe type
+     * @param proxyRecipeId external recipe id
+     * @param proxyRecipe   original external recipe instance
+     * @param mbdRecipe     initially converted recipe, or {@code null} when the
+     *                      default converter produced no recipe
+     */
     public TransferProxyRecipeEvent(MBDRecipeType recipeType, ResourceLocation proxyTypeId, RecipeType<?> proxyType, ResourceLocation proxyRecipeId, Recipe<?> proxyRecipe, @Nullable MBDRecipe mbdRecipe) {
         super(recipeType);
         this.proxyTypeId = proxyTypeId;
@@ -40,6 +60,15 @@ public class TransferProxyRecipeEvent extends RecipeTypeEvent {
         this.mbdRecipe = mbdRecipe;
     }
 
+    /**
+     * Returns the recipe type's builder template for graph-side conversions.
+     *
+     * <p>Side effects: none. The returned builder is the recipe type's shared
+     * template, so callers that need an independent recipe should copy it before
+     * mutating long-lived defaults.</p>
+     *
+     * @return builder template owned by {@link #recipeType}
+     */
     @HideFromJS
     public MBDRecipeBuilder recipeBuilder() {
         return recipeType.getRecipeBuilder();

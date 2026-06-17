@@ -22,6 +22,15 @@ import net.minecraft.resources.ResourceLocation;
 import java.io.File;
 import java.util.HashSet;
 
+/**
+ * Persisted recipe-logic settings for a machine definition.
+ * <p>
+ * This config selects the recipe type, enables or disables recipe processing,
+ * controls search/modify behavior, and stores definition-level recipe
+ * modifiers. The runtime logic reads these values from
+ * {@link com.lowdragmc.mbd2.common.machine.MBDMachine#runRecipeLogic()} and
+ * related recipe lifecycle callbacks.
+ */
 @Getter
 @Builder
 @Accessors(fluent = true)
@@ -64,6 +73,12 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     })
     protected boolean alwaysModifyRecipe = false;
 
+    /**
+     * Resolves the configured recipe type from the MBD registry.
+     *
+     * @return configured recipe type, or {@link MBDRecipeType#DUMMY} when the id
+     * is missing or unregistered
+     */
     public MBDRecipeType getRecipeType() {
         return MBDRegistries.RECIPE_TYPES.getOrDefault(recipeType, MBDRecipeType.DUMMY);
     }
@@ -94,7 +109,7 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
         FileUtils.loadNBTFiles(path, ".rt", (file, tag) -> {
             var recipeType = tag.getCompound("recipe_type").getString("registryName");
             if (!recipeType.isEmpty() && ResourceLocation.isValidResourceLocation(recipeType)) {
-                candidates.add(new ResourceLocation(recipeType));
+                candidates.add(ResourceLocation.tryParse(recipeType));
             }
         });
 

@@ -16,6 +16,9 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Configurable GeckoLib animation sequence composed from ordered animation stages.
+ */
 @Accessors(chain = true)
 @Getter
 @Setter
@@ -34,7 +37,8 @@ public class Animation implements IConfigurable, ITagSerializable<CompoundTag> {
             value.buildConfigurator(group);
             return group;
         }, true);
-        stageConfigurator.setOnReorder((i, stage) -> {});
+        stageConfigurator.setOnReorder((i, stage) -> {
+        });
         stageConfigurator.setAddDefault(AnimationStage::new);
         stageConfigurator.setOnAdd(newStage -> stages.add(newStage));
         stageConfigurator.setOnRemove(stages::remove);

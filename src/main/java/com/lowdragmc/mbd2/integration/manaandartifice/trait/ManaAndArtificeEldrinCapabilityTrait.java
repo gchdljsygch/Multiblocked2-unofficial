@@ -29,6 +29,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Machine trait that stores Eldrin power and implements Mana and Artifice capacitor behavior.
+ */
 @Getter
 public class ManaAndArtificeEldrinCapabilityTrait extends SimpleCapabilityTrait implements IEldrinCapacitorTile {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ManaAndArtificeEldrinCapabilityTrait.class);
@@ -272,6 +275,9 @@ public class ManaAndArtificeEldrinCapabilityTrait extends SimpleCapabilityTrait 
         ownerTag = placedBy.save(getMachine().getLevel());
     }
 
+    /**
+     * Recipe handler that consumes from or inserts into Eldrin power storage.
+     */
     public class EldrinRecipeHandler extends RecipeHandlerTrait<EldrinPower> {
         protected EldrinRecipeHandler() {
             super(ManaAndArtificeEldrinCapabilityTrait.this, ManaAndArtificeEldrinRecipeCapability.CAP);

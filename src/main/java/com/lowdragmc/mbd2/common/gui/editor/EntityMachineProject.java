@@ -17,20 +17,43 @@ import lombok.NoArgsConstructor;
 
 import java.io.File;
 
+/**
+ * Editor project for entity-backed machine definitions.
+ *
+ * <p>Entity machine projects reuse the base machine resource and UI serialization but create
+ * {@link EntityMachineDefinition} instances and load entity-specific editor tabs for AI events and state previews.</p>
+ */
 @Getter
 @LDLRegister(name = "em", group = "editor.machine")
 @NoArgsConstructor
 public class EntityMachineProject extends MachineProject {
 
+    /**
+     * Creates an entity-machine project with explicit resources, definition, and UI.
+     *
+     * @param resources  project resource map
+     * @param definition entity machine definition to edit
+     * @param ui         configurable UI root
+     */
     public EntityMachineProject(Resources resources, EntityMachineDefinition definition, WidgetGroup ui) {
         super(resources, definition, ui);
     }
 
+    /**
+     * Returns this project's definition as an entity-machine definition.
+     *
+     * @return entity machine definition
+     */
     @Override
     public EntityMachineDefinition getDefinition() {
         return (EntityMachineDefinition) super.getDefinition();
     }
 
+    /**
+     * Creates the default entity-machine definition.
+     *
+     * @return definition using {@code mbd2:new_entity_machine} and an empty renderer
+     */
     @Override
     protected EntityMachineDefinition createDefinition() {
         var builder = EntityMachineDefinition.builder();
@@ -39,16 +62,32 @@ public class EntityMachineProject extends MachineProject {
         return builder.build();
     }
 
+    /**
+     * Creates a new empty entity-machine project.
+     *
+     * @return initialized entity-machine project
+     */
     @Override
     public EntityMachineProject newEmptyProject() {
         return new EntityMachineProject(new Resources(createResources()), createDefinition(), createDefaultUI());
     }
 
+    /**
+     * Returns the workspace directory for entity-machine projects.
+     *
+     * @param editor owning editor
+     * @return {@code entity_machine} subdirectory under the editor workspace
+     */
     @Override
     public File getProjectWorkSpace(Editor editor) {
         return new File(editor.getWorkSpace(), "entity_machine");
     }
 
+    /**
+     * Adds entity-machine tabs when the project is loaded into a machine editor.
+     *
+     * @param editor editor receiving the project's tabs and resources
+     */
     @Override
     public void onLoad(Editor editor) {
         if (editor instanceof MachineEditor machineEditor) {

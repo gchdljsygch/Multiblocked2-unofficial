@@ -22,10 +22,16 @@ import vazkii.botania.api.mana.spark.SparkAttachable;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Machine trait that stores Botania mana and exposes it through Botania mana and spark capabilities.
+ */
 public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BotaniaManaCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -86,13 +92,16 @@ public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements
                     .flatMap(be -> be.getCapability(BotaniaForgeCapabilities.MANA_RECEIVER, side.getOpposite()).resolve())
                     .ifPresent(target -> {
                         var available = storage.getCurrentMana();
-                        var cost = target instanceof ManaPool pool ? Math.min(available,  pool.getMaxMana() - pool.getCurrentMana()) : available;
+                        var cost = target instanceof ManaPool pool ? Math.min(available, pool.getMaxMana() - pool.getCurrentMana()) : available;
                         storage.receiveMana(-cost);
                         target.receiveMana(cost);
                     });
         }
     }
 
+    /**
+     * Consumes or fills mana storage for recipe inputs and outputs.
+     */
     public class ManaRecipeHandler extends RecipeHandlerTrait<Integer> {
         protected ManaRecipeHandler() {
             super(BotaniaManaCapabilityTrait.this, BotaniaManaRecipeCapability.CAP);
@@ -125,6 +134,9 @@ public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements
         }
     }
 
+    /**
+     * Provides the Botania mana receiver capability with side-aware IO filtering.
+     */
     public class ManaReceiverCap implements ICapabilityProviderTrait<ManaPool> {
 
         @Override
@@ -148,6 +160,9 @@ public class BotaniaManaCapabilityTrait extends SimpleCapabilityTrait implements
         }
     }
 
+    /**
+     * Provides the Botania spark attachment capability for spark-enabled mana storage.
+     */
     public class SparkAttachableCap implements ICapabilityProviderTrait<SparkAttachable> {
 
         @Override

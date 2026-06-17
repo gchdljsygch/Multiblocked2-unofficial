@@ -30,6 +30,9 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.util.Deque;
 
+/**
+ * Machine definition that registers an MBD machine as a Create kinetic block with stress data and Flywheel visuals.
+ */
 @Getter
 @Accessors(fluent = true)
 @LDLRegister(name = "create_machine", group = "machine_definition", modID = "create")
@@ -121,6 +124,9 @@ public class CreateKineticMachineDefinition extends MBDMachineDefinition {
         return model;
     }
 
+    /**
+     * Builder for kinetic machine definitions with Create-specific settings.
+     */
     @Setter
     @Accessors(chain = true, fluent = true)
     public static class Builder extends MBDMachineDefinition.Builder {

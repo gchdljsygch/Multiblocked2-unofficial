@@ -19,6 +19,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Server-side KubeJS event bridge for MBD machine and recipe type events.
+ */
 public interface MBDServerEvents {
     Map<Class<? extends MachineEvent>, Function<MachineEvent, EventResult>> machineEventHandlers = new HashMap<>();
     Map<Class<? extends RecipeTypeEvent>, Function<RecipeTypeEvent, EventResult>> recipeTypeEventHandlers = new HashMap<>();
@@ -185,13 +188,13 @@ public interface MBDServerEvents {
     }
 
     static <E extends RecipeTypeEvent> EventHandler registerRecipeTypeEvent(String name, Class<? extends RecipeTypeEvent> eventClass,
-                                        Class<? extends MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSClass,
-                                        Function<E, MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSFactory) {
+                                                                            Class<? extends MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSClass,
+                                                                            Function<E, MBDRecipeTypeEvents.RecipeTypeEventJS<E>> eventJSFactory) {
         var handler = MBDRecipeTypeEvents.MBD_RECIPE_TYPE_EVENTS.server(name, () -> eventJSClass).extra(Extra.ID);
         recipeTypeEventHandlers.put(eventClass, event -> handler.post(eventJSFactory.apply((E) event), event.recipeType.getRegistryName()));
         return handler;
     }
-    
+
     static EventResult postMachineEvent(MachineEvent machineEvent) {
         var handler = machineEventHandlers.get(machineEvent.getClass());
         if (machineEvent instanceof MachineStructureFormedEvent) {
@@ -246,19 +249,15 @@ public interface MBDServerEvents {
                 var raw = chars.toString();
                 var at = raw.lastIndexOf('@');
                 if (at > 0 && at < raw.length() - 1) {
-                    return new FixedTickKey(new ResourceLocation(raw.substring(0, at)), parseInterval(raw.substring(at + 1)));
+                    return new FixedTickKey(parseMachineId(raw.substring(0, at)), parseInterval(raw.substring(at + 1)));
                 }
             }
             var map = MapJS.of(value);
             if (!map.isEmpty()) {
-                var machineId = Optional.ofNullable(map.get("id"))
-                        .or(() -> Optional.ofNullable(map.get("machine")))
-                        .or(() -> Optional.ofNullable(map.get("machineId")))
+                var machineId = firstPresent(map.get("id"), map.get("machine"), map.get("machineId"))
                         .map(FixedTickKey::parseMachineId)
                         .orElseThrow(() -> new IllegalArgumentException("Missing machine id for fixed tick listener"));
-                var interval = Optional.ofNullable(map.get("interval"))
-                        .or(() -> Optional.ofNullable(map.get("ticks")))
-                        .or(() -> Optional.ofNullable(map.get("step")))
+                var interval = firstPresent(map.get("interval"), map.get("ticks"), map.get("step"))
                         .map(FixedTickKey::parseInterval)
                         .orElseThrow(() -> new IllegalArgumentException("Missing interval for fixed tick listener"));
                 return new FixedTickKey(machineId, interval);
@@ -266,11 +265,24 @@ public interface MBDServerEvents {
             throw new IllegalArgumentException("Use { id: 'namespace:machine', interval: ticks } or 'namespace:machine@ticks'");
         }
 
+        static Optional<Object> firstPresent(Object... values) {
+            for (var value : values) {
+                if (value != null) {
+                    return Optional.of(value);
+                }
+            }
+            return Optional.empty();
+        }
+
         static ResourceLocation parseMachineId(Object id) {
             if (id instanceof ResourceLocation resourceLocation) {
                 return resourceLocation;
             }
-            return new ResourceLocation(String.valueOf(id));
+            var location = ResourceLocation.tryParse(String.valueOf(id));
+            if (location == null) {
+                throw new IllegalArgumentException("Invalid machine id: " + id);
+            }
+            return location;
         }
 
         static int parseInterval(Object interval) {

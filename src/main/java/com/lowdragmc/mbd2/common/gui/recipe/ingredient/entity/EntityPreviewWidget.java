@@ -42,6 +42,18 @@ import java.util.function.BiConsumer;
 
 import static com.lowdragmc.lowdraglib.gui.widget.TankWidget.FLUID_SLOT_TEXTURE;
 
+/**
+ * Recipe ingredient widget that previews one or more entity types.
+ *
+ * <p>The widget expands an {@link EntityIngredient} into client-side entity instances in a
+ * {@link TrackedDummyWorld}. If the ingredient carries NBT, that tag is merged into each
+ * preview entity before rendering. When more than one entity is available the rendered
+ * entity cycles once per second.</p>
+ *
+ * <p>For XEI integration it exposes the first matching spawn egg when one exists, falling
+ * back to the active integration wrappers for JEI, REI, or EMI. Entity rendering mutates
+ * standard client render state and must run only on the render thread.</p>
+ */
 @LDLRegister(name = "entity_preview", group = "widget.container")
 @Accessors(chain = true)
 public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot, IConfigurableWidget {
@@ -59,19 +71,33 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
     protected boolean drawHoverTips = true;
     @Setter
     protected BiConsumer<EntityPreviewWidget, List<Component>> onAddedTooltips;
-    @Setter @Getter
+    @Setter
+    @Getter
     protected IngredientIO ingredientIO = IngredientIO.RENDER_ONLY;
-    @Setter @Getter
+    @Setter
+    @Getter
     protected float XEIChance = 1f;
 
     // runtime
     private final List<Entity> entities = new ArrayList<>();
     private TrackedDummyWorld dummyWorld;
 
+    /**
+     * Creates an empty entity preview widget for editor templates.
+     */
     public EntityPreviewWidget() {
         this(null, 0, 0, 30, 30);
     }
 
+    /**
+     * Creates an entity preview widget bound to an ingredient.
+     *
+     * @param entityIngredient ingredient to preview; {@code null} renders an empty slot
+     * @param x                left position relative to the parent widget
+     * @param y                top position relative to the parent widget
+     * @param width            widget width in pixels
+     * @param height           widget height in pixels
+     */
     public EntityPreviewWidget(EntityIngredient entityIngredient, int x, int y, int width, int height) {
         super(x, y, width, height);
         setEntityIngredient(entityIngredient);
@@ -82,6 +108,12 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
         setBackground(FLUID_SLOT_TEXTURE);
     }
 
+    /**
+     * Replaces the preview ingredient and rebuilds cached preview entities.
+     *
+     * @param entityIngredient ingredient to preview; {@code null} clears cached entities
+     * @return this widget for chaining
+     */
     public EntityPreviewWidget setEntityIngredient(EntityIngredient entityIngredient) {
         this.entityIngredient = entityIngredient;
         entities.clear();
@@ -111,6 +143,12 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
         return tooltips;
     }
 
+    /**
+     * Allows external code to append dynamic tooltip lines.
+     *
+     * @param list mutable tooltip list to append to
+     * @return the same list after callback processing
+     */
     public List<Component> getAdditionalToolTips(List<Component> list) {
         if (this.onAddedTooltips != null) {
             this.onAddedTooltips.accept(this, list);
@@ -157,10 +195,16 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
         return tooltips;
     }
 
+    /**
+     * Returns the entity currently selected for animation-frame rendering.
+     *
+     * @return current cached entity, or {@code null} when the ingredient has no renderable
+     * entity types
+     */
     @Nullable
     public Entity getCurrentEntity() {
         if (entities.isEmpty()) return null;
-        var index = Math.abs((int)(System.currentTimeMillis() / 1000) % entities.size());
+        var index = Math.abs((int) (System.currentTimeMillis() / 1000) % entities.size());
         return entities.get(index);
     }
 
@@ -205,15 +249,24 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
         }
     }
 
+    /**
+     * Renders an entity into GUI space with a slow rotating preview.
+     *
+     * @param pGuiGraphics active GUI graphics context
+     * @param x            center x coordinate in screen pixels
+     * @param y            center y coordinate in screen pixels
+     * @param pScale       render scale based on widget size and entity bounds
+     * @param entity       entity instance to render
+     */
     @OnlyIn(Dist.CLIENT)
     public static void renderEntityInInventory(GuiGraphics pGuiGraphics, int x, int y, double pScale, Entity entity) {
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         var offset = (System.currentTimeMillis() % 3600) / 3600f;
-        Quaternionf quaternionf = (new Quaternionf()).rotateXYZ(0, (float)Math.PI * 2 * offset, (float)Math.PI);
+        Quaternionf quaternionf = (new Quaternionf()).rotateXYZ(0, (float) Math.PI * 2 * offset, (float) Math.PI);
         pGuiGraphics.pose().pushPose();
         pGuiGraphics.pose().translate(x, y, 0);
-        pGuiGraphics.pose().mulPoseMatrix((new Matrix4f()).scaling((float)pScale, (float)pScale, (float)(-pScale)));
+        pGuiGraphics.pose().mulPoseMatrix((new Matrix4f()).scaling((float) pScale, (float) pScale, (float) (-pScale)));
         pGuiGraphics.pose().translate(0, entity.getBbHeight() / 2, 0);
         pGuiGraphics.pose().mulPose(quaternionf);
         Lighting.setupForEntityInInventory();

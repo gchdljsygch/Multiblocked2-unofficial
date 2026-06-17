@@ -15,6 +15,13 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Adds MBD2's workspace-backed client resource pack to Minecraft reloads.
+ *
+ * <p>The resource pack is injected only for {@link PackType#CLIENT_RESOURCES} and only when the
+ * configured MBD2 workspace directory exists. A copied pack list is returned so the reload path
+ * can keep treating the argument as immutable.</p>
+ */
 @Mixin(ReloadableResourceManager.class)
 public abstract class MBDWorkspaceResourcePackMixin {
 
@@ -22,6 +29,12 @@ public abstract class MBDWorkspaceResourcePackMixin {
     @Final
     private PackType type;
 
+    /**
+     * Appends the workspace resource pack to client-resource reloads.
+     *
+     * @param resourcePacks packs supplied by Minecraft's reload pipeline
+     * @return unchanged pack list for non-client reloads or a copy with the MBD2 workspace pack
+     */
     @ModifyVariable(method = "createReload", at = @At("HEAD"), index = 4, argsOnly = true)
     private List<PackResources> mbd2$injectWorkspaceResources(List<PackResources> resourcePacks) {
         if (type != PackType.CLIENT_RESOURCES) {

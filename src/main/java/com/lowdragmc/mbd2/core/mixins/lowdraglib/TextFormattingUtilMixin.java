@@ -10,6 +10,13 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
+/**
+ * Replaces LDLib bucket amount formatting with overflow-safe long arithmetic.
+ *
+ * <p>Fluid recipe displays can include very large long amounts. The formatter converts values to
+ * milli-buckets using {@code double} math and a bounded suffix table so GUI labels stay compact
+ * without overflowing intermediate long calculations.</p>
+ */
 @Mixin(TextFormattingUtil.class)
 public abstract class TextFormattingUtilMixin {
     private static final NavigableMap<Long, String> MBD2TOOLS_SUFFIXES_BUCKET = new TreeMap<>();
@@ -25,7 +32,12 @@ public abstract class TextFormattingUtilMixin {
     }
 
     /**
-     * @author
+     * Formats a fluid amount using milli-bucket, bucket, and large-number suffixes.
+     *
+     * @param value     fluid amount in LDLib fluid units
+     * @param precision maximum compact digits before switching to suffix notation
+     * @return compact, human-readable amount string
+     * @author pingsu
      * @reason Prevent long overflow when formatting large fluid amounts for GUI rendering.
      */
     @Overwrite(remap = false)

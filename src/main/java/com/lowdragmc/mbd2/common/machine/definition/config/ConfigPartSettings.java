@@ -23,6 +23,14 @@ import net.minecraft.nbt.Tag;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Persisted settings that turn a machine definition into a multiblock part.
+ * <p>
+ * Enabled part settings allow {@link com.lowdragmc.mbd2.common.machine.MBDPartMachine}
+ * instances to join controllers, apply part-side recipe modifiers, and proxy
+ * selected controller capabilities through the part block. The config is
+ * consumed by both controller structure formation and part capability lookup.
+ */
 @Getter
 @Builder
 @Accessors(fluent = true)
@@ -38,6 +46,14 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
         return enable;
     }
 
+    /**
+     * Enables or disables part behavior.
+     * <p>
+     * On the client editor, enabling part mode may prompt the user to create a
+     * {@code formed} state because parts commonly need a separate formed visual.
+     *
+     * @param enable whether this definition should behave as a multiblock part
+     */
     @Override
     public void setEnable(boolean enable) {
         if (enable && !this.enable && LDLib.isClient() && Editor.INSTANCE instanceof MachineEditor machineEditor
@@ -103,7 +119,7 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
             proxyCapability.buildConfigurator(group);
             return group;
         }, true);
-        proxyCapabilities.setTips("config.part_settings.proxy_controller_capabilities.tooltip.0","config.part_settings.proxy_controller_capabilities.tooltip.1");
+        proxyCapabilities.setTips("config.part_settings.proxy_controller_capabilities.tooltip.0", "config.part_settings.proxy_controller_capabilities.tooltip.1");
         proxyCapabilities.setAddDefault(ProxyCapability::new);
         proxyCapabilities.setOnAdd(proxyControllerCapabilities::add);
         proxyCapabilities.setOnRemove(proxyControllerCapabilities::remove);
@@ -115,7 +131,11 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
     }
 
     /**
-     * To proxy the capabilities from the controller.
+     * Rule for proxying matching controller traits through this part.
+     * <p>
+     * The rule can filter controller traits by name, expose selected sides and
+     * IO directions through {@link CapabilityIO}, and optionally run auto-IO
+     * from the part position against the proxied controller trait.
      */
     @Getter
     public static class ProxyCapability implements IConfigurable, IPersistedSerializable {
@@ -130,6 +150,13 @@ public class ConfigPartSettings implements IToggleConfigurable, IPersistedSerial
                 tips = {"config.definition.trait.auto_io.tooltip"})
         private final ToggleAutoIO autoIO = new ToggleAutoIO();
 
+        /**
+         * Tests whether a controller trait name is accepted by this proxy rule.
+         *
+         * @param traitName controller trait definition name
+         * @return {@code true} when the filter is blank or the trait name
+         * contains the filter text
+         */
         public boolean matchesTraitName(String traitName) {
             return traitName != null && (traitNameFilter == null || traitNameFilter.isBlank() || traitName.contains(traitNameFilter));
         }

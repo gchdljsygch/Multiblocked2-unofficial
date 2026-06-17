@@ -12,6 +12,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Makes Fusion's surrounding block cache see model-path-compatible MBD neighbors as matching.
+ *
+ * <p>Fusion caches a 3x3x3 state cube and normally compares raw block states. For generated MBD
+ * models, two adjacent machines can share a rendered model path while holding different backing
+ * states. Returning the center state for those neighbors lets Fusion's normal baked-model logic
+ * render continuous connections.</p>
+ */
 @Mixin(value = SurroundingBlockCache.class, remap = false)
 public class SurroundingBlockCacheMixin {
 
@@ -27,6 +35,15 @@ public class SurroundingBlockCacheMixin {
     @Final
     private BlockState[] states;
 
+    /**
+     * Overrides cached neighbor states when an MBD model-path connection should be considered
+     * equivalent.
+     *
+     * @param x   neighbor offset X in Fusion's 3x3x3 cache
+     * @param y   neighbor offset Y in Fusion's 3x3x3 cache
+     * @param z   neighbor offset Z in Fusion's 3x3x3 cache
+     * @param cir callback receiving the center state for model-path-compatible neighbors
+     */
     @Inject(method = "getState", at = @At("HEAD"), cancellable = true)
     private void mbd2$getStateByMbdModelPath(int x, int y, int z, CallbackInfoReturnable<BlockState> cir) {
         if (x == 0 && y == 0 && z == 0) {

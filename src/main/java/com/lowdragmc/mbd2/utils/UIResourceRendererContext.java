@@ -4,6 +4,9 @@ import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.Resource;
 
+/**
+ * Scoped context that restores the previous UI renderer resource when closed.
+ */
 public final class UIResourceRendererContext implements AutoCloseable {
     private final Resource<IRenderer> previousResource;
     private final boolean previousIsProject;

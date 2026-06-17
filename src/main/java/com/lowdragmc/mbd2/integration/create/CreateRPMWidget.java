@@ -26,6 +26,9 @@ import org.joml.Quaternionf;
 
 import java.util.function.Supplier;
 
+/**
+ * UI widget that renders a rotating Create shaft and synchronized RPM text.
+ */
 @LDLRegister(name = "create_rpm", group = "widget.container", modID = "create")
 public class CreateRPMWidget extends Widget implements IConfigurableWidget {
     @Getter
@@ -84,7 +87,7 @@ public class CreateRPMWidget extends Widget implements IConfigurableWidget {
             rpm = rpmSupplier.get();
         }
     }
-    
+
     @Override
     @OnlyIn(Dist.CLIENT)
     public void drawInBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
@@ -107,8 +110,8 @@ public class CreateRPMWidget extends Widget implements IConfigurableWidget {
         var pose = graphics.pose();
 
         pose.pushPose();
-        pose.scale(itemW / 16.0F, (float)itemH / 16.0F, 1.0F);
-        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float)itemH, -200.0F);
+        pose.scale(itemW / 16.0F, (float) itemH / 16.0F, 1.0F);
+        pose.translate(itemX * 16.0F / itemW, itemY * 16.0F / (float) itemH, -200.0F);
 
         RenderSystem.setShaderColor(1, 1, 1, 1);
         RenderSystem.enableDepthTest();
@@ -118,7 +121,7 @@ public class CreateRPMWidget extends Widget implements IConfigurableWidget {
         pose.translate(0.0F, 0.0F, 232.0F);
 
         pose.pushPose();
-        pose.translate(8, 8, (float)(150));
+        pose.translate(8, 8, (float) (150));
 
         try {
             pose.mulPoseMatrix((new Matrix4f()).scaling(1.0F, -1.0F, 1.0F));
@@ -145,7 +148,8 @@ public class CreateRPMWidget extends Widget implements IConfigurableWidget {
             buffers.endBatch();
             RenderSystem.enableDepthTest();
 
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
 
         pose.popPose();
 

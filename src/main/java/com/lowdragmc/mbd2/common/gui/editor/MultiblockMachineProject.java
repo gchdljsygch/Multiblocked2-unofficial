@@ -56,6 +56,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 
+/**
+ * Editor project for multiblock machine definitions and pattern authoring.
+ *
+ * <p>The project extends the base machine project with predicate resources, 3D block placeholders, layer-axis and
+ * aisle-repetition settings, shape previews, and multiple selectable patterns. Project saving writes a manifest
+ * {@code .mb} file and splits pattern data into adjacent JSON files for easier inspection and version control; loading
+ * expands those pattern references back into NBT before deserialization.</p>
+ */
 @Getter
 @LDLRegister(name = "mb", group = "editor.machine")
 @NoArgsConstructor
@@ -73,12 +81,27 @@ public class MultiblockMachineProject extends MachineProject {
     protected List<PatternInfo> multiblockPatterns = new ArrayList<>();
     protected int selectedPatternIndex;
 
+    /**
+     * Immutable snapshot of one editable multiblock pattern.
+     *
+     * @param blockPlaceholders 3D placeholder grid
+     * @param layerAxis         axis used by the pattern editor for layer slicing
+     * @param aisleRepetitions  min/max repetition pairs for each layer along {@code layerAxis}
+     * @param shapeInfos        explicit preview shape variants
+     */
     protected record PatternInfo(BlockPlaceholder[][][] blockPlaceholders,
                                  Direction.Axis layerAxis,
                                  int[][] aisleRepetitions,
                                  List<MultiblockShapeInfo> shapeInfos) {
     }
 
+    /**
+     * Creates a multiblock project with explicit resources, definition, and UI.
+     *
+     * @param resources  project resource map; must include {@link PredicateResource}
+     * @param definition multiblock definition to edit
+     * @param ui         configurable machine UI root
+     */
     public MultiblockMachineProject(Resources resources, MultiblockMachineDefinition definition, WidgetGroup ui) {
         super(resources, definition, ui);
         this.blockPlaceholders = new BlockPlaceholder[1][1][1];
@@ -89,6 +112,11 @@ public class MultiblockMachineProject extends MachineProject {
         }
     }
 
+    /**
+     * Creates the base machine resources plus the multiblock predicate resource.
+     *
+     * @return ordered resource map for multiblock projects
+     */
     @Override
     protected Map<String, Resource<?>> createResources() {
         var resources = super.createResources();
@@ -98,11 +126,21 @@ public class MultiblockMachineProject extends MachineProject {
         return resources;
     }
 
+    /**
+     * Returns this project's definition as a multiblock definition.
+     *
+     * @return multiblock machine definition
+     */
     @Override
     public MultiblockMachineDefinition getDefinition() {
         return (MultiblockMachineDefinition) super.getDefinition();
     }
 
+    /**
+     * Creates the default multiblock definition for a new project.
+     *
+     * @return definition with a multiblock-capable default state
+     */
     protected MultiblockMachineDefinition createDefinition() {
         // use vanilla furnace model as an example
         var builder = MultiblockMachineDefinition.builder();
@@ -111,6 +149,14 @@ public class MultiblockMachineProject extends MachineProject {
         return builder.build();
     }
 
+    /**
+     * Changes the axis used to slice the editable placeholder grid.
+     *
+     * <p>The aisle repetition array is reset to {@code [1,1]} pairs for every layer on the new axis and the current
+     * pattern snapshot is updated.</p>
+     *
+     * @param layerAxis axis used by multiblock pattern layers
+     */
     public void setLayerAxis(Direction.Axis layerAxis) {
         this.layerAxis = layerAxis;
         var aisleLength = switch (layerAxis) {
@@ -126,21 +172,41 @@ public class MultiblockMachineProject extends MachineProject {
         syncCurrentPattern();
     }
 
+    /**
+     * Replaces the editable placeholder grid and recalculates layer repetitions for the current axis.
+     *
+     * @param blockPlaceholders non-empty 3D placeholder grid
+     */
     public void setBlockPlaceholders(BlockPlaceholder[][][] blockPlaceholders) {
         this.blockPlaceholders = blockPlaceholders;
         setLayerAxis(this.layerAxis);
     }
 
+    /**
+     * Returns the number of patterns after synchronizing the active editable fields.
+     *
+     * @return pattern count
+     */
     public int getPatternCount() {
         syncCurrentPattern();
         return multiblockPatterns.size();
     }
 
+    /**
+     * Returns the selected pattern index after synchronizing the active editable fields.
+     *
+     * @return selected pattern index clamped to the pattern list
+     */
     public int getSelectedPatternIndex() {
         syncCurrentPattern();
         return selectedPatternIndex;
     }
 
+    /**
+     * Selects a pattern by index and applies its snapshot to the editable fields.
+     *
+     * @param index requested pattern index; clamped to the valid range
+     */
     public void selectPattern(int index) {
         syncCurrentPattern();
         if (multiblockPatterns.isEmpty()) return;
@@ -148,6 +214,11 @@ public class MultiblockMachineProject extends MachineProject {
         applyPattern(multiblockPatterns.get(selectedPatternIndex));
     }
 
+    /**
+     * Adds a new pattern and selects it.
+     *
+     * @param copyCurrent when {@code true}, copies the selected pattern; otherwise creates a default controller-only pattern
+     */
     public void addPattern(boolean copyCurrent) {
         syncCurrentPattern();
         PatternInfo pattern = copyCurrent && !multiblockPatterns.isEmpty() ?
@@ -158,6 +229,9 @@ public class MultiblockMachineProject extends MachineProject {
         applyPattern(pattern);
     }
 
+    /**
+     * Removes the selected pattern when more than one pattern exists.
+     */
     public void removeCurrentPattern() {
         syncCurrentPattern();
         if (multiblockPatterns.size() <= 1) return;
@@ -198,6 +272,20 @@ public class MultiblockMachineProject extends MachineProject {
                 pattern.shapeInfos().stream().map(shapeInfo -> MultiblockShapeInfo.loadFromTag(shapeInfo.serializeNBT())).collect(ArrayList::new, ArrayList::add, ArrayList::addAll));
     }
 
+    /**
+     * Creates a runtime {@link BlockPattern} for normal structure matching.
+     * <p>
+     * This overload uses real controller matching rather than shape-preview fake controller data. Inputs must describe a
+     * rectangular placeholder grid in editor x/y/z order, and {@code aisleRepetitions} must provide one min/max pair per
+     * aisle along {@code layerAxis}. The method is pure with respect to project state but constructs new predicate
+     * objects for the returned pattern.
+     *
+     * @param blockPlaceholders rectangular placeholder grid in editor x/y/z order
+     * @param layerAxis         axis that determines aisle order
+     * @param aisleRepetitions  min/max repetition pairs for each aisle; each bound should be at least {@code 1}
+     * @param definition        multiblock definition whose controller and catalyst predicates are injected
+     * @return runtime block pattern used by structure checks
+     */
     public static BlockPattern createBlockPattern(BlockPlaceholder[][][] blockPlaceholders,
                                                   Direction.Axis layerAxis,
                                                   int[][] aisleRepetitions,
@@ -206,13 +294,19 @@ public class MultiblockMachineProject extends MachineProject {
     }
 
     /**
-     * Create a block pattern from block placeholders.
-     * @param blockPlaceholders the block placeholders
-     * @param layerAxis the layer axis
-     * @param aisleRepetitions the aisle repetitions
-     * @param definition the machine definition
-     * @param shapeInfo whether to create shape info with controller predicate
-     * @return the block pattern
+     * Creates a runtime {@link BlockPattern} from editor placeholders.
+     *
+     * <p>The method converts placeholder predicate references into traceability predicates, injects the controller
+     * predicate, computes the structure-relative directions from the layer axis and controller facing, and stores the
+     * base facing on the resulting pattern. If no placeholder is marked as controller, the first non-null placeholder is
+     * promoted as a fallback.</p>
+     *
+     * @param blockPlaceholders placeholder grid in editor x/y/z order
+     * @param layerAxis         axis that defines aisle order
+     * @param aisleRepetitions  min/max repetition pairs for every aisle along {@code layerAxis}
+     * @param definition        multiblock definition whose block and catalyst candidates are injected
+     * @param shapeInfo         whether to create a fake-controller predicate for shape-preview generation
+     * @return runtime block pattern
      */
     public static BlockPattern createBlockPattern(BlockPlaceholder[][][] blockPlaceholders,
                                                   Direction.Axis layerAxis,
@@ -251,7 +345,7 @@ public class MultiblockMachineProject extends MachineProject {
                             .map(TraceabilityPredicate::new)
                             .reduce(TraceabilityPredicate::or)
                             .orElse(new TraceabilityPredicate());
-                    if (placeholder.isController())  {
+                    if (placeholder.isController()) {
                         controller = placeholder;
                         if (Direction.Axis.X == layerAxis) {
                             centerOffset = new int[]{z, y, x, min, max};
@@ -298,7 +392,7 @@ public class MultiblockMachineProject extends MachineProject {
             if (layerAxis == Direction.Axis.X) {
                 min += aisleRepetitions[x][0];
                 max += aisleRepetitions[x][1];
-            } else if (layerAxis == Direction.Axis.Y){
+            } else if (layerAxis == Direction.Axis.Y) {
                 min = 0;
                 max = 0;
             }
@@ -317,16 +411,32 @@ public class MultiblockMachineProject extends MachineProject {
         return pattern;
     }
 
+    /**
+     * Creates a new empty multiblock project.
+     *
+     * @return initialized multiblock project with default resources, definition, UI, and controller placeholder
+     */
     @Override
     public MultiblockMachineProject newEmptyProject() {
         return new MultiblockMachineProject(new Resources(createResources()), createDefinition(), createDefaultUI());
     }
 
+    /**
+     * Returns the workspace directory for multiblock projects.
+     *
+     * @param editor owning editor
+     * @return {@code multiblock} subdirectory under the editor workspace
+     */
     @Override
     public File getProjectWorkSpace(Editor editor) {
         return new File(editor.getWorkSpace(), "multiblock");
     }
 
+    /**
+     * Saves the project using the split-pattern manifest format and reloads the runtime definition when registered.
+     *
+     * @param file requested project file or directory
+     */
     @Override
     public void saveProject(File file) {
         try {
@@ -355,6 +465,12 @@ public class MultiblockMachineProject extends MachineProject {
         postTask.forEach(Runnable::run);
     }
 
+    /**
+     * Loads a multiblock project from disk.
+     *
+     * @param file flat legacy file, manifest file, or project directory
+     * @return loaded project, or {@code null} when the project cannot be read
+     */
     @Nullable
     @Override
     public IProject loadProject(File file) {
@@ -373,6 +489,11 @@ public class MultiblockMachineProject extends MachineProject {
         return null;
     }
 
+    /**
+     * Serializes the base project plus selected multiblock pattern data.
+     *
+     * @return project NBT with top-level selected pattern mirror and full pattern list
+     */
     public CompoundTag serializeNBT() {
         var tag = super.serializeNBT();
         syncCurrentPattern();
@@ -401,6 +522,13 @@ public class MultiblockMachineProject extends MachineProject {
         tag.put("shape_infos", shapeInfoList);
     }
 
+    /**
+     * Writes a multiblock project, splitting pattern payloads into adjacent JSON files.
+     *
+     * @param file       requested output file or directory
+     * @param projectTag fully expanded project tag
+     * @throws IOException when the manifest or pattern files cannot be written
+     */
     public static void writeProjectFile(File file, CompoundTag projectTag) throws IOException {
         File manifestFile = projectManifestFile(file);
         var splitSourceTag = projectTag.copy();
@@ -416,6 +544,13 @@ public class MultiblockMachineProject extends MachineProject {
         }
     }
 
+    /**
+     * Reads a multiblock project and expands any referenced pattern JSON files.
+     *
+     * @param file flat legacy file, manifest file, or project directory
+     * @return expanded project tag, or {@code null} when the NBT file is empty
+     * @throws IOException when the manifest or a referenced pattern file cannot be read
+     */
     @Nullable
     public static CompoundTag readProjectFile(File file) throws IOException {
         var tag = NbtIo.read(existingProjectFile(file));
@@ -425,6 +560,12 @@ public class MultiblockMachineProject extends MachineProject {
         return tag;
     }
 
+    /**
+     * Resolves the existing project file for a requested path.
+     *
+     * @param file flat file, manifest file, or project directory
+     * @return manifest file when present, otherwise {@code file}
+     */
     public static File existingProjectFile(File file) {
         File manifestFile = projectManifestFile(file);
         if (manifestFile.isFile()) {
@@ -433,6 +574,12 @@ public class MultiblockMachineProject extends MachineProject {
         return file;
     }
 
+    /**
+     * Resolves the manifest path used by the split-pattern project format.
+     *
+     * @param file flat file, manifest file, or project directory
+     * @return manifest path named after its containing directory
+     */
     public static File projectManifestFile(File file) {
         if (isManifestPath(file)) {
             return file;
@@ -459,6 +606,16 @@ public class MultiblockMachineProject extends MachineProject {
         return file.getName().endsWith(".mb") && !isManifestPath(file);
     }
 
+    /**
+     * Appends a pattern to a project tag and mirrors it as the selected top-level pattern.
+     *
+     * @param projectTag   mutable project tag to update
+     * @param newPattern   expanded pattern tag to append
+     * @param existingFile whether {@code projectTag} came from an existing project file and may contain references
+     * @param projectFile  project file used to resolve references when {@code existingFile} is true
+     * @return selected index of the appended pattern
+     * @throws IOException when existing pattern references cannot be expanded
+     */
     public static int appendPattern(CompoundTag projectTag, CompoundTag newPattern, boolean existingFile, File projectFile) throws IOException {
         if (existingFile) {
             expandPatternReferences(projectFile, projectTag);
@@ -509,6 +666,13 @@ public class MultiblockMachineProject extends MachineProject {
         return tag;
     }
 
+    /**
+     * Expands pattern JSON references in a project tag loaded from the filesystem.
+     *
+     * @param projectFile manifest or flat project file used as the pattern-reference base path
+     * @param projectTag  mutable project tag to expand
+     * @throws IOException when a referenced pattern file cannot be read
+     */
     public static void expandPatternReferences(File projectFile, CompoundTag projectTag) throws IOException {
         String key = getPatternReferenceKey(projectTag);
         if (key == null) {
@@ -538,6 +702,14 @@ public class MultiblockMachineProject extends MachineProject {
         }
     }
 
+    /**
+     * Expands pattern JSON references in a project tag loaded from mod resources.
+     *
+     * @param source      class whose classloader provides the asset resource
+     * @param projectFile asset-relative project file path
+     * @param projectTag  mutable project tag to expand
+     * @throws IOException when a referenced pattern resource cannot be read
+     */
     public static void expandPatternReferences(Class<?> source, String projectFile, CompoundTag projectTag) throws IOException {
         String key = getPatternReferenceKey(projectTag);
         if (key == null) {
@@ -786,7 +958,16 @@ public class MultiblockMachineProject extends MachineProject {
         tag.remove("shape_infos");
     }
 
-    public static CompoundTag serializeBlockPlaceholders(BlockPlaceholder[][][] blockPlaceholders){
+    /**
+     * Serializes the placeholder grid using indexed holders and predicate references.
+     *
+     * <p>Repeated placeholder instances and predicate references are stored once and addressed by integer indices in
+     * the pattern grid, keeping large multiblock patterns compact.</p>
+     *
+     * @param blockPlaceholders non-empty 3D placeholder grid
+     * @return placeholder compound containing dimensions, holder table, predicate table, and pattern indices
+     */
+    public static CompoundTag serializeBlockPlaceholders(BlockPlaceholder[][][] blockPlaceholders) {
         var placeholders = new ArrayList<BlockPlaceholder>();
         var placeHolderMap = new HashMap<BlockPlaceholder, Integer>();
         var placeHolderIndex = new ArrayList<Integer>();
@@ -884,6 +1065,14 @@ public class MultiblockMachineProject extends MachineProject {
         return patternTag;
     }
 
+    /**
+     * Deserializes base project state and all multiblock pattern snapshots.
+     *
+     * <p>When {@link #loadingFile} is set, pattern references are expanded before the base project reads resources and
+     * definitions. The selected pattern is clamped and applied to the mutable editor fields.</p>
+     *
+     * @param tag project NBT
+     */
     @Override
     public void deserializeNBT(CompoundTag tag) {
         if (loadingFile != null) {
@@ -942,6 +1131,12 @@ public class MultiblockMachineProject extends MachineProject {
         return new PatternInfo(blockPlaceholders, layerAxis, aisleRepetitions, shapeInfos);
     }
 
+    /**
+     * Copies the legacy top-level pattern fields into a standalone pattern tag.
+     *
+     * @param projectTag project tag containing top-level pattern fields
+     * @return new pattern tag
+     */
     public static CompoundTag copyTopLevelPattern(CompoundTag projectTag) {
         CompoundTag pattern = new CompoundTag();
         copyPatternValue(projectTag, pattern, "placeholders");
@@ -951,6 +1146,12 @@ public class MultiblockMachineProject extends MachineProject {
         return pattern;
     }
 
+    /**
+     * Mirrors a selected pattern into legacy top-level project fields.
+     *
+     * @param projectTag project tag to mutate
+     * @param pattern    pattern tag whose fields should be mirrored
+     */
     public static void mirrorPatternToTopLevel(CompoundTag projectTag, CompoundTag pattern) {
         copyPatternValue(pattern, projectTag, "placeholders");
         copyPatternValue(pattern, projectTag, "layer_axis");
@@ -964,6 +1165,13 @@ public class MultiblockMachineProject extends MachineProject {
         }
     }
 
+    /**
+     * Deserializes a placeholder grid from the indexed placeholder format.
+     *
+     * @param placeHoldersTag   serialized placeholder compound
+     * @param predicateResource predicate resource used to resolve placeholder references
+     * @return reconstructed 3D placeholder grid
+     */
     public static BlockPlaceholder[][][] deserializeBlockPlaceholders(CompoundTag placeHoldersTag, PredicateResource predicateResource) {
         var placeHoldersListTag = placeHoldersTag.getList("holders", Tag.TAG_COMPOUND);
         var predicateRefs = deserializePredicateReferences(placeHoldersTag);
@@ -1039,10 +1247,23 @@ public class MultiblockMachineProject extends MachineProject {
         return pattern;
     }
 
+    /**
+     * Reads an integer array from a compound in either modern int-array or legacy numeric-list form.
+     *
+     * @param tag compound containing the value
+     * @param key value key
+     * @return decoded integers, or an empty array when absent or incompatible
+     */
     public static int[] getIntArrayCompat(CompoundTag tag, String key) {
         return tag.contains(key) ? getIntArrayCompat(tag.get(key)) : new int[0];
     }
 
+    /**
+     * Decodes an integer array from an NBT tag.
+     *
+     * @param tag int-array or numeric-list tag
+     * @return decoded integers, or an empty array for unsupported tag types
+     */
     public static int[] getIntArrayCompat(Tag tag) {
         if (tag instanceof IntArrayTag intArrayTag) {
             return intArrayTag.getAsIntArray();
@@ -1058,6 +1279,13 @@ public class MultiblockMachineProject extends MachineProject {
         return new int[0];
     }
 
+    /**
+     * Reads a boolean from either a normal boolean tag or a legacy numeric tag.
+     *
+     * @param tag compound containing the value
+     * @param key value key
+     * @return decoded boolean, defaulting to {@code false} when absent
+     */
     public static boolean getBooleanCompat(CompoundTag tag, String key) {
         if (!tag.contains(key)) {
             return false;
@@ -1069,6 +1297,11 @@ public class MultiblockMachineProject extends MachineProject {
         return tag.getBoolean(key);
     }
 
+    /**
+     * Adds multiblock-specific editor tabs after the base machine tabs are loaded.
+     *
+     * @param editor editor receiving the multiblock area and pattern panels
+     */
     @Override
     public void onLoad(Editor editor) {
         if (editor instanceof MachineEditor machineEditor) {
@@ -1076,15 +1309,27 @@ public class MultiblockMachineProject extends MachineProject {
             var tabContainer = machineEditor.getTabPages();
             var multiblockPatternPanel = createMultiblockPatternPanel(machineEditor);
             var multiblockAreaPanel = createMultiblockAreaPanel(multiblockPatternPanel);
-            tabContainer.addTab("editor.machine.multiblock_area", multiblockAreaPanel, multiblockAreaPanel::onPanelSelected, multiblockAreaPanel:: onPanelDeselected);
+            tabContainer.addTab("editor.machine.multiblock_area", multiblockAreaPanel, multiblockAreaPanel::onPanelSelected, multiblockAreaPanel::onPanelDeselected);
             tabContainer.addTab("editor.machine.multiblock_pattern", multiblockPatternPanel, multiblockPatternPanel::onPanelSelected, multiblockPatternPanel::onPanelDeselected);
         }
     }
 
+    /**
+     * Creates the multiblock pattern editor panel.
+     *
+     * @param editor owning machine editor
+     * @return pattern panel bound to this project
+     */
     public MultiblockPatternPanel createMultiblockPatternPanel(MachineEditor editor) {
         return new MultiblockPatternPanel(editor, this);
     }
 
+    /**
+     * Creates the multiblock area panel paired with a pattern panel.
+     *
+     * @param multiblockPatternPanel pattern panel to coordinate with
+     * @return multiblock area panel bound to this project
+     */
     public MultiblockAreaPanel createMultiblockAreaPanel(MultiblockPatternPanel multiblockPatternPanel) {
         return new MultiblockAreaPanel(this, multiblockPatternPanel);
     }

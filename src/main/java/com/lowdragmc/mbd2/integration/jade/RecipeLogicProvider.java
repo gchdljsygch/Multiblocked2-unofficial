@@ -25,6 +25,9 @@ import snownee.jade.overlay.IconUI;
 import java.util.ArrayList;
 import java.util.Locale;
 
+/**
+ * Jade provider that displays machine recipe status, progress, fuel, and custom tooltip lines.
+ */
 public class RecipeLogicProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
 
     @Override

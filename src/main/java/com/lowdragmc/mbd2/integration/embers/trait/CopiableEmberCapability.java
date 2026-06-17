@@ -7,10 +7,14 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.nbt.CompoundTag;
 
+/**
+ * Copyable Embers power container that notifies MBD listeners when its contents change.
+ */
 public class CopiableEmberCapability extends DefaultEmberCapability implements ITagSerializable<CompoundTag>, IContentChangeAware {
     @Getter
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
 
     public CopiableEmberCapability(double capacity) {
         this(capacity, 0);

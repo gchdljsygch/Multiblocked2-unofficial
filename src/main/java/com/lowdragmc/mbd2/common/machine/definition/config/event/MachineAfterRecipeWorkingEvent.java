@@ -10,12 +10,31 @@ import lombok.Getter;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Fired after a machine recipe finishes its working phase.
+ * <p>
+ * Depending on recipe settings, this event can be used both for normal
+ * after-work hooks and for deciding whether delayed input consumption should
+ * proceed.
+ */
 @Getter
 @LDLRegister(name = "MachineAfterRecipeWorkingEvent", group = "MachineEvent")
 public class MachineAfterRecipeWorkingEvent extends MachineEvent {
+    /**
+     * Recipe that just completed the working phase.
+     */
     @GraphParameterGet
     public final MBDRecipe recipe;
 
+    /**
+     * Creates an event for a recipe that has just completed work.
+     * <p>
+     * The event is notification-only; handlers should not mutate the supplied recipe unless they own it. It is posted on
+     * the machine's recipe logic thread during recipe progression.
+     *
+     * @param machine machine whose recipe logic completed work
+     * @param recipe  recipe that completed the working phase
+     */
     public MachineAfterRecipeWorkingEvent(MBDMachine machine, MBDRecipe recipe) {
         super(machine);
         this.recipe = recipe;

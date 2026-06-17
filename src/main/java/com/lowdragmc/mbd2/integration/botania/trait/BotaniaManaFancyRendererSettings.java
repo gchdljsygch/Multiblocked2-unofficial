@@ -24,6 +24,9 @@ import vazkii.botania.client.core.helper.RenderHelper;
 
 import static vazkii.botania.common.lib.ResourceLocationHelper.prefix;
 
+/**
+ * Fancy renderer settings for visualizing stored Botania mana on a machine block.
+ */
 public class BotaniaManaFancyRendererSettings extends FancyRendererSettings {
     private final BotaniaManaCapabilityTraitDefinition definition;
 
@@ -40,6 +43,9 @@ public class BotaniaManaFancyRendererSettings extends FancyRendererSettings {
         return new Renderer();
     }
 
+    /**
+     * TESR renderer that draws the Botania mana water volume.
+     */
     private class Renderer implements IRenderer {
         @Override
         @OnlyIn(Dist.CLIENT)
@@ -57,7 +63,7 @@ public class BotaniaManaFancyRendererSettings extends FancyRendererSettings {
                     if (storage.getCurrentMana() == 0 || storage.getMaxMana() == 0) return;
 
                     int mana = storage.getCurrentMana();
-                    int maxMana =storage.getMaxMana();
+                    int maxMana = storage.getMaxMana();
 
                     float manaLevel = mana * 1f / maxMana;
 

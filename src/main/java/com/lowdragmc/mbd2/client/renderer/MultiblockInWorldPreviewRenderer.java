@@ -49,12 +49,37 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static net.minecraft.world.level.block.RenderShape.INVISIBLE;
 
+/**
+ * Client-only renderer and cache manager for in-world multiblock structure previews.
+ *
+ * <p>The renderer builds a {@link TrackedDummyWorld} from a controller pattern, compiles the static block geometry into
+ * shared {@link VertexBuffer}s, and renders block-entity renderers separately before translucent geometry. It also owns
+ * short-lived debug overlays for invalid pattern positions. The business goal is to let players inspect expected
+ * multiblock layouts in the real world without placing the preview blocks.</p>
+ *
+ * <p>Most state is static because only one preview is shown at a time. Public methods are intended for the Minecraft
+ * client thread; {@link #prepareBuffers(TrackedDummyWorld, Collection, int)} starts a worker thread for CPU-side buffer
+ * construction and schedules GPU uploads through {@link RenderSystem#recordRenderCall}. Calling {@link #cleanPreview()}
+ * invalidates the current cache and lets the next preview rebuild it.</p>
+ */
 @OnlyIn(Dist.CLIENT)
 public class MultiblockInWorldPreviewRenderer {
 
+    /**
+     * Lifecycle state for the shared preview vertex-buffer cache.
+     */
     private enum CacheState {
+        /**
+         * No preview is ready or being built.
+         */
         UNUSED,
+        /**
+         * A worker thread is building CPU-side buffers and scheduling uploads.
+         */
         COMPILING,
+        /**
+         * Vertex buffers and optional block-entity positions are ready to render.
+         */
         COMPILED
     }
 
@@ -72,7 +97,11 @@ public class MultiblockInWorldPreviewRenderer {
     private final static AtomicInteger PATTERN_ERROR_LEFT_TICK = new AtomicInteger(-1);
 
     /**
-     * It will be cached by lombok#@Getter(lazy=true)
+     * Allocates one static vertex buffer for each chunk render layer.
+     *
+     * <p>The result is cached by Lombok's lazy getter and reused until Minecraft invalidates the buffers.</p>
+     *
+     * @return render-layer-aligned vertex-buffer array
      */
     private static VertexBuffer[] initBuffers() {
         List<RenderType> layers = RenderType.chunkBufferLayers();
@@ -91,6 +120,12 @@ public class MultiblockInWorldPreviewRenderer {
     private static int LAST_PATTERN = -1;
     private static int NEXT_PATTERN = -1;
 
+    /**
+     * Clears the current preview world, buffer-cache state, layer selection, and pattern cycling state.
+     *
+     * <p>This does not delete the lazily created {@link VertexBuffer} objects; it marks their contents unused and resets
+     * the state that decides whether rendering should occur.</p>
+     */
     public static void cleanPreview() {
         CACHE_STATE.set(CacheState.UNUSED);
         LEVEL = null;
@@ -102,28 +137,47 @@ public class MultiblockInWorldPreviewRenderer {
         NEXT_PATTERN = -1;
     }
 
+    /**
+     * Clears the preview only when it belongs to {@code pos}.
+     *
+     * @param pos controller position whose preview should be removed
+     */
     public static void removePreview(BlockPos pos) {
         if (LAST_POS != null && LAST_POS.equals(pos)) {
             cleanPreview();
         }
     }
 
+    /**
+     * Clears the highlighted invalid pattern block and its countdown timer.
+     */
     public static void clearPatternError() {
         PATTERN_ERROR_POS = null;
         PATTERN_ERROR_LEFT_TICK.set(-1);
     }
 
+    /**
+     * Shows a temporary red overlay at the pattern mismatch position.
+     *
+     * @param pos      world position to highlight
+     * @param duration number of client ticks to keep the overlay; non-positive values expire on the next tick path
+     */
     public static void showPatternErrorPos(BlockPos pos, int duration) {
         PATTERN_ERROR_POS = pos;
         PATTERN_ERROR_LEFT_TICK.set(duration);
     }
 
     /**
-     * Show the multiblock preview in the world by the given pos, side, and shape info.
+     * Builds and displays a multiblock preview for a controller.
      *
-     * @param pos        the pos of the controller
-     * @param controller the controller
-     * @param duration   the duration of the preview. in ticks.
+     * <p>The method chooses the active or next pattern, maps the pattern's controller-relative coordinates to world
+     * coordinates using the controller front, stores preview blocks in a dummy world, and starts buffer preparation.
+     * Repeated calls for the same controller cycle through visible Y layers and then through alternate patterns. If the
+     * pattern has no controller marker or contains no shape info, the call is a no-op.</p>
+     *
+     * @param pos        world position of the controller block
+     * @param controller controller machine that supplies front facing and pattern definitions
+     * @param duration   preview lifetime in client ticks after the buffers finish compiling
      */
     public static void showPreview(BlockPos pos, MBDMultiblockMachine controller, int duration) {
         var front = controller.getFrontFacing().orElse(Direction.NORTH);
@@ -252,6 +306,16 @@ public class MultiblockInWorldPreviewRenderer {
         prepareBuffers(LEVEL, blockMap.keySet(), duration);
     }
 
+    /**
+     * Chooses the pattern index that the next preview build should render.
+     *
+     * <p>A currently matched multiblock pattern always wins. Otherwise repeated preview requests for the same
+     * controller continue the locally cached pattern cycle.</p>
+     *
+     * @param pos        controller block position
+     * @param controller controller whose pattern list is inspected
+     * @return valid pattern index in {@code 0..patternCount-1}, or {@code 0} when only one pattern exists
+     */
     public static int getPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
         int patternCount = controller.getDefinition().getPatterns(controller).length;
         if (patternCount <= 1) return 0;
@@ -266,6 +330,13 @@ public class MultiblockInWorldPreviewRenderer {
         return 0;
     }
 
+    /**
+     * Returns the pattern currently represented by the visible preview.
+     *
+     * @param pos        controller block position
+     * @param controller controller whose pattern list is inspected
+     * @return valid pattern index in {@code 0..patternCount-1}, using the last rendered pattern when possible
+     */
     public static int getCurrentPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
         int patternCount = controller.getDefinition().getPatterns(controller).length;
         if (patternCount <= 1) return 0;
@@ -285,6 +356,14 @@ public class MultiblockInWorldPreviewRenderer {
         return (current + 1) % patternCount;
     }
 
+    /**
+     * Rotates a pattern offset around the axis represented by the controller front.
+     *
+     * @param pos      unrotated controller-relative offset
+     * @param front    controller front direction that defines the rotation axis
+     * @param rotation additional rotation around that axis
+     * @return transformed offset in controller-relative coordinates
+     */
     private static BlockPos rotateByFrontAxis(BlockPos pos, Direction front, Rotation rotation) {
         if (front.getAxis() == Direction.Axis.X) {
             return switch (rotation) {
@@ -323,6 +402,12 @@ public class MultiblockInWorldPreviewRenderer {
         return pos;
     }
 
+    /**
+     * Advances preview and pattern-error lifetimes once per client tick.
+     *
+     * <p>When a countdown reaches zero the corresponding static state is cleared. The method also ticks the multiblock
+     * debug overlay so its positions remain synchronized with preview rendering.</p>
+     */
     public static void onClientTick() {
         if (PREVIEW_LEFT_TICK.get() > 0) {
             if (PREVIEW_LEFT_TICK.decrementAndGet() <= 0) {
@@ -337,6 +422,17 @@ public class MultiblockInWorldPreviewRenderer {
         MultiblockDebugOverlay.tick();
     }
 
+    /**
+     * Renders all active in-world preview overlays and compiled preview buffers.
+     *
+     * <p>The pose stack is translated from camera-relative coordinates into world coordinates for the duration of each
+     * render section. The method mutates render state for depth, blend, shader uniforms, and vertex-buffer bindings, and
+     * restores each layer's render state before continuing.</p>
+     *
+     * @param poseStack    active world render pose stack
+     * @param camera       camera used to subtract the projected view position
+     * @param partialTicks render interpolation fraction forwarded to block-entity renderers
+     */
     public static void renderInWorldPreview(PoseStack poseStack, Camera camera, float partialTicks) {
         Set<BlockPos> positions = MultiblockDebugOverlay.getPositions();
         if (positions != null) {
@@ -478,6 +574,17 @@ public class MultiblockInWorldPreviewRenderer {
         }
     }
 
+    /**
+     * Rebuilds the shared preview buffers for a dummy-world block set.
+     *
+     * <p>Any existing worker thread is interrupted before a new one starts. CPU-side block geometry is built off the
+     * render thread, while VBO uploads are scheduled on the render thread. On successful completion this records
+     * block-entity renderer positions, marks the cache compiled, and starts the preview lifetime countdown.</p>
+     *
+     * @param level          dummy world containing preview blocks and block entities
+     * @param renderedBlocks world positions to include in the preview
+     * @param duration       preview lifetime in client ticks after compilation completes
+     */
     private static void prepareBuffers(TrackedDummyWorld level, Collection<BlockPos> renderedBlocks, int duration) {
         if (THREAD != null) {
             THREAD.interrupt();
@@ -537,6 +644,17 @@ public class MultiblockInWorldPreviewRenderer {
         THREAD.start();
     }
 
+    /**
+     * Emits block and fluid geometry for one render layer into a CPU-side buffer.
+     *
+     * @param level          dummy world used for block and fluid rendering
+     * @param poseStack      temporary pose stack owned by the buffer-build worker
+     * @param dispatcher     Minecraft block renderer
+     * @param layer          render layer currently being compiled
+     * @param wrapperBuffer  vertex consumer wrapper receiving geometry
+     * @param renderedBlocks block positions to compile
+     * @param randomSource   thread-local random source for model rendering
+     */
     private static void renderBlocks(TrackedDummyWorld level, PoseStack poseStack, BlockRenderDispatcher dispatcher,
                                      RenderType layer, WorldSceneRenderer.VertexConsumerWrapper wrapperBuffer,
                                      Collection<BlockPos> renderedBlocks, RandomSource randomSource) {

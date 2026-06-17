@@ -24,6 +24,12 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Blood Magic demon will amounts and will types.
+ *
+ * <p>Each content value carries a type, amount, and output cap. Runtime handling drains or fills
+ * ambient world will through {@link com.lowdragmc.mbd2.integration.bloodmagic.trait.BloodMagicWillTrait}.</p>
+ */
 public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicWill> {
     public static final BloodMagicWillRecipeCapability CAP = new BloodMagicWillRecipeCapability();
 
@@ -36,6 +42,12 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
         return BloodMagicWill.of(EnumDemonWillType.DEFAULT, 100);
     }
 
+    /**
+     * Creates the editor/list preview for a demon will requirement.
+     *
+     * @param content typed will amount
+     * @return Demon Will Gauge icon with rounded amount overlay
+     */
     @Override
     public Widget createPreviewWidget(BloodMagicWill content) {
         var previewGroup = new WidgetGroup(0, 0, 18, 18);
@@ -45,6 +57,9 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
         return previewGroup;
     }
 
+    /**
+     * Creates the XEI text template for demon will rows.
+     */
     @Override
     public Widget createXEITemplate() {
         return new TextTextureWidget(0, 0, 100, 10,
@@ -52,6 +67,9 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
                 .textureStyle(t -> t.setType(TextTexture.TextType.LEFT));
     }
 
+    /**
+     * Binds will amount, type, and per-tick suffix into an XEI text widget.
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof TextTextureWidget textTexture) {
@@ -62,6 +80,13 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
         }
     }
 
+    /**
+     * Adds type, amount, and max-output configurators for recipe content.
+     *
+     * @param father parent configurator group
+     * @param supplier current will payload supplier
+     * @param onUpdate callback receiving updated immutable payloads
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<BloodMagicWill> supplier, Consumer<BloodMagicWill> onUpdate) {
         father.addConfigurators(
@@ -78,12 +103,21 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
         );
     }
 
+    /**
+     * Summarizes unsatisfied demon will amounts for recipe error display.
+     */
     @Override
     public Component getLeftErrorInfo(List<BloodMagicWill> left) {
         double amount = left.stream().mapToDouble(BloodMagicWill::amount).sum();
         return Component.literal(FormattingUtil.formatNumbers(amount) + " will");
     }
 
+    /**
+     * Converts Blood Magic's enum names into readable UI labels.
+     *
+     * @param type will type
+     * @return English display name
+     */
     public static String getTypeName(EnumDemonWillType type) {
         return FormattingUtil.toEnglishName(type.name());
     }

@@ -21,6 +21,16 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Recipe capability trait that converts recipes to and from redstone signal state.
+ *
+ * <p>Input recipes read the strongest configured input side on the controller and proxied multiblock parts. Output
+ * recipes emit a temporary signal on every configured output side. Runtime state is persisted/synced so UI widgets
+ * and block updates can reflect remaining pulse duration after reload.</p>
+ *
+ * <p>All methods are intended for the logical server thread except simple read accessors used by synchronized UI
+ * state.</p>
+ */
 public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(RedstoneSignalCapabilityTrait.class);
 
@@ -39,20 +49,43 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
     private int inputSignal;
     private final RedstoneSignalRecipeHandler recipeHandler = new RedstoneSignalRecipeHandler();
 
+    /**
+     * Creates the runtime redstone signal trait for one machine.
+     *
+     * @param machine    owning machine
+     * @param definition definition that supplies IO side configuration
+     */
     public RedstoneSignalCapabilityTrait(MBDMachine machine, RedstoneSignalCapabilityTraitDefinition definition) {
         super(machine, definition);
     }
 
+    /**
+     * Returns the concrete definition for side configuration and UI integration.
+     *
+     * @return this trait's {@link RedstoneSignalCapabilityTraitDefinition}
+     */
     @Override
     public RedstoneSignalCapabilityTraitDefinition getDefinition() {
         return (RedstoneSignalCapabilityTraitDefinition) super.getDefinition();
     }
 
+    /**
+     * Exposes the single recipe handler that checks input ranges and emits output pulses.
+     *
+     * @return immutable singleton list owned by this trait
+     */
     @Override
     public List<IRecipeHandlerTrait<?>> getRecipeHandlerTraits() {
         return List.of(recipeHandler);
     }
 
+    /**
+     * Updates redstone input and decrements active output pulse timers.
+     *
+     * <p>When a timer reaches zero, the corresponding controller output is cleared if it still carries this trait's
+     * emitted signal. Any changed input or output state notifies listeners, marks the machine changed, and refreshes
+     * proxied part signals.</p>
+     */
     @Override
     public void serverTick() {
         updateInputSignal();
@@ -72,6 +105,11 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         }
     }
 
+    /**
+     * Clears every side when the owning machine is removed.
+     *
+     * <p>This prevents stale redstone power from lingering in the machine block or proxied multiblock parts.</p>
+     */
     @Override
     public void onMachineRemoved() {
         for (Direction side : Direction.values()) {
@@ -79,15 +117,33 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         }
     }
 
+    /**
+     * Re-reads input power after any neighboring block update.
+     *
+     * @param block    block type that caused the neighbor notification
+     * @param fromPos  source position of the update
+     * @param isMoving whether the neighbor change is part of block movement
+     */
     @Override
     public void onNeighborChanged(Block block, net.minecraft.core.BlockPos fromPos, boolean isMoving) {
         updateInputSignal();
     }
 
+    /**
+     * Reports whether a side should connect to vanilla redstone.
+     *
+     * @param side controller side to test
+     * @return {@code true} when that side is configured for input or output
+     */
     public boolean canConnectRedstone(Direction side) {
         return getCapabilityIO(side) != IO.NONE;
     }
 
+    /**
+     * Returns the strongest currently observed input signal.
+     *
+     * @return redstone power in the vanilla range {@code 0..15}
+     */
     public int getInputSignal() {
         return inputSignal;
     }
@@ -125,6 +181,11 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         return signal;
     }
 
+    /**
+     * Returns the strongest active output signal across all sides.
+     *
+     * @return redstone power in the vanilla range {@code 0..15}, or {@code 0} when no pulse is active
+     */
     public int getStrongestOutputSignal() {
         int signal = 0;
         for (byte value : emittedSignal) {
@@ -133,10 +194,21 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         return signal;
     }
 
+    /**
+     * Returns the active output signal for one side.
+     *
+     * @param side controller side to inspect
+     * @return redstone power in the vanilla range {@code 0..15}
+     */
     public int getOutputSignal(Direction side) {
         return Byte.toUnsignedInt(emittedSignal[side.ordinal()]);
     }
 
+    /**
+     * Returns the longest remaining output pulse duration.
+     *
+     * @return remaining ticks, or {@code 0} if no pulse is active
+     */
     public int getMaxRemainingTicks() {
         int ticks = 0;
         for (int value : remainingTicks) {
@@ -145,6 +217,14 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         return ticks;
     }
 
+    /**
+     * Applies an output pulse to all controller and proxied output sides.
+     *
+     * <p>Signals with non-positive strength or duration are ignored. A stronger or expired side is overwritten, and
+     * the side timer is extended to the requested duration when longer than the current timer.</p>
+     *
+     * @param signal output signal; strength is expected to be in {@code 1..15}, duration in ticks
+     */
     private void emitSignal(RedstoneSignal signal) {
         if (signal.strength() <= 0 || signal.duration() <= 0) return;
         boolean changed = false;
@@ -189,6 +269,14 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         return changed;
     }
 
+    /**
+     * Clears one side's emitted signal and timer.
+     *
+     * <p>The controller block output is reset only if it still equals the signal written by this trait, avoiding an
+     * accidental clear of a stronger output written elsewhere.</p>
+     *
+     * @param side controller side to clear
+     */
     private void clearSignal(Direction side) {
         int index = side.ordinal();
         int signal = Byte.toUnsignedInt(emittedSignal[index]);
@@ -217,11 +305,29 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         }
     }
 
+    /**
+     * Recipe handler for redstone signal input/output contents.
+     */
     public class RedstoneSignalRecipeHandler extends RecipeHandlerTrait<RedstoneSignal> {
         protected RedstoneSignalRecipeHandler() {
             super(RedstoneSignalCapabilityTrait.this, RedstoneSignalRecipeCapability.CAP);
         }
 
+        /**
+         * Handles a redstone recipe requirement or output.
+         *
+         * <p>Input matching compares every requested signal predicate against the current strongest input signal and
+         * returns any unmatched predicates. Output matching collapses all requested outputs to the maximum strength
+         * and duration, then emits that pulse only on committed execution. Simulation never mutates block power,
+         * timers, or synced state.</p>
+         *
+         * @param io       requested recipe direction
+         * @param recipe   recipe currently being checked or executed
+         * @param left     requested redstone signal contents
+         * @param slotName unused logical slot name
+         * @param simulate {@code true} to test without emitting output
+         * @return {@code null} when handled, or the unmatched list when input predicates fail or IO is incompatible
+         */
         @Override
         public List<RedstoneSignal> handleRecipeInner(IO io, MBDRecipe recipe, List<RedstoneSignal> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;

@@ -10,10 +10,29 @@ import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.heat.PNCTemperatureCo
 import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.pressure.PNCPressureCondition;
 import net.minecraftforge.fml.ModLoader;
 
+/**
+ * Registers built-in and integration-provided recipe condition types.
+ *
+ * <p>The business goal is to make condition ids available to recipe JSON/NBT/network deserialization before recipes
+ * are loaded. The registry is temporarily unfrozen, populated with core conditions and optional integration conditions,
+ * exposed through a Forge registry event for extensions, then frozen again.</p>
+ */
 public final class MBDRecipeConditions {
 
-    private MBDRecipeConditions() {}
+    /**
+     * Utility class; not instantiable.
+     */
+    private MBDRecipeConditions() {
+    }
 
+    /**
+     * Registers all recipe condition implementation classes.
+     *
+     * <p>Side effects: mutates {@link MBDRegistries#RECIPE_CONDITIONS}, conditionally registers Create, Mekanism, and
+     * PneumaticCraft conditions when those integrations are loaded, posts {@link MBDRegistryEvent.RecipeCondition}, and
+     * freezes the registry. Call during common data/bootstrap initialization before recipe condition instances are
+     * deserialized.</p>
+     */
     public static void init() {
         MBDRegistries.RECIPE_CONDITIONS.unfreeze();
         MBDRegistries.RECIPE_CONDITIONS.register(BiomeCondition.INSTANCE.getType(), BiomeCondition.class);

@@ -20,6 +20,9 @@ import snownee.jade.impl.ui.ProgressStyle;
 
 import java.util.Objects;
 
+/**
+ * Jade provider that displays long FE storage and transfer limits for MBD energy containers.
+ */
 public class LongFeEnergyDataProvider implements IServerDataProvider<BlockAccessor>, IBlockComponentProvider {
     private static final ResourceLocation UID = Objects.requireNonNull(ResourceLocation.tryParse("mbd2:long_fe_energy_hud"));
 

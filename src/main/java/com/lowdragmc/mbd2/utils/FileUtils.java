@@ -12,6 +12,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.function.BiConsumer;
 
+/**
+ * File helpers for loading NBT-backed project resources from directories.
+ */
 public class FileUtils {
     public static void loadNBTFiles(File path, String extension, BiConsumer<File, CompoundTag> consumer) {
         if (path.exists() && path.isDirectory()) {
@@ -26,7 +29,8 @@ public class FileUtils {
                                 if (tag != null) {
                                     consumer.accept(path.toFile(), tag);
                                 }
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         }
                         return FileVisitResult.CONTINUE;
                     }

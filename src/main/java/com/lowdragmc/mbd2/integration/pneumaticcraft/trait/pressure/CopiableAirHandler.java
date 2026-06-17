@@ -13,10 +13,14 @@ import net.minecraft.nbt.CompoundTag;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Serializable PneumaticCraft air handler that can be copied for recipe simulation.
+ */
 @Getter
 public class CopiableAirHandler extends MachineAirHandler implements ITagSerializable<CompoundTag>, IContentChangeAware {
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
     @Accessors(fluent = true)
     protected final float maxPressure;
     private final PressureTier tier;

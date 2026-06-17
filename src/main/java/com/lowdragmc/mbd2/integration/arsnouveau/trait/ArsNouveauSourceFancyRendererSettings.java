@@ -25,6 +25,13 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Client renderer settings for drawing stored Ars Nouveau Source inside a machine block.
+ *
+ * <p>The renderer draws a translucent colored cube whose height can either be full or proportional
+ * to current Source. It reads the runtime trait from the machine capability and does no work when
+ * the machine has no Source or no matching trait.</p>
+ */
 public class ArsNouveauSourceFancyRendererSettings extends FancyRendererSettings {
     private final ArsNouveauSourceCapabilityTraitDefinition definition;
 
@@ -42,10 +49,18 @@ public class ArsNouveauSourceFancyRendererSettings extends FancyRendererSettings
         this.definition = definition;
     }
 
+    /**
+     * Creates a stateless renderer instance using this settings object for color and transform.
+     *
+     * @return renderer used by the trait definition
+     */
     public IRenderer createFancyRenderer() {
         return new Renderer();
     }
 
+    /**
+     * TESR renderer that visualizes the Source fill volume.
+     */
     private class Renderer implements IRenderer {
         @Override
         @OnlyIn(Dist.CLIENT)
@@ -53,6 +68,9 @@ public class ArsNouveauSourceFancyRendererSettings extends FancyRendererSettings
             return true;
         }
 
+        /**
+         * Renders the current Source storage as a colored cube in machine-local coordinates.
+         */
         @Override
         @OnlyIn(Dist.CLIENT)
         public void render(BlockEntity blockEntity, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource, int combinedLight, int combinedOverlay) {

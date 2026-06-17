@@ -21,8 +21,25 @@ import com.lowdragmc.mbd2.integration.pneumaticcraft.PNCHeatRecipeCapability;
 import com.lowdragmc.mbd2.integration.pneumaticcraft.PNCPressureAirRecipeCapability;
 import net.minecraftforge.fml.ModLoader;
 
+/**
+ * Startup registrar for recipe capability channels.
+ * <p>
+ * Recipe capabilities define the typed input/output domains that recipes and
+ * traits can exchange, such as items, fluids, energy, entities, redstone, and
+ * optional integration resources. The registry is populated once during mod
+ * loading and then treated as immutable by recipe serialization and runtime
+ * recipe logic.
+ */
 public class MBDRecipeCapabilities {
 
+    /**
+     * Registers built-in, optional integration, and addon recipe capabilities.
+     * <p>
+     * Optional capabilities are skipped unless their integration mod is loaded.
+     * Addons should register additional capabilities from
+     * {@link MBDRegistryEvent.RecipeCapability}; direct runtime mutation is not
+     * supported.
+     */
     public static void init() {
         MBDRegistries.RECIPE_CAPABILITIES.unfreeze();
         MBDRegistries.RECIPE_CAPABILITIES.register(ItemRecipeCapability.CAP.name, ItemRecipeCapability.CAP);
@@ -50,8 +67,8 @@ public class MBDRecipeCapabilities {
             MBDRegistries.RECIPE_CAPABILITIES.register(MekanismHeatRecipeCapability.CAP.name, MekanismHeatRecipeCapability.CAP);
         }
         if (MBD2.isCreateLoaded()) {
-             MBDRegistries.RECIPE_CAPABILITIES.register(CreateStressRecipeCapability.CAP.name, CreateStressRecipeCapability.CAP);
-             MBDRegistries.RECIPE_CAPABILITIES.register(CreateRPMRecipeCapability.CAP.name, CreateRPMRecipeCapability.CAP);
+            MBDRegistries.RECIPE_CAPABILITIES.register(CreateStressRecipeCapability.CAP.name, CreateStressRecipeCapability.CAP);
+            MBDRegistries.RECIPE_CAPABILITIES.register(CreateRPMRecipeCapability.CAP.name, CreateRPMRecipeCapability.CAP);
         }
         if (MBD2.isNaturesAuraLoaded()) {
             MBDRegistries.RECIPE_CAPABILITIES.register(NaturesAuraRecipeCapability.CAP.name, NaturesAuraRecipeCapability.CAP);

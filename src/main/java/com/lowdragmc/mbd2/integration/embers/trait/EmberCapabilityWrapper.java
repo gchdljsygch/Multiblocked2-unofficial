@@ -9,6 +9,9 @@ import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Side-aware wrapper around an Embers capability that gates add and remove operations by MBD IO mode.
+ */
 public class EmberCapabilityWrapper implements IEmberCapability {
     private final IEmberCapability storage;
     private final IO io;

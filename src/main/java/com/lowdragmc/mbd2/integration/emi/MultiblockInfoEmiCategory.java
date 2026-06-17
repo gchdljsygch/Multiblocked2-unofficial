@@ -15,8 +15,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * EMI category that shows preview pages for registered multiblock machine structures.
+ */
 public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
 
+    /**
+     * EMI display wrapper for a single multiblock machine definition preview.
+     */
     public static class MultiblockInfoEmiRecipe extends ModularEmiRecipe<WidgetGroup> {
 
         public final MultiblockMachineDefinition definition;

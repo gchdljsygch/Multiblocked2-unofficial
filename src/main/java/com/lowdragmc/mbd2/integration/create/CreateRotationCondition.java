@@ -20,6 +20,9 @@ import net.minecraft.util.GsonHelper;
 
 import javax.annotation.Nonnull;
 
+/**
+ * Recipe condition that requires an attached Create kinetic trait to be within RPM and stress bounds.
+ */
 @Getter
 @NoArgsConstructor
 public class CreateRotationCondition extends RecipeCondition {

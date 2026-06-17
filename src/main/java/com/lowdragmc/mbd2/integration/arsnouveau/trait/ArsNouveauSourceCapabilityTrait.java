@@ -23,10 +23,20 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Machine trait that stores Ars Nouveau Source and exposes it to recipes, auto IO, and relays.
+ *
+ * <p>The backing {@link CopiableSourceStorage} is persisted and description-synced. Server load
+ * registers a special Source provider with Ars Nouveau's {@link SourceManager}; unload and removal
+ * invalidate that provider so relays stop targeting stale machines.</p>
+ */
 public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ArsNouveauSourceCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -51,10 +61,20 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         storage.addSource(getDefinition().getCapacity() / 2);
     }
 
+    /**
+     * Creates the mutable Source store for this trait.
+     *
+     * @return storage bounded by the definition capacity and transfer rate
+     */
     protected CopiableSourceStorage createStorage() {
         return new CopiableSourceStorage(getDefinition().getCapacity(), getDefinition().getTransferRate());
     }
 
+    /**
+     * Creates an IO-filtered relay endpoint for Ars Nouveau relay integration.
+     *
+     * @return Source wrapper respecting this trait's side-independent IO setting
+     */
     public ISourceTile getRelaySource() {
         return new SourceStorageWrapper(storage, getCapabilityIO(null));
     }
@@ -92,6 +112,13 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         sourceProviderValid = false;
     }
 
+    /**
+     * Moves Source to or from the adjacent Ars Nouveau source tile selected by auto IO.
+     *
+     * @param port machine port position
+     * @param side port side used to find the adjacent block entity
+     * @param io configured IO direction for this transfer pass
+     */
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
         Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
@@ -106,10 +133,20 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
                 });
     }
 
+    /**
+     * Converts a block entity into a Source tile when Ars Nouveau exposes one directly.
+     */
     private @Nullable ISourceTile asSourceTile(BlockEntity blockEntity) {
         return blockEntity instanceof ISourceTile sourceTile ? sourceTile : null;
     }
 
+    /**
+     * Transfers Source between two endpoints without exceeding either endpoint's capacity.
+     *
+     * @param source endpoint to drain
+     * @param target endpoint to fill
+     * @param maxAmount upper bound for the move
+     */
     private void moveSource(ISourceTile source, ISourceTile target, int maxAmount) {
         if (maxAmount <= 0 || !target.canAcceptSource()) return;
         int amount = Math.min(maxAmount, source.getSource());
@@ -119,11 +156,24 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         target.addSource(amount);
     }
 
+    /**
+     * Recipe handler that consumes Source from storage for inputs and fills storage for outputs.
+     */
     public class SourceRecipeHandler extends RecipeHandlerTrait<Integer> {
         protected SourceRecipeHandler() {
             super(ArsNouveauSourceCapabilityTrait.this, ArsNouveauSourceRecipeCapability.CAP);
         }
 
+        /**
+         * Handles integer Source requirements for one recipe pass.
+         *
+         * @param io recipe IO role
+         * @param recipe recipe being processed
+         * @param left remaining Source amounts to satisfy
+         * @param slotName optional recipe slot name for consumption tracking
+         * @param simulate whether to test without mutating storage
+         * @return unsatisfied amounts, or {@code null} when fully handled
+         */
         @Override
         public List<Integer> handleRecipeInner(IO io, MBDRecipe recipe, List<Integer> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;
@@ -147,17 +197,29 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         }
     }
 
+    /**
+     * Ars Nouveau special source provider registered while the machine is loaded on the server.
+     */
     public class MBDSourceProvider implements ISpecialSourceProvider {
+        /**
+         * Provides a current IO-filtered Source endpoint to Ars Nouveau.
+         */
         @Override
         public ISourceTile getSource() {
             return new SourceStorageWrapper(storage, getCapabilityIO(null));
         }
 
+        /**
+         * Checks whether the provider still points at a loaded, valid server-side machine.
+         */
         @Override
         public boolean isValid() {
             return sourceProviderValid && !getMachine().isInValid() && getMachine().getLevel() instanceof ServerLevel;
         }
 
+        /**
+         * Reports the machine position used by Ars Nouveau relay/source scanning.
+         */
         @Override
         public BlockPos getCurrentPos() {
             return getMachine().getPos();

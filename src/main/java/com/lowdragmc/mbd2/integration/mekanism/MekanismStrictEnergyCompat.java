@@ -15,6 +15,9 @@ import java.math.BigInteger;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Reflection-based bridge for Mekanism strict energy handlers without a hard API dependency.
+ */
 public final class MekanismStrictEnergyCompat {
     private static final String MODID = "mekanism";
     private static final String CAPABILITIES_CLASS = "mekanism.common.capabilities.Capabilities";
@@ -145,6 +148,9 @@ public final class MekanismStrictEnergyCompat {
         }
     }
 
+    /**
+     * Access adapter used by dynamic Mekanism strict energy handler proxies.
+     */
     public interface StrictLongAccess {
         long getEnergyStored(Object container);
 
@@ -261,8 +267,10 @@ public final class MekanismStrictEnergyCompat {
             String name = method.getName();
             return switch (name) {
                 case "getEnergyContainerCount" -> 1;
-                case "getEnergy" -> (int) args[0] == 0 ? joulesFromFe(access.getEnergyStored(container)) : floatingLongZero();
-                case "getMaxEnergy" -> (int) args[0] == 0 ? joulesFromFe(access.getEnergyCapacity(container)) : floatingLongZero();
+                case "getEnergy" ->
+                        (int) args[0] == 0 ? joulesFromFe(access.getEnergyStored(container)) : floatingLongZero();
+                case "getMaxEnergy" ->
+                        (int) args[0] == 0 ? joulesFromFe(access.getEnergyCapacity(container)) : floatingLongZero();
                 case "getNeededEnergy" -> {
                     if ((int) args[0] != 0) yield floatingLongZero();
                     long stored = access.getEnergyStored(container);

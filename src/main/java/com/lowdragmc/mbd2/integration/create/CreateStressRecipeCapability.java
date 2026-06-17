@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Create stress units consumed or produced by kinetic machines.
+ */
 public class CreateStressRecipeCapability extends RecipeCapability<Float> {
     public final static CreateStressRecipeCapability CAP = new CreateStressRecipeCapability();
 

@@ -31,6 +31,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Persisted graph-event configuration for machine definitions.
+ * <p>
+ * The config maps LDL-registered machine event classes to serialized
+ * {@link BaseGraph} instances. At runtime, posted {@link MachineEvent}s are
+ * routed into the matching graph processor before other event integrations can
+ * inspect the mutated event.
+ * <p>
+ * Thread safety: graph maps and processor cache are mutable editor/runtime
+ * state and are expected to be accessed from the logical thread that is posting
+ * or editing events.
+ */
 @Getter
 public class ConfigMachineEvents implements IConfigurable, IPersistedSerializable {
 
@@ -39,10 +51,19 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
     @NumberRange(range = {1, Integer.MAX_VALUE})
     private int fixedTickInterval = 20;
 
+    /**
+     * Sets the fixed-tick interval used by {@link com.lowdragmc.mbd2.common.machine.MBDMachine}.
+     *
+     * @param fixedTickInterval requested interval in ticks; values below
+     *                          {@code 1} are clamped to {@code 1}
+     */
     public void setFixedTickInterval(int fixedTickInterval) {
         this.fixedTickInterval = Math.max(1, fixedTickInterval);
     }
 
+    /**
+     * Available event classes keyed by LDL register name.
+     */
     public final Map<String, Class<? extends MachineEvent>> machineEvents = new HashMap<>();
 
     // graph
@@ -51,12 +72,24 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
     // runtime
     private final Map<Class<? extends MachineEvent>, MachineEventGraphProcessor> processorCache = new HashMap<>();
 
+    /**
+     * Adds all machine event classes registered in an LDL event group.
+     *
+     * @param group LDL event group name, for example {@code MachineEvent}
+     * @return this config for chaining
+     */
     public ConfigMachineEvents registerEventGroup(String group) {
         Optional.ofNullable(MBDLDLibPlugin.REGISTER_MACHINE_EVENTS.get(group))
                 .ifPresent(l -> l.forEach(clazz -> machineEvents.put(clazz.getAnnotation(LDLRegister.class).name(), clazz)));
         return this;
     }
 
+    /**
+     * Runs the configured graph for an event if one exists.
+     *
+     * @param event mutable event object whose graph parameters will be bound and
+     *              gathered by the processor
+     */
     public void postGraphEvent(MachineEvent event) {
         var eventClazz = event.getClass();
         if (!eventGraphs.containsKey(eventClazz)) {
@@ -131,9 +164,9 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
                 }
             });
             var backgroundImage = new ImageWidget(0, 2, 80, 11, () -> {
-                if (eventGraphs.containsKey(clazz) ) {
+                if (eventGraphs.containsKey(clazz)) {
                     return panel != null && panel.getCurrentGraph() == eventGraphs.get(clazz) ?
-                            ColorPattern.GREEN.rectTexture().setRadius(5):
+                            ColorPattern.GREEN.rectTexture().setRadius(5) :
                             ColorPattern.YELLOW.rectTexture().setRadius(5);
                 } else {
                     return ColorPattern.T_GRAY.rectTexture().setRadius(5);
@@ -163,7 +196,7 @@ public class ConfigMachineEvents implements IConfigurable, IPersistedSerializabl
                     return "config.machine_event.graph.add";
                 }
             }));
-            
+
             var wrapper = new WrapperConfigurator(eventName, new WidgetGroup(0, 0, 180, 11)
                     .addWidget(backgroundImage)
                     .addWidget(editButton)

@@ -24,10 +24,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Predicate;
 
+/**
+ * Persisted Mekanism chemical tank storage with copy support for recipe simulation.
+ */
 public abstract class ChemicalStorage<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> extends BasicChemicalTank<CHEMICAL, STACK> implements IContentChangeAware, ITagSerializable<CompoundTag> {
     @Getter
     @Setter
-    private Runnable onContentsChanged = () -> {};
+    private Runnable onContentsChanged = () -> {
+    };
     public final Predicate<@NotNull CHEMICAL> validator;
     @Nullable
     public final ChemicalAttributeValidator attributeValidator;
@@ -79,7 +83,7 @@ public abstract class ChemicalStorage<CHEMICAL extends Chemical<CHEMICAL>, STACK
 
         @Override
         public Gas copy() {
-            var copied= new Gas(getCapacity(), validator, attributeValidator);
+            var copied = new Gas(getCapacity(), validator, attributeValidator);
             copied.setStack(getStack());
             return copied;
         }
@@ -112,7 +116,7 @@ public abstract class ChemicalStorage<CHEMICAL extends Chemical<CHEMICAL>, STACK
 
         @Override
         public Infuse copy() {
-            var copied= new Infuse(getCapacity(), validator, attributeValidator);
+            var copied = new Infuse(getCapacity(), validator, attributeValidator);
             copied.setStack(getStack());
             return copied;
         }
@@ -145,7 +149,7 @@ public abstract class ChemicalStorage<CHEMICAL extends Chemical<CHEMICAL>, STACK
 
         @Override
         public Pigment copy() {
-            var copied= new Pigment(getCapacity(), validator, attributeValidator);
+            var copied = new Pigment(getCapacity(), validator, attributeValidator);
             copied.setStack(getStack());
             return copied;
         }
@@ -178,7 +182,7 @@ public abstract class ChemicalStorage<CHEMICAL extends Chemical<CHEMICAL>, STACK
 
         @Override
         public Slurry copy() {
-            var copied= new Slurry(getCapacity(), validator, attributeValidator);
+            var copied = new Slurry(getCapacity(), validator, attributeValidator);
             copied.setStack(getStack());
             return copied;
         }

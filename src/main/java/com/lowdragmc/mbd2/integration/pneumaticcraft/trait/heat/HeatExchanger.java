@@ -7,10 +7,14 @@ import lombok.Setter;
 import me.desht.pneumaticcraft.common.heat.HeatExchangerLogicTicking;
 import net.minecraft.nbt.CompoundTag;
 
+/**
+ * Serializable PneumaticCraft heat exchanger that reports temperature changes to trait listeners.
+ */
 public class HeatExchanger extends HeatExchangerLogicTicking implements ITagSerializable<CompoundTag>, IContentChangeAware {
     @Setter
     @Getter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
 
     @Override
     public void setTemperature(double temperature) {

@@ -10,6 +10,9 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Vector3f;
 
+/**
+ * Client-side Photon effect wrapper that tracks an effect by machine and identifier.
+ */
 @OnlyIn(Dist.CLIENT)
 public class MachineFX extends FXEffect {
     public final String identifier;
@@ -48,7 +51,7 @@ public class MachineFX extends FXEffect {
         fxs.put(identifier, this);
 
         var pos = machine.getPos();
-        root.updatePos((new Vector3f((float)pos.getX(), (float)pos.getY(), (float)pos.getZ())).add(this.offset.x + 0.5F, this.offset.y + 0.5F, this.offset.z + 0.5F));
+        root.updatePos((new Vector3f((float) pos.getX(), (float) pos.getY(), (float) pos.getZ())).add(this.offset.x + 0.5F, this.offset.y + 0.5F, this.offset.z + 0.5F));
         root.updateRotation(this.rotation);
         root.updateScale(this.scale);
         this.runtime.emmit(this);

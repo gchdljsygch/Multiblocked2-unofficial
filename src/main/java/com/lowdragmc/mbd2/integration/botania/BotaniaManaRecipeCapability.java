@@ -20,10 +20,14 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Botania mana amounts.
+ */
 public class BotaniaManaRecipeCapability extends RecipeCapability<Integer> {
     public final static BotaniaManaRecipeCapability CAP = new BotaniaManaRecipeCapability();
-    public final static ResourceTexture HUD_BACKGROUND= new ResourceTexture("mbd2:textures/gui/mana_hud.png").getSubTexture(0, 0, 1, 0.5);
-    public final static ResourceTexture HUD_BAR= new ResourceTexture("mbd2:textures/gui/mana_hud.png").getSubTexture(0, 0.5, 1, 0.5);
+    public final static ResourceTexture HUD_BACKGROUND = new ResourceTexture("mbd2:textures/gui/mana_hud.png").getSubTexture(0, 0, 1, 0.5);
+    public final static ResourceTexture HUD_BAR = new ResourceTexture("mbd2:textures/gui/mana_hud.png").getSubTexture(0, 0.5, 1, 0.5);
+
     protected BotaniaManaRecipeCapability() {
         super("botania_mana", SerializerInteger.INSTANCE);
     }

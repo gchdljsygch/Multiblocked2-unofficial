@@ -13,8 +13,20 @@ import org.spongepowered.asm.mixin.Mixin;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Exposes MBD machine block entities as Mana and Artifice Eldrin capacitors.
+ *
+ * <p>The implementation is a thin adapter over {@link ManaAndArtificeEldrinCapabilityTrait}.
+ * Machines without that trait return empty, zero, or non-sharing defaults so Mana and Artifice can
+ * safely query every machine block entity through {@link IEldrinCapacitorTile}.</p>
+ */
 @Mixin(value = com.lowdragmc.mbd2.common.blockentity.MachineBlockEntity.class, remap = false)
 public abstract class MachineBlockEntityEldrinMixin implements IEldrinCapacitorTile {
+    /**
+     * Looks up the Eldrin trait attached to this machine block entity.
+     *
+     * @return trait instance, or {@code null} when this machine does not expose Eldrin power
+     */
     private ManaAndArtificeEldrinCapabilityTrait mbd2$eldrin() {
         return ManaAndArtificeEldrinCompat.getTrait((BlockEntity) (Object) this);
     }

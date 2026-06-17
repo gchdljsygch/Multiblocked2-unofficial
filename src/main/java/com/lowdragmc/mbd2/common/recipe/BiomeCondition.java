@@ -22,6 +22,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -35,8 +36,17 @@ import java.util.function.Consumer;
 public class BiomeCondition extends RecipeCondition {
 
     public final static BiomeCondition INSTANCE = new BiomeCondition();
-    private ResourceLocation biome = new ResourceLocation("dummy");
+    private static final ResourceLocation DUMMY_BIOME = Objects.requireNonNull(ResourceLocation.tryParse("minecraft:dummy"));
+    private ResourceLocation biome = DUMMY_BIOME;
 
+    /**
+     * Creates a recipe condition that requires the machine to be in a specific biome.
+     * <p>
+     * The biome id is stored as-is and resolved during {@link #test(MBDRecipe, RecipeLogic)} through the machine's
+     * current level. The condition fails when the machine has no level.
+     *
+     * @param biome biome registry id to require
+     */
     public BiomeCondition(ResourceLocation biome) {
         this.biome = biome;
     }
@@ -70,15 +80,14 @@ public class BiomeCondition extends RecipeCondition {
     @Override
     public RecipeCondition deserialize(@Nonnull JsonObject config) {
         super.deserialize(config);
-        biome = new ResourceLocation(
-                GsonHelper.getAsString(config, "biome", "dummy"));
+        biome = parseBiome(GsonHelper.getAsString(config, "biome", "dummy"));
         return this;
     }
 
     @Override
     public RecipeCondition fromNetwork(FriendlyByteBuf buf) {
         super.fromNetwork(buf);
-        biome = new ResourceLocation(buf.readUtf());
+        biome = parseBiome(buf.readUtf());
         return this;
     }
 
@@ -98,7 +107,7 @@ public class BiomeCondition extends RecipeCondition {
     @Override
     public RecipeCondition fromNBT(CompoundTag tag) {
         super.fromNBT(tag);
-        biome = new ResourceLocation(tag.getString("biome"));
+        biome = parseBiome(tag.getString("biome"));
         return this;
     }
 
@@ -108,7 +117,7 @@ public class BiomeCondition extends RecipeCondition {
         var selector = new SearchComponentConfigurator<>(getTranslationKey(),
                 () -> this.biome,
                 b -> this.biome = b,
-                new ResourceLocation("dummy"),
+                DUMMY_BIOME,
                 true,
                 this::search,
                 ResourceLocation::toString
@@ -118,6 +127,20 @@ public class BiomeCondition extends RecipeCondition {
         father.addConfigurators(selector);
     }
 
+    private static ResourceLocation parseBiome(String raw) {
+        var parsed = ResourceLocation.tryParse(raw);
+        return parsed == null ? DUMMY_BIOME : parsed;
+    }
+
+    /**
+     * Searches loaded biome registry keys for the editor selector.
+     * <p>
+     * This method is client-only because it reads {@link Minecraft#getInstance()} registry access. It cooperates with
+     * asynchronous search cancellation by returning when the current thread is interrupted.
+     *
+     * @param word case-insensitive substring to match against biome ids
+     * @param find callback receiving matching biome ids
+     */
     protected void search(String word, Consumer<ResourceLocation> find) {
         var wordLower = word.toLowerCase();
         for (var biomeEntry : Minecraft.getInstance().level.registryAccess().registry(Registries.BIOME).get().keySet()) {

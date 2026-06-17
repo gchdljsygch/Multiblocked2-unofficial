@@ -33,6 +33,15 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Editable definition for fluid tank traits.
+ *
+ * <p>The business goal is to configure machine fluid tank count, per-tank
+ * capacity, fluid filters, GUI tanks, automatic neighboring fluid transfer,
+ * source-block pickup/placement ranges, and optional fluid rendering. Instances
+ * are mutable editor state and should be treated as read-only by runtime
+ * {@link FluidTankCapabilityTrait} instances.</p>
+ */
 @LDLRegister(name = "fluid_tank", group = "trait", priority = -100)
 public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
 
@@ -66,21 +75,48 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
             tips = {"config.definition.trait.fluid_tank.fancy_renderer.tooltip.0", "config.definition.trait.fluid_tank.fancy_renderer.tooltip.1"})
     private final FluidFancyRendererSettings fancyRendererSettings = new FluidFancyRendererSettings(this);
 
+    /**
+     * Creates the runtime fluid tank trait for a machine.
+     *
+     * @param machine machine that will own the fluid tanks
+     * @return new fluid tank capability trait
+     */
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {
         return new FluidTankCapabilityTrait(machine, this);
     }
 
+    /**
+     * Returns the editor icon for fluid tank traits.
+     *
+     * @return water bucket texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(Items.WATER_BUCKET);
     }
 
+    /**
+     * Returns the optional block-entity fluid renderer configured by this
+     * definition.
+     *
+     * @param machine machine whose renderer is being requested
+     * @return renderer from {@link FluidFancyRendererSettings}
+     */
     @Override
     public IRenderer getBESRenderer(IMachine machine) {
         return fancyRendererSettings.getFancyRenderer(machine);
     }
 
+    /**
+     * Creates the default ModularUI tank template for this fluid storage.
+     *
+     * <p>Side effects: adds {@link TankWidget} instances to {@code ui}. Tank ids
+     * use this definition's UI prefix plus a zero-based index so
+     * {@link #initTraitUI(ITrait, WidgetGroup)} can bind runtime tanks later.</p>
+     *
+     * @param ui mutable UI group receiving template tanks
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var prefix = uiPrefixName();
@@ -96,6 +132,16 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
         }
     }
 
+    /**
+     * Binds runtime fluid tanks to template tank widgets.
+     *
+     * <p>Side effects: mutates matching {@link TankWidget}s by assigning storage,
+     * recipe-viewer role, and click fill/drain permissions based on configured
+     * GUI IO.</p>
+     *
+     * @param trait runtime trait instance
+     * @param group UI group containing template tank widgets
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof FluidTankCapabilityTrait fluidTankTrait) {
@@ -114,6 +160,15 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
         }
     }
 
+    /**
+     * Draws auto-world-IO ranges in the editor preview.
+     *
+     * <p>Client-side only. Side effects are limited to OpenGL/render-state changes
+     * and drawing colored range frames: orange for fluid output and blue for fluid
+     * input.</p>
+     *
+     * @param panel trait panel currently rendering this definition
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void renderAfterWorldInTraitPanel(MachineTraitPanel panel) {
@@ -136,8 +191,8 @@ public class FluidTankCapabilityTraitDefinition extends SimpleCapabilityTraitDef
         if (autoOutput.enable) {
             var color = 0xffee6500;
             RenderBufferUtils.drawCubeFrame(poseStack, buffer,
-                    (float)autoOutput.range.minX, (float)autoOutput.range.minY, (float)autoOutput.range.minZ,
-                    (float)autoOutput.range.maxX, (float)autoOutput.range.maxY, (float)autoOutput.range.maxZ,
+                    (float) autoOutput.range.minX, (float) autoOutput.range.minY, (float) autoOutput.range.minZ,
+                    (float) autoOutput.range.maxX, (float) autoOutput.range.maxY, (float) autoOutput.range.maxZ,
                     ColorUtils.red(color), ColorUtils.green(color), ColorUtils.blue(color), ColorUtils.alpha(color));
         }
 

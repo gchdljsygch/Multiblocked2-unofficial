@@ -33,11 +33,31 @@ public class MachineBlockEntity extends BlockEntity implements IMachineBlockEnti
     @Getter
     private IMachine metaMachine;
 
+    /**
+     * Creates a block entity and immediately attaches its machine facade.
+     * <p>
+     * The factory is invoked before the block entity has a level, so it must not depend on world access. Side effects:
+     * stores the returned machine as this holder's active {@link IMachine}.
+     *
+     * @param type           registered block entity type
+     * @param pos            world position of this block entity
+     * @param blockState     current block state
+     * @param machineFactory factory that creates the machine bound to this holder
+     */
     public MachineBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState blockState, Function<IMachineBlockEntity, IMachine> machineFactory) {
         super(type, pos, blockState);
         this.setMachine(machineFactory.apply(this));
     }
 
+    /**
+     * Replaces the machine facade owned by this block entity.
+     * <p>
+     * Replacing a live server-side machine calls {@link IMachine#onUnload()} on the old instance. If the previous machine
+     * is an {@link MBDMachine}, it is also detached from this holder before the new machine is stored. The method is not
+     * synchronized and should be called from the level thread or during controlled preview setup.
+     *
+     * @param newMachine machine facade to attach; passing the current instance is a no-op
+     */
     public void setMachine(IMachine newMachine) {
         if (metaMachine == newMachine) return;
         if (metaMachine != null && level != null && !level.isClientSide) {

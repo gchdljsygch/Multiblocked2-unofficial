@@ -30,6 +30,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Block entity that combines MBD machine lifecycle/capabilities with Create kinetic network behavior.
+ */
 public class MBDKineticMachineBlockEntity extends KineticBlockEntity implements IMachineBlockEntity {
     @Getter
     public final MultiManagedStorage rootStorage = new MultiManagedStorage();
@@ -40,6 +43,7 @@ public class MBDKineticMachineBlockEntity extends KineticBlockEntity implements 
     public float workingSpeed;
     public boolean reActivateSource;
     public CreateKineticMachineDefinition definition;
+
     public MBDKineticMachineBlockEntity(CreateKineticMachineDefinition definition, BlockEntityType<?> type, BlockPos pos, BlockState blockState, Function<IMachineBlockEntity, IMachine> machineFactory) {
         super(type, pos, blockState);
         this.setMachine(machineFactory.apply(this));
@@ -105,7 +109,8 @@ public class MBDKineticMachineBlockEntity extends KineticBlockEntity implements 
 
     //////////////////////////////////////
     // ********* Create *********//
-    //////////////////////////////////////
+
+    /// ///////////////////////////////////
 
     public KineticEffectHandler getEffects() {
         return effects;

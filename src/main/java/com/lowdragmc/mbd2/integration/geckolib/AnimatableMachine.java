@@ -13,6 +13,9 @@ import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 import software.bernie.geckolib.util.RenderUtils;
 
+/**
+ * GeckoLib animatable facade that binds animation controllers to an MBD machine instance.
+ */
 public class AnimatableMachine implements GeoAnimatable {
     private static final double PAUSED_RENDER_GAP_TICKS = 20;
     private static final double MAX_PAUSED_GAME_TICK_GAP = 1;

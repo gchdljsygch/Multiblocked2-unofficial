@@ -12,10 +12,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Multi-affinity Eldrin power storage that can be copied for recipe simulation.
+ */
 public class CopiableEldrinPowerStorage implements ITagSerializable<CompoundTag>, IContentChangeAware {
     @Getter
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
 
     private final EnumMap<Affinity, Float> power = new EnumMap<>(Affinity.class);
     private float capacity;

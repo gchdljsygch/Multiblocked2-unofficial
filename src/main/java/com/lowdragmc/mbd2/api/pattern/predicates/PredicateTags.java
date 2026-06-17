@@ -26,18 +26,42 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Predicate that accepts blocks belonging to one or more block tags.
+ *
+ * <p>The business goal is to allow flexible pattern definitions such as "any
+ * sand" or "any log" without enumerating every block. Candidate lists are
+ * resolved from the block registry tags and therefore reflect the current mod
+ * list. Instances are mutable through the editor and rebuild their matcher when
+ * tag IDs change.</p>
+ */
 @LDLRegister(name = "tags", group = "predicate")
 @NoArgsConstructor
 public class PredicateTags extends SimplePredicate {
 
     @Persisted
-    protected ResourceLocation[] tags = new ResourceLocation[] {};
+    protected ResourceLocation[] tags = new ResourceLocation[]{};
 
+    /**
+     * Creates a tag predicate.
+     *
+     * @param tags accepted block tag IDs; null entries are discarded during
+     *             rebuild
+     */
     public PredicateTags(ResourceLocation... tags) {
         this.tags = tags;
         buildPredicate();
     }
 
+    /**
+     * Rebuilds the tag matcher and candidates.
+     *
+     * <p>Side effects: removes null tag IDs, installs the sand tag as an editor
+     * fallback when empty, resolves tag keys, and updates inherited preview
+     * state.</p>
+     *
+     * @return this predicate for chaining
+     */
     @Override
     public SimplePredicate buildPredicate() {
         tags = Arrays.stream(tags).filter(Objects::nonNull).toArray(ResourceLocation[]::new);
@@ -54,6 +78,12 @@ public class PredicateTags extends SimplePredicate {
         return super.buildPredicate();
     }
 
+    /**
+     * Builds tooltip lines for this tag predicate.
+     *
+     * @param predicates owning composite predicate
+     * @return inherited predicate tooltips plus all configured tag IDs
+     */
     @Override
     public List<Component> getToolTips(TraceabilityPredicate predicates) {
         var result = new ArrayList<>(super.getToolTips(predicates));
@@ -63,6 +93,16 @@ public class PredicateTags extends SimplePredicate {
         return result;
     }
 
+    /**
+     * Builds tooltip lines for a specific displayed candidate.
+     *
+     * <p>When the candidate belongs to configured tags, only matching tag IDs are
+     * shown; otherwise all configured tags are shown as fallback context.</p>
+     *
+     * @param predicates owning composite predicate
+     * @param stack      displayed candidate stack
+     * @return inherited predicate tooltips plus relevant tag IDs
+     */
     @Override
     public List<Component> getCandidateToolTips(TraceabilityPredicate predicates, ItemStack stack) {
         var result = new ArrayList<>(super.getToolTips(predicates));
@@ -91,6 +131,14 @@ public class PredicateTags extends SimplePredicate {
                 Component.literal("#" + tag)));
     }
 
+    /**
+     * Adds editor controls for block-tag IDs.
+     *
+     * <p>Side effects: appends a searchable array configurator that mutates the
+     * tag list and rebuilds the predicate on add, remove, or update.</p>
+     *
+     * @param father parent configurator group receiving child controls
+     */
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         super.buildConfigurator(father);
@@ -105,7 +153,8 @@ public class PredicateTags extends SimplePredicate {
                         if (tagKey.toString().toLowerCase().contains(word.toLowerCase())) {
                             find.accept(tagKey);
                         }
-                    }}, ResourceLocation::toString), true);
+                    }
+                }, ResourceLocation::toString), true);
         tagsConfigurator.setAddDefault(BlockTags.SAND::location);
         tagsConfigurator.setOnAdd(value -> {
             tags = Arrays.copyOf(this.tags, this.tags.length + 1);

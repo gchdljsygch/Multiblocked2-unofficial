@@ -7,6 +7,14 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Toggle wrapper for a max-parallel recipe modifier.
+ * <p>
+ * When enabled, {@link #maxParallel} is used as a positive multiplier/limit for
+ * recipe parallelism. {@link #modifyDuration} controls whether increasing
+ * parallelism also modifies recipe duration in systems that support that
+ * behavior.
+ */
 @Setter
 @Getter
 public class ToggleParallelValue implements IToggleConfigurable {
@@ -23,6 +31,9 @@ public class ToggleParallelValue implements IToggleConfigurable {
     @Configurable(name = "config.machine_settings.modify_duration", tips = "config.machine_settings.modify_duration.tooltip")
     private boolean modifyDuration = false;
 
+    /**
+     * Creates a disabled parallel-value toggle with max parallel {@code 1}.
+     */
     public ToggleParallelValue() {
         enable = false;
     }

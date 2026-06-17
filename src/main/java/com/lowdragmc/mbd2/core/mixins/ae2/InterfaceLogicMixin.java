@@ -24,6 +24,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Replaces AE2 interface storage updates with a long-count-safe implementation.
+ *
+ * <p>MBD's AE2 traits can expose recipe buffers with amounts beyond vanilla item-stack sizes.
+ * This mixin intercepts {@code InterfaceLogic.updateStorage} so planned work is processed using
+ * {@code long} amounts all the way through network insertion, extraction, fuzzy matching, and
+ * crafting-card requests. It mutates the interface's storage inventory and may issue AE2 network
+ * operations, so it must run on AE2's normal server tick path.</p>
+ */
 @Mixin(InterfaceLogic.class)
 public class InterfaceLogicMixin {
     @Shadow(remap = false)
@@ -51,6 +60,11 @@ public class InterfaceLogicMixin {
     @Final
     private ConfigInventory storage;
 
+    /**
+     * Processes every planned interface slot with MBD's long amount handling.
+     *
+     * @param cir callback receiving whether any slot changed; vanilla logic is bypassed
+     */
     @Inject(method = "updateStorage", at = @At("HEAD"), cancellable = true, remap = false)
     private void mbd2$updateStorageWithLongAmounts(CallbackInfoReturnable<Boolean> cir) {
         boolean didSomething = false;
@@ -65,6 +79,14 @@ public class InterfaceLogicMixin {
         cir.setReturnValue(didSomething);
     }
 
+    /**
+     * Applies one planned-work entry and refreshes AE2's plan when it changed.
+     *
+     * @param slot   storage slot associated with the planned work
+     * @param what   AE key to move or craft
+     * @param amount planned amount; negative values push stored contents back to the network
+     * @return whether the slot's plan or contents changed
+     */
     @Unique
     private boolean mbd2$usePlan(int slot, AEKey what, long amount) {
         boolean changed = mbd2$tryUsePlan(slot, what, amount);
@@ -74,6 +96,18 @@ public class InterfaceLogicMixin {
         return changed;
     }
 
+    /**
+     * Executes the AE2 interface transfer rules for a single planned slot.
+     *
+     * <p>Positive amounts pull from the network or request crafting, while negative amounts insert
+     * matching stored contents back into the network. Fuzzy-card behavior is preserved for empty
+     * slots by searching AE2's cached inventory.</p>
+     *
+     * @param slot   interface storage slot
+     * @param what   requested AE key
+     * @param amount requested amount; {@link Long#MIN_VALUE} is treated as maximum positive amount
+     * @return whether storage, network contents, or crafting state changed
+     */
     @Unique
     private boolean mbd2$tryUsePlan(int slot, AEKey what, long amount) {
         var grid = mainNode.getGrid();
@@ -127,6 +161,17 @@ public class InterfaceLogicMixin {
         return false;
     }
 
+    /**
+     * Pulls a requested key from the network and inserts it into the interface slot.
+     *
+     * @param energySrc  AE2 energy service used to power extraction
+     * @param networkInv network storage inventory
+     * @param slot       destination interface storage slot
+     * @param what       requested AE key
+     * @param amount     maximum amount to acquire
+     * @return {@code true} when any amount was extracted from the network
+     * @throws IllegalStateException if AE2 reports extracted contents that cannot fit the slot
+     */
     @Unique
     private boolean mbd2$acquireFromNetwork(IEnergyService energySrc, MEStorage networkInv, int slot, AEKey what,
                                             long amount) {
@@ -141,6 +186,14 @@ public class InterfaceLogicMixin {
         return false;
     }
 
+    /**
+     * Delegates a missing planned key to AE2's crafting tracker when a crafting card is installed.
+     *
+     * @param slot   interface storage slot
+     * @param key    requested AE key
+     * @param amount requested amount
+     * @return whether AE2 accepted or progressed a crafting request
+     */
     @Unique
     private boolean mbd2$handleCrafting(int slot, AEKey key, long amount) {
         var grid = mainNode.getGrid();

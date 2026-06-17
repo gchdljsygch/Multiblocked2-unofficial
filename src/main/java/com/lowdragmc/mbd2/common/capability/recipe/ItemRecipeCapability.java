@@ -41,9 +41,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * @author KilaBash
- * @date 2023/2/20
- * @implNote ItemRecipeCapability
+ * Recipe capability descriptor for item ingredients.
+ *
+ * <p>The capability normalizes item content through {@link SerializerIngredient}, renders item/tag/NBT ingredients in
+ * recipe editors and XEI views, and provides configurators for sized vanilla and strict-NBT ingredients. Editor
+ * configurators mutate the supplied ingredient object and invalidate its cached stacks where necessary; recipe
+ * handling itself is performed by item traits.</p>
  */
 public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
     public static final String VANILLA_TYPE = "recipe.capability.item.ingredient.type.vanilla";
@@ -54,21 +57,40 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
 
     public final static ItemRecipeCapability CAP = new ItemRecipeCapability();
 
+    /**
+     * Creates the singleton item recipe capability.
+     */
     protected ItemRecipeCapability() {
         super("item", SerializerIngredient.INSTANCE);
     }
 
+    /**
+     * Returns a representative one-item ingredient for editor initialization.
+     *
+     * @return sized iron ingot ingredient with amount {@code 1}
+     */
     @Override
     public Ingredient createDefaultContent() {
         return SizedIngredient.create(Ingredient.of(Items.IRON_INGOT));
     }
 
+    /**
+     * Creates a cycling item-slot preview for the ingredient.
+     *
+     * @param content item ingredient to preview
+     * @return newly created slot widget that does not allow interaction
+     */
     @Override
     public Widget createPreviewWidget(Ingredient content) {
         var transfer = new CycleItemStackHandler(List.of(List.of(content.getItems())));
         return new SlotWidget(transfer, 0, 0, 0, false, false).setDrawHoverOverlay(false).setBackgroundTexture(null);
     }
 
+    /**
+     * Creates an item slot template for recipe viewers.
+     *
+     * @return unbound XEI slot widget
+     */
     @Override
     public Widget createXEITemplate() {
         var slotWidget = new SlotWidget();
@@ -76,6 +98,16 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
         return slotWidget;
     }
 
+    /**
+     * Binds an item ingredient to a recipe-viewer slot.
+     *
+     * <p>Tag-only ingredients are exposed as tag entries with their sized amount; all other ingredients are exposed as
+     * cycling item stacks. The method mutates only the supplied widget.</p>
+     *
+     * @param widget       slot widget created by {@link #createXEITemplate()}
+     * @param content      recipe content wrapper containing an item ingredient
+     * @param ingredientIO viewer role for input/output display
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof SlotWidget slotWidget) {
@@ -116,6 +148,16 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
         }
     }
 
+    /**
+     * Creates editor configurators for amount, ingredient type, item/tag candidates, and optional strict NBT.
+     *
+     * <p>Generated controls expect mutable vanilla ingredient accessors from the project's mixins. Updates should run
+     * on the client/editor thread and call {@code onUpdate} when the outer ingredient object changes.</p>
+     *
+     * @param father   parent configurator group
+     * @param supplier current ingredient supplier
+     * @param onUpdate callback receiving updated ingredient content
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<Ingredient> supplier, Consumer<Ingredient> onUpdate) {
         // sized ingredient amount
@@ -207,7 +249,8 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                                     if (tagKey.toString().toLowerCase().contains(word.toLowerCase())) {
                                         find.accept(tagKey);
                                     }
-                                }}, ResourceLocation::toString));
+                                }
+                            }, ResourceLocation::toString));
                         }
                         valueGroup.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", slot));
                     });
@@ -248,7 +291,7 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                 Consumer<ItemStack> updateStack = stack -> {
                     accessor.setStack(stack);
                     itemHandler.setStackInSlot(0, stack);
-                    ((IngredientAccessor)accessor).setItemStacks(null);
+                    ((IngredientAccessor) accessor).setItemStacks(null);
                     if (supplier.get() instanceof SizedIngredient sizedIngredient) {
                         sizedIngredient.updateInnerIngredient(ingredient);
                     }
@@ -285,6 +328,12 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
         }));
     }
 
+    /**
+     * Builds a human-readable message for unsatisfied item ingredients.
+     *
+     * @param left remaining item ingredients after recipe matching
+     * @return component listing amount, first display stack, and NBT requirement where present
+     */
     @Override
     public Component getLeftErrorInfo(List<Ingredient> left) {
         var result = Component.empty();

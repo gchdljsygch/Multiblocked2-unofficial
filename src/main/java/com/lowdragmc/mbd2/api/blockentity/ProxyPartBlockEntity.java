@@ -17,9 +17,12 @@ import net.minecraftforge.registries.RegistryObject;
 import javax.annotation.Nullable;
 
 /**
- * @author KilaBash
- * @implNote It is used to replace the non mbd blocks that do not need to be rendered after forming in the multiblock structure,
- * and to restore the original blocks when the structure invalid.
+ * Block entity for a proxy block that temporarily stands in for a non-MBD multiblock part.
+ *
+ * <p>The business goal is to hide or custom-render original blocks while a multiblock is formed, without losing the
+ * original block state or block entity NBT. When the structure invalidates, {@link #restoreOriginalBlock()} writes the
+ * captured block and data back into the world. World mutations are server-side operations; client sync only mirrors
+ * the captured state for rendering.</p>
  */
 public class ProxyPartBlockEntity extends BlockEntity {
     @Getter
@@ -27,6 +30,12 @@ public class ProxyPartBlockEntity extends BlockEntity {
     private boolean isAsyncSyncing = false;
 
     public static RegistryObject<BlockEntityType<ProxyPartBlockEntity>> TYPE;
+
+    /**
+     * Returns the registered block entity type for proxy parts.
+     *
+     * @return proxy part block entity type
+     */
     public static BlockEntityType<?> TYPE() {
         return TYPE.get();
     }
@@ -41,10 +50,21 @@ public class ProxyPartBlockEntity extends BlockEntity {
     @Getter
     private BlockPos controllerPos;
 
+    /**
+     * Creates a proxy block entity at a world position.
+     *
+     * @param pPos        block position
+     * @param pBlockState proxy block state
+     */
     public ProxyPartBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(TYPE(), pPos, pBlockState);
     }
 
+    /**
+     * Updates only the controller reference and syncs clients when changed.
+     *
+     * @param controllerPos controller that owns this proxy block
+     */
     public void setControllerData(BlockPos controllerPos) {
         if (this.controllerPos != controllerPos) {
             this.controllerPos = controllerPos;
@@ -52,6 +72,15 @@ public class ProxyPartBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Captures the original block state, optional block entity NBT, and owning controller.
+     *
+     * <p>Side effects: updates this proxy's persisted fields and sends a sync packet when any reference changes.</p>
+     *
+     * @param originalState block state to restore later
+     * @param originalData  serialized block entity data to restore later, or {@code null}
+     * @param controllerPos owning controller position
+     */
     public void setOriginalData(BlockState originalState, CompoundTag originalData, BlockPos controllerPos) {
         if (this.originalState != originalState || this.originalData != originalData || this.controllerPos != controllerPos) {
             this.originalState = originalState;
@@ -62,7 +91,10 @@ public class ProxyPartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Place the original block back to the world. and restore the original block entity data.
+     * Places the captured original block back into the world and restores its block entity data.
+     *
+     * <p>Preconditions: call on the server side while {@link #level} is non-null. If no original state was captured,
+     * this method does nothing.</p>
      */
     public void restoreOriginalBlock() {
         if (originalState != null) {
@@ -76,6 +108,11 @@ public class ProxyPartBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Saves captured original block data into chunk NBT.
+     *
+     * @param tag destination tag
+     */
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
@@ -92,6 +129,11 @@ public class ProxyPartBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Loads captured original block data from chunk NBT.
+     *
+     * @param tag source tag
+     */
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
@@ -110,6 +152,11 @@ public class ProxyPartBlockEntity extends BlockEntity {
 
     }
 
+    /**
+     * Builds the client update tag for proxy rendering.
+     *
+     * @return tag containing any captured original state/data and controller position
+     */
     @Override
     public CompoundTag getUpdateTag() {
         var tag = new CompoundTag();
@@ -129,11 +176,21 @@ public class ProxyPartBlockEntity extends BlockEntity {
         return tag;
     }
 
+    /**
+     * Creates a vanilla block entity update packet for client sync.
+     *
+     * @return update packet
+     */
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
+    /**
+     * Sends a block update packet for this proxy.
+     *
+     * <p>Side effects are server-side only. Flag {@code 11} refreshes clients and neighbor state.</p>
+     */
     public void sync() {
         if (level != null && !level.isClientSide) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 11);

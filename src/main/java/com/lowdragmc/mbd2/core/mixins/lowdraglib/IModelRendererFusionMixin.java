@@ -28,6 +28,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Adapts LDLib model rendering to Forge model data and MBD Fusion connection context.
+ *
+ * <p>The item-render overwrite protects LDLib's recursion guard with {@code finally}. The block
+ * model hook supplies Forge model data through {@link FusionModelDataHelper} so generated MBD
+ * renderers can participate in Fusion connected-model rendering.</p>
+ */
 @Mixin(IModelRenderer.class)
 public abstract class IModelRendererFusionMixin {
 
@@ -43,7 +50,17 @@ public abstract class IModelRendererFusionMixin {
     protected abstract BakedModel getItemBakedModel(ItemStack itemStack);
 
     /**
-     * @author use finally to restore LDLib item-render recursion guard.
+     * Renders an LDLib item model while always restoring the recursion guard.
+     *
+     * @param stack           rendered stack
+     * @param transformType   item display transform
+     * @param leftHand        whether the item is rendered in the left hand
+     * @param poseStack       current pose stack
+     * @param buffer          render buffer source
+     * @param combinedLight   packed light value
+     * @param combinedOverlay packed overlay value
+     * @param model           fallback baked model argument supplied by Minecraft
+     * @author pingsu
      * @reason LDLib leaves IItemRendererProvider.disabled enabled if item model baking/rendering throws.
      */
     @Overwrite(remap = false)
@@ -67,6 +84,16 @@ public abstract class IModelRendererFusionMixin {
         }
     }
 
+    /**
+     * Renders block-model quads with Forge model data from the current MBD renderer context.
+     *
+     * @param level block render level, nullable for item or preview contexts
+     * @param pos   block position, nullable outside world rendering
+     * @param state block state used for quad lookup
+     * @param side  face being queried, or {@code null} for general quads
+     * @param rand  random source supplied by the model renderer
+     * @param cir   callback receiving the computed quad list
+     */
     @Inject(method = "renderModel", at = @At("HEAD"), cancellable = true, remap = false)
     private void mbd2$renderWithForgeModelData(@Nullable BlockAndTintGetter level, @Nullable BlockPos pos, @Nullable BlockState state, @Nullable Direction side, RandomSource rand, CallbackInfoReturnable<List<BakedQuad>> cir) {
         var bakedModel = getBlockBakedModel(level, pos, state);

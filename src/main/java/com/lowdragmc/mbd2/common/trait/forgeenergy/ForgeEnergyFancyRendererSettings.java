@@ -25,6 +25,13 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Fancy renderer settings for Forge Energy traits.
+ *
+ * <p>The renderer draws stored FE as a colored cube in block space. When percent-height rendering is enabled, the
+ * cube height is proportional to {@code stored / capacity}. Rendering is client-only and reads the live energy
+ * storage from the bound machine trait.</p>
+ */
 public class ForgeEnergyFancyRendererSettings extends FancyRendererSettings {
     private final ForgeEnergyCapabilityTraitDefinition definition;
 
@@ -38,10 +45,20 @@ public class ForgeEnergyFancyRendererSettings extends FancyRendererSettings {
     @Configurable(name = "config.definition.trait.fancy_renderer.percent_height", tips = "config.definition.trait.fancy_renderer.percent_height.tooltip")
     private boolean percentHeight = false;
 
+    /**
+     * Creates energy renderer settings bound to one Forge Energy trait definition.
+     *
+     * @param definition definition whose runtime trait supplies the energy storage to render
+     */
     public ForgeEnergyFancyRendererSettings(ForgeEnergyCapabilityTraitDefinition definition) {
         this.definition = definition;
     }
 
+    /**
+     * Creates the cached Forge Energy renderer.
+     *
+     * @return renderer that draws the energy level for the bound definition
+     */
     public IRenderer createFancyRenderer() {
         return new ForgeEnergyFancyRendererSettings.Renderer();
     }

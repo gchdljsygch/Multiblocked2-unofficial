@@ -28,11 +28,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Machine trait that exposes PneumaticCraft air storage, pressure recipes, and air capabilities.
+ */
 @Getter
 public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<PressureAir>, IProxyAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCPressureAirHandlerTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -55,7 +61,7 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
 
     @Override
     public void onLoadingTraitInPreview() {
-        handler.addAir((int) (handler.maxPressure() / 2  * handler.getVolume()));
+        handler.addAir((int) (handler.maxPressure() / 2 * handler.getVolume()));
     }
 
     protected CopiableAirHandler createHandler() {
@@ -182,7 +188,10 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
         return List.of(airHandlerMachineCap, airHandlerCap);
     }
 
-    public class AirHandlerMachineCap implements ICapabilityProviderTrait<IAirHandlerMachine>{
+    /**
+     * Capability provider exposing the machine air handler interface.
+     */
+    public class AirHandlerMachineCap implements ICapabilityProviderTrait<IAirHandlerMachine> {
 
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -205,7 +214,10 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
         }
     }
 
-    public class AirHandlerCap implements ICapabilityProviderTrait<IAirHandler>{
+    /**
+     * Capability provider exposing the generic PneumaticCraft air handler interface.
+     */
+    public class AirHandlerCap implements ICapabilityProviderTrait<IAirHandler> {
 
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {

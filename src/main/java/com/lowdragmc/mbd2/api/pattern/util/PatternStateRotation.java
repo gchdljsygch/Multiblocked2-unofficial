@@ -7,10 +7,29 @@ import net.minecraft.world.level.block.state.properties.Property;
 
 import java.util.Objects;
 
+/**
+ * Rotation helpers for pattern preview and auto-build block states.
+ *
+ * <p>The business goal is to translate a pattern authored for one horizontal
+ * base facing to the controller's current facing. Minecraft block rotation does
+ * not cover every modded property convention, so this helper also rotates
+ * direction, axis, and direction-named boolean properties when the vanilla block
+ * implementation leaves them unchanged. Methods are stateless and thread-safe.</p>
+ */
 public final class PatternStateRotation {
     private PatternStateRotation() {
     }
 
+    /**
+     * Computes the horizontal rotation from one facing to another.
+     *
+     * <p>Vertical or null inputs cannot define a horizontal rotation and return
+     * {@link Rotation#NONE}.</p>
+     *
+     * @param from base horizontal facing
+     * @param to   target horizontal facing
+     * @return rotation that maps {@code from} to {@code to}
+     */
     public static Rotation horizontalRotation(Direction from, Direction to) {
         if (from == null || to == null) return Rotation.NONE;
         if (from.getAxis() == Direction.Axis.Y || to.getAxis() == Direction.Axis.Y) return Rotation.NONE;
@@ -25,6 +44,17 @@ public final class PatternStateRotation {
         };
     }
 
+    /**
+     * Rotates a block state for pattern placement or preview.
+     *
+     * <p>Side effects: none; {@link BlockState} is immutable and the returned
+     * value may be the original state. Only property values supported by the
+     * rotated state are applied.</p>
+     *
+     * @param state    state to rotate; may be null
+     * @param rotation rotation to apply; null and {@link Rotation#NONE} are no-op
+     * @return rotated state, original state, or null when input state is null
+     */
     public static BlockState rotate(BlockState state, Rotation rotation) {
         if (state == null || rotation == null || rotation == Rotation.NONE) {
             return state;

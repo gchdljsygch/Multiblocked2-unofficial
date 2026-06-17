@@ -24,6 +24,15 @@ public class MBDBESRenderer extends ATESRRendererProvider<BlockEntity> {
     private MBDBESRenderer(BlockEntityRendererProvider.Context context) {
     }
 
+    /**
+     * Returns the singleton block-entity special renderer provider, creating it during renderer registration if needed.
+     * <p>
+     * This class has no per-context mutable state, so one provider instance is reused for every MBD machine block entity
+     * renderer request on the client render thread.
+     *
+     * @param context renderer registration context supplied by Minecraft
+     * @return singleton renderer provider
+     */
     public static MBDBESRenderer getOrCreate(BlockEntityRendererProvider.Context context) {
         if (INSTANCE == null) {
             INSTANCE = new MBDBESRenderer(context);
@@ -31,6 +40,11 @@ public class MBDBESRenderer extends ATESRRendererProvider<BlockEntity> {
         return INSTANCE;
     }
 
+    /**
+     * Returns the existing renderer provider without creating one.
+     *
+     * @return singleton renderer provider, or {@code null} before renderer registration initializes it
+     */
     @Nullable
     public static MBDBESRenderer getInstance() {
         return INSTANCE;

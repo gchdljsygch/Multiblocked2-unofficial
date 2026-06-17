@@ -26,6 +26,14 @@ import net.minecraft.network.chat.Component;
 import static com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability.ENERGY_BAR;
 import static com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability.ENERGY_BASE;
 
+/**
+ * Editable definition for Forge Energy storage traits.
+ *
+ * <p>The business goal is to configure an integer FE buffer, transfer limits,
+ * GUI energy bar, automatic neighboring energy transfer, and optional renderer.
+ * Instances are mutable editor state and should be treated as read-only by
+ * runtime {@link ForgeEnergyCapabilityTrait} instances.</p>
+ */
 @LDLRegister(name = "forge_energy_storage", group = "trait", priority = -100)
 public class ForgeEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter
@@ -50,21 +58,48 @@ public class ForgeEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitD
             tips = "config.definition.trait.forge_energy_storage.fancy_renderer.tooltip")
     private final ForgeEnergyFancyRendererSettings fancyRendererSettings = new ForgeEnergyFancyRendererSettings(this);
 
+    /**
+     * Creates the runtime Forge Energy trait for a machine.
+     *
+     * @param machine machine that will own the FE buffer
+     * @return new Forge Energy capability trait
+     */
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {
         return new ForgeEnergyCapabilityTrait(machine, this);
     }
 
+    /**
+     * Returns the editor icon for Forge Energy traits.
+     *
+     * @return FE resource texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ResourceTexture("mbd2:textures/gui/forge_energy.png");
     }
 
+    /**
+     * Returns the optional block-entity energy renderer configured by this
+     * definition.
+     *
+     * @param machine machine whose renderer is being requested
+     * @return renderer from {@link ForgeEnergyFancyRendererSettings}
+     */
     @Override
     public IRenderer getBESRenderer(IMachine machine) {
         return fancyRendererSettings.getFancyRenderer(machine);
     }
 
+    /**
+     * Creates the default ModularUI energy bar template.
+     *
+     * <p>Side effects: adds a progress bar and a text widget to {@code ui}. Widget
+     * ids use this definition's UI prefix so
+     * {@link #initTraitUI(ITrait, WidgetGroup)} can bind runtime storage later.</p>
+     *
+     * @param ui mutable UI group receiving the energy widgets
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var prefix = uiPrefixName();
@@ -81,6 +116,15 @@ public class ForgeEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitD
         ui.addWidget(energyBarText);
     }
 
+    /**
+     * Binds runtime FE storage to template energy widgets.
+     *
+     * <p>Side effects: mutates matching widgets by assigning progress suppliers,
+     * dynamic hover text, and dynamic compact stored/capacity text.</p>
+     *
+     * @param trait runtime trait instance
+     * @param group UI group containing template energy widgets
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof ForgeEnergyCapabilityTrait forgeEnergyTrait) {

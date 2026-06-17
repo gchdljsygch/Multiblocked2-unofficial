@@ -23,6 +23,9 @@ import lombok.Setter;
 import net.minecraft.network.chat.Component;
 import vazkii.botania.common.block.BotaniaBlocks;
 
+/**
+ * Configurable definition for a Botania mana storage trait.
+ */
 @LDLRegister(name = "botania_mana_storage", group = "trait", modID = "botania")
 public class BotaniaManaCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter

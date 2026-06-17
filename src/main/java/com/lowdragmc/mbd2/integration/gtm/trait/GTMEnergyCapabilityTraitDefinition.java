@@ -22,6 +22,9 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Configurable trait definition for GregTech EU storage, IO limits, and rendering.
+ */
 @LDLRegister(name = "gtm_energy_container", group = "trait", modID = "gtceu")
 public class GTMEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter

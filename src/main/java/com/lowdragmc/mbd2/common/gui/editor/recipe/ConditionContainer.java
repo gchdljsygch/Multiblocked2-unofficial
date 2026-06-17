@@ -20,6 +20,16 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import javax.annotation.Nullable;
 import java.util.List;
 
+/**
+ * Scrollable editor for the condition list attached to one built-in recipe.
+ *
+ * <p>The widget owns selection state for a mutable {@link RecipeCondition} list. Selecting
+ * a condition opens it in the secondary configurator panel; right-clicking the list can add
+ * a new registered condition, copy the selected condition, or remove it. All operations
+ * mutate the supplied list directly.</p>
+ *
+ * <p>This is client editor UI and should be used on the render/UI thread only.</p>
+ */
 public class ConditionContainer extends WidgetGroup {
     private final List<RecipeCondition> conditions;
     private final DraggableScrollableWidgetGroup container;
@@ -27,6 +37,15 @@ public class ConditionContainer extends WidgetGroup {
     @Nullable
     private RecipeCondition selected;
 
+    /**
+     * Creates a condition-list widget.
+     *
+     * @param x          left position relative to the parent widget
+     * @param y          top position relative to the parent widget
+     * @param width      widget width in pixels
+     * @param height     widget height in pixels
+     * @param conditions mutable recipe condition list to display and edit
+     */
     public ConditionContainer(int x, int y, int width, int height, List<RecipeCondition> conditions) {
         super(x, y, width, height);
         this.conditions = conditions;
@@ -37,6 +56,9 @@ public class ConditionContainer extends WidgetGroup {
         reloadConditions();
     }
 
+    /**
+     * Rebuilds row widgets from the current condition list.
+     */
     private void reloadConditions() {
         container.clearAllWidgets();
         for (var condition : conditions) {
@@ -59,6 +81,12 @@ public class ConditionContainer extends WidgetGroup {
         }
     }
 
+    /**
+     * Creates one selectable condition row.
+     *
+     * @param condition condition represented by the row
+     * @return selectable row with icon and localized tooltip text
+     */
     private SelectableWidgetGroup createConditionLine(RecipeCondition condition) {
         var width = container.getSizeWidth() - 5;
         var conditionLine = new SelectableWidgetGroup(0, 0, width, 20);

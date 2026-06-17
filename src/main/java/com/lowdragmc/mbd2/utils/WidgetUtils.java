@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
+/**
+ * Utility methods for finding widgets by ID patterns and extracting widget indexes.
+ */
 public class WidgetUtils {
 
     public static List<Widget> getWidgetsById(WidgetGroup group, String regex) {

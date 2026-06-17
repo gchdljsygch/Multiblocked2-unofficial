@@ -13,6 +13,9 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+/**
+ * JEI plugin entry point for MBD recipe categories, recipes, and catalysts.
+ */
 @JeiPlugin
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault

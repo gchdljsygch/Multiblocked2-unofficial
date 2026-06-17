@@ -30,8 +30,24 @@ import com.lowdragmc.mbd2.integration.pneumaticcraft.trait.heat.PNCHeatExchanger
 import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTraitDefinition;
 import net.minecraftforge.fml.ModLoader;
 
+/**
+ * Startup registrar for trait definition implementation types.
+ * <p>
+ * Trait definition types are the editor/load-time factories used by machine
+ * settings to create concrete traits. Built-in capability traits are registered
+ * first, optional integration traits are registered when their owning mods are
+ * present, and addons can contribute more types through
+ * {@link MBDRegistryEvent.TraitType}.
+ * <p>
+ * Thread safety: call {@link #init()} only during mod loading. The backing
+ * registry is intentionally unfrozen only for the duration of initialization.
+ */
 public class MBDTraitDefinitionTypes {
 
+    /**
+     * Registers built-in, optional integration, and addon trait definition
+     * types.
+     */
     public static void init() {
         MBDRegistries.TRAIT_DEFINITION_TYPES.unfreeze();
         register(ItemSlotCapabilityTraitDefinition.class);
@@ -83,6 +99,15 @@ public class MBDTraitDefinitionTypes {
         MBDRegistries.TRAIT_DEFINITION_TYPES.freeze();
     }
 
+    /**
+     * Registers one trait definition class.
+     * <p>
+     * The class must be annotated with {@link LDLRegister} and must expose a
+     * default constructor. If the annotation declares a required mod id and that
+     * mod is missing, registration is skipped.
+     *
+     * @param clazz trait definition implementation class
+     */
     public static void register(Class<? extends TraitDefinition> clazz) {
         if (clazz.isAnnotationPresent(LDLRegister.class)) {
             var annotation = clazz.getAnnotation(LDLRegister.class);

@@ -8,9 +8,15 @@ import dev.latvian.mods.kubejs.event.EventGroup;
 import dev.latvian.mods.kubejs.event.EventJS;
 import lombok.Getter;
 
+/**
+ * KubeJS event group and JS-facing wrappers for MBD recipe type events.
+ */
 public class MBDRecipeTypeEvents {
     public static EventGroup MBD_RECIPE_TYPE_EVENTS = EventGroup.of("MBDRecipeTypeEvents");
 
+    /**
+     * Base JS event wrapper that exposes the backing recipe type event object.
+     */
     @Getter
     public static class RecipeTypeEventJS<E extends RecipeTypeEvent> extends EventJS {
         public final E event;

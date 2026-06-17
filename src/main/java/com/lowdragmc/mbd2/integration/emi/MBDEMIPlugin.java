@@ -6,6 +6,9 @@ import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
 
+/**
+ * EMI entry point that registers MBD recipe categories, displays, and workstation catalysts.
+ */
 @EmiEntrypoint
 public class MBDEMIPlugin implements EmiPlugin {
     @Override
@@ -23,7 +26,7 @@ public class MBDEMIPlugin implements EmiPlugin {
         // recipes
         try {
             MultiblockInfoEmiCategory.registerDisplays(registry);
-        } catch (NullPointerException ignored){
+        } catch (NullPointerException ignored) {
         }
         MBDRecipeTypeEmiCategory.registerDisplays(registry);
         MBDRecipeTypeFuelEmiCategory.registerDisplays(registry);

@@ -5,6 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.core.Direction;
 
+/**
+ * Block info wrapper that stores the controller block facing for pattern previews.
+ */
 public class ControllerBlockInfo extends BlockInfo {
 
     @Getter

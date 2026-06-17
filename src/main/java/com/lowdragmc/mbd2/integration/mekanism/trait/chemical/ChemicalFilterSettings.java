@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+/**
+ * Configurable whitelist or blacklist filter for Mekanism chemical types and tags.
+ */
 public class ChemicalFilterSettings<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> implements IPersistedSerializable, IToggleConfigurable, Predicate<CHEMICAL> {
     @Getter
     @Setter
@@ -48,9 +51,9 @@ public class ChemicalFilterSettings<CHEMICAL extends Chemical<CHEMICAL>, STACK e
     private List<ResourceLocation> filterTags = new ArrayList<>();
 
     private final ChemicalTags<CHEMICAL> chemicalTags;
-    private final MekanismChemicalRecipeCapability<CHEMICAL,STACK> recipeCapability;
+    private final MekanismChemicalRecipeCapability<CHEMICAL, STACK> recipeCapability;
 
-    public ChemicalFilterSettings(ChemicalTags<CHEMICAL> chemicalTags, MekanismChemicalRecipeCapability<CHEMICAL,STACK> recipeCapability) {
+    public ChemicalFilterSettings(ChemicalTags<CHEMICAL> chemicalTags, MekanismChemicalRecipeCapability<CHEMICAL, STACK> recipeCapability) {
         this.chemicalTags = chemicalTags;
         this.recipeCapability = recipeCapability;
     }

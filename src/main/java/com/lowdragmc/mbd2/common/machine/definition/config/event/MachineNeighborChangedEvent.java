@@ -12,14 +12,33 @@ import java.util.Map;
 import java.util.Optional;
 
 
+/**
+ * Fired when Minecraft reports a neighbor change to a machine block.
+ */
 @Getter
 @LDLRegister(name = "MachineNeighborChangedEvent", group = "MachineEvent")
 public class MachineNeighborChangedEvent extends MachineEvent {
+    /**
+     * Block type that caused the neighbor update.
+     */
     @GraphParameterGet
     public final Block block;
+    /**
+     * Position of the neighbor that changed.
+     */
     @GraphParameterGet(displayName = "pos")
     public final BlockPos fromPos;
 
+    /**
+     * Creates an event for a vanilla neighbor update.
+     * <p>
+     * The event is notification-only; handlers can react to redstone, block, or capability changes near the machine but
+     * should perform world mutation on the logical server thread.
+     *
+     * @param machine machine receiving the neighbor update
+     * @param block   block type that caused the update
+     * @param fromPos position of the changed neighbor
+     */
     public MachineNeighborChangedEvent(MBDMachine machine, Block block, BlockPos fromPos) {
         super(machine);
         this.block = block;

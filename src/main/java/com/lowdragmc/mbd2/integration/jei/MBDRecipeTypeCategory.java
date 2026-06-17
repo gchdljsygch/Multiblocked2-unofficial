@@ -25,9 +25,15 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * JEI category for ordinary MBD recipes of a single recipe type.
+ */
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public class MBDRecipeTypeCategory extends ModularUIRecipeCategory<MBDRecipeTypeCategory.RecipeWrapper> {
+    /**
+     * JEI wrapper that exposes an MBD modular recipe UI.
+     */
     public static class RecipeWrapper extends ModularWrapper<Widget> {
 
         public final MBDRecipe recipe;

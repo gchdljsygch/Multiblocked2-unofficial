@@ -23,28 +23,53 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * @author KilaBash
- * @implNote It is used to replace the non mbd blocks that do not need to be rendered after forming in the multiblock structure,
- * and to restore the original blocks when the structure invalid.
+ * Proxy block used to replace non-MBD blocks while a multiblock is formed.
+ *
+ * <p>The proxy stores the original block state/data in {@link ProxyPartBlockEntity}, delegates drops and breaking
+ * speed to that original state, and restores it when the proxy is removed. This lets formed multiblocks hide or
+ * custom-render structural blocks without permanently changing the world.</p>
  */
 public class ProxyPartBlock extends Block implements EntityBlock, IBlockRendererProvider {
     public static final ProxyPartBlock BLOCK = new ProxyPartBlock();
 
+    /**
+     * Creates the singleton proxy block.
+     */
     public ProxyPartBlock() {
         super(Properties.of().dynamicShape().noOcclusion());
     }
 
+    /**
+     * Uses a block entity renderer for proxy appearance.
+     *
+     * @param pState proxy state
+     * @return animated entity-block render shape
+     */
     @Override
     public RenderShape getRenderShape(BlockState pState) {
         return RenderShape.ENTITYBLOCK_ANIMATED;
     }
 
+    /**
+     * Creates the proxy block entity that stores original block data.
+     *
+     * @param pos   block position
+     * @param state proxy state
+     * @return new proxy block entity
+     */
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ProxyPartBlockEntity(pos, state);
     }
 
+    /**
+     * Returns drops from the captured original block state when available.
+     *
+     * @param state   proxy block state
+     * @param builder loot context builder
+     * @return original block drops or proxy fallback drops
+     */
     @Override
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
         // drop the original block's drops
@@ -56,6 +81,15 @@ public class ProxyPartBlock extends Block implements EntityBlock, IBlockRenderer
         return super.getDrops(state, builder);
     }
 
+    /**
+     * Restores the original block when the proxy is replaced by a different block.
+     *
+     * @param pState    current proxy state
+     * @param pLevel    level containing the proxy
+     * @param pPos      proxy position
+     * @param pNewState replacement state
+     * @param pIsMoving whether removal is caused by piston movement
+     */
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
         if (pState.hasBlockEntity()) {
@@ -70,6 +104,15 @@ public class ProxyPartBlock extends Block implements EntityBlock, IBlockRenderer
         }
     }
 
+    /**
+     * Delegates block breaking speed to the captured original state.
+     *
+     * @param pState  proxy state
+     * @param pPlayer player breaking the block
+     * @param pLevel  level reader
+     * @param pPos    proxy position
+     * @return original destroy progress, or {@code 0} when no original state is available
+     */
     @Override
     public float getDestroyProgress(BlockState pState, Player pPlayer, BlockGetter pLevel, BlockPos pPos) {
         if (pLevel.getBlockEntity(pPos) instanceof ProxyPartBlockEntity blockEntity && blockEntity.getOriginalState() != null) {
@@ -79,7 +122,14 @@ public class ProxyPartBlock extends Block implements EntityBlock, IBlockRenderer
     }
 
     /**
-     * replace the original block and block entity data.
+     * Replaces a world block with a proxy and captures the original block entity data.
+     *
+     * <p>Preconditions: call on the logical server while the multiblock is forming. The original block state and full
+     * block entity metadata are stored on the new proxy block entity.</p>
+     *
+     * @param controllerPos controller position that owns the proxy
+     * @param level         target level
+     * @param pos           block position to proxy
      */
     public static void replaceOriginalBlock(BlockPos controllerPos, Level level, BlockPos pos) {
         var originalState = level.getBlockState(pos);
@@ -91,6 +141,12 @@ public class ProxyPartBlock extends Block implements EntityBlock, IBlockRenderer
         }
     }
 
+    /**
+     * Returns the renderer used for proxy block appearance.
+     *
+     * @param state proxy state
+     * @return shared proxy part renderer
+     */
     @Nullable
     @Override
     public IRenderer getRenderer(BlockState state) {

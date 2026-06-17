@@ -19,10 +19,14 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability that represents PneumaticCraft heat amounts.
+ */
 public class PNCHeatRecipeCapability extends RecipeCapability<Double> {
     public final static PNCHeatRecipeCapability CAP = new PNCHeatRecipeCapability();
     public static final ResourceTexture HUD_BACKGROUND = new ResourceTexture("mbd2:textures/gui/heat_background.png");
     public static final ResourceTexture HUD_BAR = new ResourceTexture("mbd2:textures/gui/heat_hud.png");
+
     protected PNCHeatRecipeCapability() {
         super("pneumatic_heat", SerializerDouble.INSTANCE);
     }

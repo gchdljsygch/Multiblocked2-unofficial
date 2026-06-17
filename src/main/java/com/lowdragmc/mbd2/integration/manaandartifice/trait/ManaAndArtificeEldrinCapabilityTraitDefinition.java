@@ -36,6 +36,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+/**
+ * Configurable trait definition for Mana and Artifice Eldrin power storage.
+ */
 @LDLRegister(name = "mana_and_artifice_eldrin_storage", group = "trait", modID = "mna")
 public class ManaAndArtificeEldrinCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter

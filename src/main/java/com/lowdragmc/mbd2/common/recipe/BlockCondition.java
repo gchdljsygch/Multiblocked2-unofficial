@@ -26,10 +26,21 @@ import org.apache.commons.lang3.ArrayUtils;
 import javax.annotation.Nonnull;
 import java.util.Optional;
 
+/**
+ * Recipe condition that counts selected block types inside a formed multiblock structure.
+ *
+ * <p>The business goal is to gate recipes on the controller's cached multiblock composition, for example requiring a
+ * minimum number of casing or coil blocks. The condition only observes machines that implement {@link IMultiController};
+ * non-multiblock machines count as zero matching blocks. Matching reads world block states on the recipe logic's
+ * owning server thread and has no side effects.</p>
+ */
 @Getter
 @Setter
 public class BlockCondition extends RecipeCondition {
 
+    /**
+     * Prototype instance used by the recipe-condition registry and deserializers.
+     */
     public final static BlockCondition INSTANCE = new BlockCondition();
     @Configurable(name = "config.recipe.condition.block.min")
     @NumberRange(range = {0, Integer.MAX_VALUE})
@@ -40,21 +51,41 @@ public class BlockCondition extends RecipeCondition {
     @Configurable(name = "config.recipe.condition.block.blocks", collapse = false)
     private Block[] blocks;
 
+    /**
+     * Creates a condition that accepts only multiblocks with zero matching blocks.
+     */
     public BlockCondition() {
         this(0, 0);
     }
 
+    /**
+     * Creates a block-count condition.
+     *
+     * @param minLevel minimum accepted count, inclusive; expected range is {@code [0, Integer.MAX_VALUE]}
+     * @param maxLevel maximum accepted count, inclusive; expected range is {@code [0, Integer.MAX_VALUE]}
+     * @param blocks   block types counted in the multiblock cache; an empty array means no block can match
+     */
     public BlockCondition(int minLevel, int maxLevel, Block... blocks) {
         this.minCount = minLevel;
         this.maxCount = maxLevel;
         this.blocks = blocks;
     }
 
+    /**
+     * Returns the serialized recipe-condition type id.
+     *
+     * @return {@code block}
+     */
     @Override
     public String getType() {
         return "block";
     }
 
+    /**
+     * Builds the tooltip describing the accepted block count and block names.
+     *
+     * @return localized tooltip component
+     */
     @Override
     public Component getTooltips() {
         var blockNames = Component.empty();
@@ -67,6 +98,14 @@ public class BlockCondition extends RecipeCondition {
         return Component.translatable("recipe.condition.block.tooltip", blockNames, minCount, maxCount);
     }
 
+    /**
+     * Tests the current multiblock composition against the configured count range.
+     *
+     * @param recipe      recipe being checked
+     * @param recipeLogic recipe logic supplying the machine and level
+     * @return {@code true} when the count of matching blocks is between {@code minCount} and {@code maxCount},
+     * inclusive
+     */
     @Override
     public boolean test(@Nonnull MBDRecipe recipe, @Nonnull RecipeLogic recipeLogic) {
         var amount = 0;
@@ -81,6 +120,11 @@ public class BlockCondition extends RecipeCondition {
         return amount >= minCount && amount <= maxCount;
     }
 
+    /**
+     * Serializes the condition to JSON.
+     *
+     * @return JSON object with {@code minCount}, {@code maxCount}, and {@code blocks} registry ids
+     */
     @Nonnull
     @Override
     public JsonObject serialize() {
@@ -98,6 +142,14 @@ public class BlockCondition extends RecipeCondition {
         return config;
     }
 
+    /**
+     * Loads the condition from JSON.
+     *
+     * <p>Unknown block ids fall back to air so deserialization can continue with a visible placeholder.</p>
+     *
+     * @param config JSON object produced by {@link #serialize()}
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition deserialize(@Nonnull JsonObject config) {
         super.deserialize(config);
@@ -107,7 +159,7 @@ public class BlockCondition extends RecipeCondition {
         blocks = new Block[array.size()];
         for (int i = 0; i < array.size(); i++) {
             var key = array.get(i).getAsString();
-            blocks[i] = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(key));
+            blocks[i] = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(key));
             if (blocks[i] == null) {
                 blocks[i] = Blocks.AIR;
             }
@@ -115,6 +167,12 @@ public class BlockCondition extends RecipeCondition {
         return this;
     }
 
+    /**
+     * Reads this condition from the network buffer.
+     *
+     * @param buf source buffer
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition fromNetwork(FriendlyByteBuf buf) {
         super.fromNetwork(buf);
@@ -128,6 +186,11 @@ public class BlockCondition extends RecipeCondition {
         return this;
     }
 
+    /**
+     * Writes this condition to the network buffer.
+     *
+     * @param buf destination buffer
+     */
     @Override
     public void toNetwork(FriendlyByteBuf buf) {
         super.toNetwork(buf);
@@ -135,10 +198,15 @@ public class BlockCondition extends RecipeCondition {
         buf.writeVarInt(maxCount);
         buf.writeVarInt(blocks.length);
         for (Block block : blocks) {
-            buf.writeResourceLocation(Optional.ofNullable(ForgeRegistries.BLOCKS.getKey(block)).orElse(new ResourceLocation("minecraft:air")));
+            buf.writeResourceLocation(Optional.ofNullable(ForgeRegistries.BLOCKS.getKey(block)).orElse(ResourceLocation.parse("minecraft:air")));
         }
     }
 
+    /**
+     * Serializes this condition to NBT.
+     *
+     * @return NBT tag with count bounds and block registry ids
+     */
     @Override
     public CompoundTag toNBT() {
         var tag = super.toNBT();
@@ -155,6 +223,12 @@ public class BlockCondition extends RecipeCondition {
         return tag;
     }
 
+    /**
+     * Loads this condition from NBT.
+     *
+     * @param tag source tag produced by {@link #toNBT()}
+     * @return this condition instance
+     */
     @Override
     public RecipeCondition fromNBT(CompoundTag tag) {
         super.fromNBT(tag);
@@ -164,7 +238,7 @@ public class BlockCondition extends RecipeCondition {
         blocks = new Block[array.size()];
         for (int i = 0; i < array.size(); i++) {
             var key = array.getString(i);
-            blocks[i] = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(key));
+            blocks[i] = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(key));
             if (blocks[i] == null) {
                 blocks[i] = Blocks.AIR;
             }

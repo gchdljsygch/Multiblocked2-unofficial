@@ -20,6 +20,12 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @MethodsReturnNonnullByDefault
 public class MBDMachineItem extends BlockItem implements IItemRendererProvider {
 
+    /**
+     * Creates the item form for an MBD machine block.
+     *
+     * @param block      machine block whose definition backs this item
+     * @param properties vanilla item properties used for creative tabs, stack size, and durability flags
+     */
     public MBDMachineItem(MBDMachineBlock block, Properties properties) {
         super(block, properties);
     }
@@ -29,6 +35,11 @@ public class MBDMachineItem extends BlockItem implements IItemRendererProvider {
         return (MBDMachineBlock) super.getBlock();
     }
 
+    /**
+     * Returns the machine definition associated with this block item.
+     *
+     * @return definition owned by the backing {@link MBDMachineBlock}
+     */
     public MBDMachineDefinition getDefinition() {
         return getBlock().getDefinition();
     }

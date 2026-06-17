@@ -7,6 +7,9 @@ import snownee.jade.api.IWailaCommonRegistration;
 import snownee.jade.api.IWailaPlugin;
 import snownee.jade.api.WailaPlugin;
 
+/**
+ * Jade plugin entry point that wires MBD server data and client tooltip providers.
+ */
 @WailaPlugin
 public class MBDJadePlugin implements IWailaPlugin {
     @Override

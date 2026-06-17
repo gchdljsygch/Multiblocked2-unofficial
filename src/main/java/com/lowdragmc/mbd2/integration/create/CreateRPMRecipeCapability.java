@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for required or generated Create shaft speed in RPM.
+ */
 public class CreateRPMRecipeCapability extends RecipeCapability<Float> {
     public final static CreateRPMRecipeCapability CAP = new CreateRPMRecipeCapability();
 

@@ -22,6 +22,9 @@ import lombok.Setter;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Configurable definition for an AE2 pattern input trait.
+ */
 @LDLRegister(name = "ae2_me_pattern_input", group = "trait", modID = "ae2")
 public class MEPatternInputTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter
@@ -91,6 +94,9 @@ public class MEPatternInputTraitDefinition extends SimpleCapabilityTraitDefiniti
         return IO.IN;
     }
 
+    /**
+     * Adapts one encoded-pattern inventory slot to LDLib item transfer APIs.
+     */
     public static IItemTransfer createPatternTransfer(MEPatternInputTrait.SerializablePatternInventory inventory, int slotIndex) {
         return new IItemTransfer() {
             @Override

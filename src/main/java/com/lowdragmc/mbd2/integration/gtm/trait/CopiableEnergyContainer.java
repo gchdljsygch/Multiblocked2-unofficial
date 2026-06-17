@@ -12,10 +12,14 @@ import net.minecraft.nbt.LongTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 
+/**
+ * GregTech-compatible energy container that can be copied for recipe simulation.
+ */
 public class CopiableEnergyContainer implements IEnergyContainer, ITagSerializable<Tag>, IContentChangeAware {
     @Getter
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
     private final MBDMachine machine;
     protected final boolean explosionMachine;
     @Getter

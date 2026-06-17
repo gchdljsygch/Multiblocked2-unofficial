@@ -3,6 +3,9 @@ package com.lowdragmc.mbd2.integration.mekanism.trait.heat;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import mekanism.api.heat.IHeatHandler;
 
+/**
+ * IO-filtered Mekanism heat handler exposed through machine capability sides.
+ */
 public class HeatContainerWrapper implements IHeatHandler {
     private final IHeatHandler container;
     private final IO io;

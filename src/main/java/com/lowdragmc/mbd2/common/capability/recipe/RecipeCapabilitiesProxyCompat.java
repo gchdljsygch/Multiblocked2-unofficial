@@ -12,10 +12,22 @@ import com.lowdragmc.mbd2.common.trait.forgeenergy.LongFeEnergyCapabilityTrait;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Compatibility pass for recipe capability handler proxy tables.
+ *
+ * <p>The pass keeps regular FE and long-FE integrations interoperable. It prioritizes Forge Energy handlers backed
+ * by long-FE traits so large-capacity machines are chosen first, then adds long-FE fallback handlers for machines
+ * that expose only regular integer FE handlers.</p>
+ */
 public class RecipeCapabilitiesProxyCompat {
     private RecipeCapabilitiesProxyCompat() {
     }
 
+    /**
+     * Applies all compatibility rewrites to a mutable proxy table.
+     *
+     * @param proxy handler table grouped by IO and capability; mutated in-place
+     */
     public static void apply(Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> proxy) {
         prioritizeForgeEnergy(proxy);
         addLongFeFallback(proxy);

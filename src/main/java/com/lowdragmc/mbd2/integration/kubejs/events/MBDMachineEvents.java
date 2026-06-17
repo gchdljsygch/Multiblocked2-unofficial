@@ -5,9 +5,15 @@ import dev.latvian.mods.kubejs.event.EventGroup;
 import dev.latvian.mods.kubejs.event.EventJS;
 import lombok.Getter;
 
+/**
+ * KubeJS event group and JS-facing wrappers for block-based MBD machine events.
+ */
 public class MBDMachineEvents {
     public static EventGroup MBD_MACHINE_EVENTS = EventGroup.of("MBDMachineEvents");
 
+    /**
+     * Base JS event wrapper that exposes the backing machine event object.
+     */
     @Getter
     public static class MachineEventJS<E extends MachineEvent> extends EventJS {
         public final E event;

@@ -15,6 +15,9 @@ import java.lang.reflect.Proxy;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Reflection-based bridge for Flux Networks long energy storage without a hard compile dependency.
+ */
 public final class FluxNetworksLongEnergyCompat {
     private static final String MODID = "fluxnetworks";
     private static final String CAPABILITIES_CLASS = "sonar.fluxnetworks.api.FluxCapabilities";
@@ -120,6 +123,9 @@ public final class FluxNetworksLongEnergyCompat {
         }
     }
 
+    /**
+     * Access adapter used by dynamic Flux Networks storage proxies.
+     */
     public interface FluxLongAccess {
         long getEnergyStored(Object container);
 

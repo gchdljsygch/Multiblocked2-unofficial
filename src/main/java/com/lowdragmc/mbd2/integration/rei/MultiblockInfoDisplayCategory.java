@@ -20,8 +20,14 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.Optional;
 
+/**
+ * REI display category that shows preview pages for registered multiblock machine structures.
+ */
 public class MultiblockInfoDisplayCategory extends ModularUIDisplayCategory<MultiblockInfoDisplayCategory.MultiblockInfoDisplay> {
 
+    /**
+     * REI display wrapper for a single multiblock machine definition preview.
+     */
     public static class MultiblockInfoDisplay extends ModularDisplay<WidgetGroup> {
 
         public final MultiblockMachineDefinition definition;

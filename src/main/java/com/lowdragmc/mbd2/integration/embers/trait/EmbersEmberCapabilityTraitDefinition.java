@@ -23,6 +23,9 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Configurable definition for a single Embers ember storage trait.
+ */
 @LDLRegister(name = "embers_ember_capability", group = "trait", modID = "embers")
 public class EmbersEmberCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Getter

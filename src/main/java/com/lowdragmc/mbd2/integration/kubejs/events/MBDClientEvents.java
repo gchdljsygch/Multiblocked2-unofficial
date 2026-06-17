@@ -17,6 +17,9 @@ import java.util.function.Function;
 
 import static com.lowdragmc.mbd2.integration.kubejs.events.MBDMachineEvents.MBD_MACHINE_EVENTS;
 
+/**
+ * Client-side KubeJS event bridge for MBD machine and recipe type events.
+ */
 public interface MBDClientEvents {
     Map<Class<? extends MachineEvent>, Function<MachineEvent, EventResult>> machineEventHandlers = new HashMap<>();
     Map<Class<? extends RecipeTypeEvent>, Function<RecipeTypeEvent, EventResult>> recipeTypeEventHandlers = new HashMap<>();
@@ -88,7 +91,7 @@ public interface MBDClientEvents {
         recipeTypeEventHandlers.put(eventClass, event -> handler.post(eventJSFactory.apply((E) event), event.recipeType.getRegistryName()));
         return handler;
     }
-    
+
     static EventResult postMachineEvent(MachineEvent machineEvent) {
         return Optional.ofNullable(machineEventHandlers.get(machineEvent.getClass())).map(handler -> handler.apply(machineEvent)).orElse(EventResult.PASS);
     }

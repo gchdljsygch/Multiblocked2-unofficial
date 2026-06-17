@@ -13,17 +13,39 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.List;
 
+/**
+ * LowDragLib editor surface for MBD machine and recipe-type projects.
+ *
+ * <p>The editor owns the standard tool, resource, menu, tab, config, and floating-view panels used by machine
+ * definitions. It only accepts {@link MachineProject} and {@link RecipeTypeProject} instances, which keeps editor tabs
+ * and resource containers aligned with the project serialization formats.</p>
+ */
 @LDLRegisterClient(name = "editor.machine", group = "editor")
 @OnlyIn(Dist.CLIENT)
 public class MachineEditor extends Editor implements ILDLRegisterClient {
+    /**
+     * Primary configuration tab used for normal widget/property editing.
+     */
     public static final ConfigPanel.Tab BASIC = ConfigPanel.Tab.WIDGET;
+    /**
+     * Secondary configuration tab for project-specific custom panels.
+     */
     public static final ConfigPanel.Tab SECOND = ConfigPanel.Tab.createTab(Icons.FILE, Component.translatable("editor.config_panel.other_configurator"));
+    /**
+     * Resource configuration tab.
+     */
     public static final ConfigPanel.Tab RESOURCE = ConfigPanel.Tab.RESOURCE;
 
+    /**
+     * Creates an editor rooted at the MBD workspace directory.
+     */
     public MachineEditor() {
         super(MBD2.getLocation());
     }
 
+    /**
+     * Builds and attaches the editor's panel widgets.
+     */
     public void initEditorViews() {
         this.toolPanel = new ToolPanel(this);
         this.toolPanel.setSizeWidth(150);
@@ -41,6 +63,12 @@ public class MachineEditor extends Editor implements ILDLRegisterClient {
         this.addWidget(this.floatView);
     }
 
+    /**
+     * Loads a supported machine-editor project.
+     *
+     * @param project project to load, or {@code null} to clear the editor
+     * @throws IllegalArgumentException when the project type is not supported by this editor
+     */
     @Override
     public void loadProject(IProject project) {
         if (project == null || project instanceof MachineProject || project instanceof RecipeTypeProject) {

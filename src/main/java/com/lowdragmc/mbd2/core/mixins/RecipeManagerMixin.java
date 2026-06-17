@@ -21,11 +21,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Injects MBD2 built-in recipe types after vanilla datapack recipe loading.
+ *
+ * <p>The mixin copies the recipe map before handing it to each registered
+ * {@link MBDRecipeType}, allowing recipe types to append generated recipes without mutating
+ * the original immutable map implementation returned by vanilla reload code.</p>
+ */
 @Mixin(RecipeManager.class)
 public abstract class RecipeManagerMixin {
 
     @Shadow private Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> recipes;
 
+    /**
+     * Lets registered MBD recipe types append their built-in recipes after vanilla loading.
+     *
+     * @param map raw JSON recipe data from the reload
+     * @param resourceManager resource manager used by vanilla loading
+     * @param profiler reload profiler
+     * @param ci mixin callback info
+     */
     @Inject(method = "apply(Ljava/util/Map;Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/util/profiling/ProfilerFiller;)V",
             at = @At(value = "TAIL"))
     private void mbd2$cloneVanillaRecipes(Map<ResourceLocation, JsonElement> map, ResourceManager resourceManager, ProfilerFiller profiler, CallbackInfo ci) {

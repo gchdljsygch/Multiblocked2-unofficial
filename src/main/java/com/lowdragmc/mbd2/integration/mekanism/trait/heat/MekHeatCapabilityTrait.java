@@ -28,11 +28,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Machine trait that stores Mekanism heat, simulates transfer, and handles heat recipes.
+ */
 @Getter
 public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MekHeatCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -59,7 +65,7 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
     }
 
     protected CopiableHeatContainer createStorages() {
-        return new CopiableHeatContainer(getDefinition().getCapacity(),getDefinition().getInverseConduction());
+        return new CopiableHeatContainer(getDefinition().getCapacity(), getDefinition().getInverseConduction());
     }
 
     protected double getTotalInverseConductionCoefficient() {
@@ -120,6 +126,9 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
         return List.of(heatHandlerCap);
     }
 
+    /**
+     * Recipe handler that consumes from or inserts into the Mekanism heat container.
+     */
     public class HeatRecipeHandler extends RecipeHandlerTrait<Double> {
         protected HeatRecipeHandler() {
             super(MekHeatCapabilityTrait.this, MekanismHeatRecipeCapability.CAP);
@@ -151,6 +160,9 @@ public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
         }
     }
 
+    /**
+     * Capability provider exposing the container as a Mekanism heat handler.
+     */
     public class HeatHandlerCap implements ICapabilityProviderTrait<IHeatHandler> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {

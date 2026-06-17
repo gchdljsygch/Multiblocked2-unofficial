@@ -6,11 +6,25 @@ import net.minecraft.core.BlockPos;
 
 import java.util.Collections;
 
+/**
+ * Basic configuration panel for entity-machine definitions.
+ *
+ * <p>The panel replaces the block preview scene with an entity-machine preview created by
+ * {@link EntityMachinePreviewScene} and opens the entity definition configurator when selected.</p>
+ */
 public class EntityMachineConfigPanel extends MachineScenePanel {
+    /**
+     * Creates an entity-machine configuration panel.
+     *
+     * @param editor owning machine editor
+     */
     public EntityMachineConfigPanel(MachineEditor editor) {
         super(editor);
     }
 
+    /**
+     * Rebuilds the preview scene using the entity-machine preview entity and the root state.
+     */
     @Override
     public void resetScene() {
         level.clear();
@@ -23,6 +37,9 @@ public class EntityMachineConfigPanel extends MachineScenePanel {
         reloadAdditionalTraits();
     }
 
+    /**
+     * Opens the current entity-machine definition in the basic configurator tab.
+     */
     public void onPanelSelected() {
         if (editor.getCurrentProject() instanceof EntityMachineProject project) {
             editor.getConfigPanel().openConfigurator(MachineEditor.BASIC, project.getDefinition());

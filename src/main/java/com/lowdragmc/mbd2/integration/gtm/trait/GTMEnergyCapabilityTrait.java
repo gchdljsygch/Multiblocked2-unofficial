@@ -22,11 +22,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Machine trait that stores GregTech EU, exposes GT energy capabilities, and handles recipe transfer.
+ */
 @Getter
 public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(GTMEnergyCapabilityTrait.class);
+
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -79,7 +85,7 @@ public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements I
                     .flatMap(be -> be.getCapability(GTCapability.CAPABILITY_ENERGY_CONTAINER, side.getOpposite()).resolve())
                     .ifPresent(source -> container.changeEnergy(source.removeEnergy(container.getEnergyCanBeInserted())));
         }
-        if (io.support(IO.OUT)){
+        if (io.support(IO.OUT)) {
             Optional.ofNullable(getMachine().getLevel().getBlockEntity(port.relative(side)))
                     .flatMap(be -> be.getCapability(GTCapability.CAPABILITY_ENERGY_CONTAINER, side.getOpposite()).resolve())
                     .ifPresent(target -> {
@@ -97,6 +103,9 @@ public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements I
         }
     }
 
+    /**
+     * Recipe handler that consumes from or inserts into the GTM energy container.
+     */
     public class EnergyRecipeHandler extends RecipeHandlerTrait<Long> {
         protected EnergyRecipeHandler() {
             super(GTMEnergyCapabilityTrait.this, GTMEnergyRecipeCapability.CAP);
@@ -128,6 +137,9 @@ public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements I
         }
     }
 
+    /**
+     * Capability provider exposing the container as a GregTech energy capability.
+     */
     public class EnergyContainerCap implements ICapabilityProviderTrait<IEnergyContainer> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {

@@ -25,10 +25,16 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * JEI category for fuel recipes used by an MBD recipe type.
+ */
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipeTypeFuelCategory.RecipeWrapper> {
 
+    /**
+     * JEI wrapper that exposes an MBD modular fuel UI.
+     */
     public static class RecipeWrapper extends ModularWrapper<Widget> {
 
         public final MBDRecipe recipe;

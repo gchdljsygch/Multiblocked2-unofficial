@@ -7,6 +7,9 @@ import com.mna.api.blocks.tile.IEldrinCapacitorTile;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Compatibility helper that exposes MBD Eldrin traits as Mana and Artifice capacitors.
+ */
 public final class ManaAndArtificeEldrinCompat {
     private ManaAndArtificeEldrinCompat() {
     }

@@ -8,8 +8,21 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 import java.util.Locale;
 
+/**
+ * Localizes type text rendered by LDLib's exposed-parameter panel.
+ *
+ * <p>The panel creates a {@code TextTexture} directly from the type label. This mixin replaces
+ * that constructor argument so the rendered texture contains translated text from MBD2's graph
+ * namespace when available.</p>
+ */
 @Mixin(value = ParameterPanelWidget.class, remap = false)
 public class LDLibParameterPanelWidgetTypeI18nMixin {
+    /**
+     * Translates the text passed to the parameter-panel type texture constructor.
+     *
+     * @param text raw type label or translation key
+     * @return translated display text when available, otherwise the original argument
+     */
     @ModifyArg(
             method = "loadWidgets",
             at = @At(value = "INVOKE", target = "Lcom/lowdragmc/lowdraglib/gui/texture/TextTexture;<init>(Ljava/lang/String;)V"),
@@ -24,6 +37,12 @@ public class LDLibParameterPanelWidgetTypeI18nMixin {
         return text;
     }
 
+    /**
+     * Builds the normalized graph translation-key suffix for type labels.
+     *
+     * @param key raw type label
+     * @return sanitized, lower-case key suffix
+     */
     private static String normalizeKey(String key) {
         String k = key.trim().toLowerCase(Locale.ROOT);
         if (k.isEmpty()) return "";

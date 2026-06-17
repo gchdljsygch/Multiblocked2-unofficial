@@ -27,6 +27,9 @@ import net.minecraft.world.phys.shapes.Shapes;
 import java.io.File;
 import java.util.Map;
 
+/**
+ * Editor project template for Create kinetic machine definitions.
+ */
 @Getter
 @LDLRegister(name = "km", group = "editor.machine", modID = "create")
 @NoArgsConstructor

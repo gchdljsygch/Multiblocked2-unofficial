@@ -17,8 +17,12 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability that represents Nature's Aura amounts in recipe content and XEI displays.
+ */
 public class NaturesAuraRecipeCapability extends RecipeCapability<Integer> {
     public final static NaturesAuraRecipeCapability CAP = new NaturesAuraRecipeCapability();
+
     protected NaturesAuraRecipeCapability() {
         super("natures_aura", SerializerInteger.INSTANCE);
     }

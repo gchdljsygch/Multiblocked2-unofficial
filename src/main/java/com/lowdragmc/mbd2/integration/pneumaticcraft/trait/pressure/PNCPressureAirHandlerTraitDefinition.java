@@ -21,6 +21,9 @@ import me.desht.pneumaticcraft.common.core.ModItems;
 import me.desht.pneumaticcraft.common.inventory.CreativeCompressedIronBlockMenu;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Trait definition for configuring PneumaticCraft pressure storage and connection sides.
+ */
 @LDLRegister(name = "pneumatic_pressure_air_handler", group = "trait", modID = "pneumaticcraft")
 public class PNCPressureAirHandlerTraitDefinition extends RecipeCapabilityTraitDefinition implements IUIProviderTrait {
     @Getter

@@ -9,8 +9,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.Locale;
 
+/**
+ * Localizes LDLib graph node display names for MBD2's graph editor.
+ *
+ * <p>LDLib nodes often expose human-readable names instead of translation keys. This mixin
+ * keeps those names usable as fallbacks while first checking MBD2's normalized graph-processor
+ * key namespace. It only affects client-side display text after the original LDLib name has
+ * been computed.</p>
+ */
 @Mixin(value = BaseNode.class, remap = false)
 public class LDLibBaseNodeI18nMixin {
+    /**
+     * Replaces a returned node display name with an available translated string.
+     *
+     * @param cir callback containing the original LDLib display name and receiving the localized
+     *            replacement when a matching key exists
+     */
     @Inject(method = "getDisplayName", at = @At("RETURN"), cancellable = true, remap = false)
     private void mbd2$translateDisplayName(CallbackInfoReturnable<String> cir) {
         String key = cir.getReturnValue();
@@ -23,6 +37,12 @@ public class LDLibBaseNodeI18nMixin {
         }
     }
 
+    /**
+     * Converts arbitrary LDLib display text into MBD2's graph translation-key suffix.
+     *
+     * @param key raw display text or existing key
+     * @return lower-case key fragment containing only letters, digits, dots, and underscores
+     */
     private static String normalizeKey(String key) {
         String k = key.trim().toLowerCase(Locale.ROOT);
         if (k.isEmpty()) return "";

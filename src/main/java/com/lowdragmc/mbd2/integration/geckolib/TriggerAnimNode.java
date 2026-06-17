@@ -13,6 +13,9 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
+/**
+ * Graph node that triggers a named GeckoLib animation on an MBD machine.
+ */
 @LDLRegister(name = "trigger geckolib anima", group = "graph_processor.node.mbd2.machine.geckolib", modID = "geckolib")
 public class TriggerAnimNode extends LinearTriggerNode {
     @InputPort
@@ -36,7 +39,7 @@ public class TriggerAnimNode extends LinearTriggerNode {
     public void buildConfigurator(ConfiguratorGroup father) {
         HashMap<String, Method> setter = new HashMap<>();
         var clazz = this.getClass();
-        for(NodePort port : this.getInputPorts()) {
+        for (NodePort port : this.getInputPorts()) {
             if (port.fieldName.equals("speed")) {
                 if (port.getEdges().isEmpty()) {
                     try {

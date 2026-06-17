@@ -26,6 +26,14 @@ import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Base living entity implementation that owns an MBD entity machine.
+ *
+ * <p>The business goal is to let entity machine definitions participate in vanilla {@link LivingEntity} behavior while
+ * still reusing MBD machine logic, traits, UI, persistence, and capabilities. A virtual
+ * {@link EntityMachineBlockEntity} supplies block-entity style APIs to the meta-machine; lifecycle methods should be
+ * called from Minecraft's normal logical server/client thread.</p>
+ */
 public abstract class MBDLivingMachineEntity extends LivingEntity implements IMachineEntity {
     @Getter
     private final MultiManagedStorage rootStorage = new MultiManagedStorage();
@@ -37,6 +45,16 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
     @Getter
     private boolean machineLoaded;
 
+    /**
+     * Creates a living entity-backed machine instance.
+     *
+     * <p>Side effects: creates the virtual machine holder, creates the definition's meta-machine, and installs that
+     * machine into the holder. The actual machine load hook runs lazily on the first side-specific tick.</p>
+     *
+     * @param entityType vanilla living entity type registered for this definition
+     * @param level      level that owns the entity
+     * @param definition entity machine definition used to create the meta-machine
+     */
     protected MBDLivingMachineEntity(EntityType<? extends LivingEntity> entityType, Level level, EntityMachineDefinition definition) {
         super(entityType, level);
         machineHolder = new EntityMachineBlockEntity(this);
@@ -44,17 +62,31 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
         machineHolder.setMachine(metaMachine);
     }
 
+    /**
+     * Returns this object with the more specific living entity type.
+     *
+     * @return this living entity
+     */
     @Override
     public LivingEntity self() {
         return this;
     }
 
+    /**
+     * Ticks vanilla living entity behavior and then the attached machine.
+     */
     @Override
     public void tick() {
         super.tick();
         tickMachine();
     }
 
+    /**
+     * Dispatches machine ticking to server or client logic.
+     *
+     * <p>Side effects: may load the machine, post entity-machine tick events, run recipe/trait logic, and refresh
+     * client-side machine state.</p>
+     */
     protected void tickMachine() {
         if (level().isClientSide) {
             clientTickMachine();
@@ -63,24 +95,49 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
         }
     }
 
+    /**
+     * Routes player interaction through machine hooks before vanilla living-entity interaction.
+     *
+     * @param player interacting player
+     * @param hand   hand used for interaction
+     * @return machine result when handled, otherwise vanilla result
+     */
     @Override
     public InteractionResult interact(Player player, InteractionHand hand) {
         var result = interactMachine(player, hand);
         return result == InteractionResult.PASS ? super.interact(player, hand) : result;
     }
 
+    /**
+     * Adds machine trait drops to the vanilla living-entity equipment drop path.
+     *
+     * <p>Side effects occur as part of vanilla death/drop processing on the logical server.</p>
+     */
     @Override
     protected void dropEquipment() {
         super.dropEquipment();
         dropMachineContents();
     }
 
+    /**
+     * Returns the item stack represented by the entity machine definition.
+     *
+     * @return definition item stack for MBD machines, otherwise empty
+     */
     @Nullable
     @Override
     public ItemStack getPickResult() {
         return metaMachine instanceof MBDMachine machine ? machine.getDefinition().asStack() : ItemStack.EMPTY;
     }
 
+    /**
+     * Removes the living entity and unloads the attached machine.
+     *
+     * <p>Side effects on the logical server: posts {@link EntityMachineRemovedEvent} for entity machines and dispatches
+     * normal unload or chunk-unload behavior based on the removal reason.</p>
+     *
+     * @param reason vanilla removal reason
+     */
     @Override
     public void remove(RemovalReason reason) {
         if (!level().isClientSide && metaMachine instanceof MBDEntityMachine machine) {
@@ -90,6 +147,11 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
         super.remove(reason);
     }
 
+    /**
+     * Posts the entity-machine spawned event after vanilla world attachment.
+     *
+     * <p>Side effects occur on the logical server only.</p>
+     */
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -98,23 +160,46 @@ public abstract class MBDLivingMachineEntity extends LivingEntity implements IMa
         }
     }
 
+    /**
+     * Updates the guard used to keep machine load/unload hooks idempotent.
+     *
+     * @param machineLoaded {@code true} after machine load, {@code false} after unload
+     */
     @Override
     public void setMachineLoaded(boolean machineLoaded) {
         this.machineLoaded = machineLoaded;
     }
 
+    /**
+     * Loads vanilla living data and then machine-managed persistent data.
+     *
+     * @param tag source entity tag
+     */
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         loadMachineData(tag);
     }
 
+    /**
+     * Saves vanilla living data and then machine-managed persistent data.
+     *
+     * @param tag destination entity tag
+     */
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         saveMachineData(tag);
     }
 
+    /**
+     * Exposes the MBD machine capability and delegates other capabilities to the meta-machine.
+     *
+     * @param capability requested Forge capability
+     * @param facing     queried side, or {@code null} for side-independent access
+     * @param <T>        capability value type
+     * @return machine capability, machine-delegated capability, or vanilla living-entity capability
+     */
     @Override
     public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> capability, @Nullable Direction facing) {
         if (capability == MBDCapabilities.CAPABILITY_MACHINE) {

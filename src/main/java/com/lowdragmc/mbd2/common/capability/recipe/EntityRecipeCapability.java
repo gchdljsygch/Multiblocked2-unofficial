@@ -30,26 +30,52 @@ import java.util.stream.Stream;
 
 import static com.lowdragmc.lowdraglib.gui.widget.TankWidget.FLUID_SLOT_TEXTURE;
 
+/**
+ * Recipe capability descriptor for entity ingredients.
+ *
+ * <p>The capability displays entity type/tag requirements, provides editor controls for count, candidate entity
+ * values, and optional NBT, and reports unmatched entity requirements. Runtime consumption/spawning is implemented by
+ * entity handler traits; this descriptor owns only recipe content conversion and UI integration.</p>
+ */
 public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
     public static final String ENTITY_TYPE = "recipe.capability.entity.ingredient.values.entity";
     public static final String TAG_TYPE = "recipe.capability.entity.ingredient.values.tag";
 
     public final static EntityRecipeCapability CAP = new EntityRecipeCapability();
 
+    /**
+     * Creates the singleton entity recipe capability.
+     */
     protected EntityRecipeCapability() {
         super("entity", SerializerEntityIngredient.INSTANCE);
     }
 
+    /**
+     * Returns a representative single-pig entity ingredient.
+     *
+     * @return entity ingredient matching one pig
+     */
     @Override
     public EntityIngredient createDefaultContent() {
         return EntityIngredient.of(1, EntityType.PIG);
     }
 
+    /**
+     * Creates an entity preview widget.
+     *
+     * @param content entity ingredient to preview
+     * @return non-interactive 18x18 preview widget
+     */
     @Override
     public Widget createPreviewWidget(EntityIngredient content) {
         return new EntityPreviewWidget(content, 0, 0, 18, 18).setDrawHoverOverlay(false);
     }
 
+    /**
+     * Creates the recipe-viewer entity preview template.
+     *
+     * @return unbound entity preview widget
+     */
     @Override
     public Widget createXEITemplate() {
         var preview = new EntityPreviewWidget();
@@ -57,6 +83,13 @@ public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
         return preview;
     }
 
+    /**
+     * Binds an entity ingredient to a recipe-viewer preview widget.
+     *
+     * @param widget       entity preview widget
+     * @param content      recipe content wrapper containing an entity ingredient
+     * @param ingredientIO viewer role for input/output display
+     */
     @Override
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof EntityPreviewWidget entityPreview) {
@@ -67,6 +100,13 @@ public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
         }
     }
 
+    /**
+     * Creates editor configurators for entity count, entity type/tag candidates, and optional NBT.
+     *
+     * @param father   parent configurator group
+     * @param supplier current entity ingredient supplier
+     * @param onUpdate callback receiving updated content
+     */
     @Override
     public void createContentConfigurator(ConfiguratorGroup father, Supplier<EntityIngredient> supplier, Consumer<EntityIngredient> onUpdate) {
         // count
@@ -126,7 +166,8 @@ public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
                             if (tagKey.toString().toLowerCase().contains(word.toLowerCase())) {
                                 find.accept(tagKey);
                             }
-                        }}, ResourceLocation::toString));
+                        }
+                    }, ResourceLocation::toString));
                 }
                 valueGroup.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", preview));
             });
@@ -163,9 +204,16 @@ public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
                         entityIngredient.setNbt(newTag);
                         onUpdate.accept(entityIngredient);
                     }, false, RecipeCapability.class.getField("name")));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
+    /**
+     * Builds a human-readable message for unsatisfied entity ingredients.
+     *
+     * @param left remaining entity ingredients after recipe matching
+     * @return component listing count, first display entity type, and NBT requirement where present
+     */
     @Override
     public Component getLeftErrorInfo(List<EntityIngredient> left) {
         var result = Component.empty();

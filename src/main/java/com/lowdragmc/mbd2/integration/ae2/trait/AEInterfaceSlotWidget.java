@@ -28,6 +28,9 @@ import java.util.Optional;
 import static com.lowdragmc.lowdraglib.gui.widget.SlotWidget.ITEM_SLOT_TEXTURE;
 
 
+/**
+ * Two-slot AE2 interface widget that binds one config stack and one stored stack from {@link SerializableInterfaceLogic}.
+ */
 @LDLRegister(name = "ae_interface_slot", group = "widget.container", modID = "ae2")
 public class AEInterfaceSlotWidget extends WidgetGroup {
     private static final String CONFIG_SLOT_ID = "config_slot";
@@ -43,6 +46,13 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
     @Getter
     private int slotIndex;
 
+    /**
+     * Creates a two-row AE2 interface slot widget.
+     * <p>
+     * Side effects: creates a config slot and a storage slot, disables phantom/amount editing on the storage slot, and
+     * adds both children. Bind it to live interface data with {@link #setInterfaceLogic(SerializableInterfaceLogic, int)}
+     * before use.
+     */
     public AEInterfaceSlotWidget() {
         super(0, 0, 20, 18 * 2 + 2);
         setupKeySlot(configSlot, CONFIG_SLOT_ID, 1, 1);
@@ -60,10 +70,28 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         configSlot.setBackground(new GuiTextureGroup(ITEM_SLOT_TEXTURE, Icons.DOWN.copy().setColor(ColorPattern.GRAY.color).scale(0.8f)));
     }
 
+    /**
+     * Binds this widget to an item interface slot.
+     * <p>
+     * This is a compatibility alias for {@link #setInterfaceLogic(SerializableInterfaceLogic, int)}; it affects both the
+     * config and storage child slots.
+     *
+     * @param interfaceLogic interface logic that owns the config/storage inventories
+     * @param slotIndex      zero-based slot index inside both inventories
+     */
     public void setItemInterfaceLogic(SerializableInterfaceLogic interfaceLogic, int slotIndex) {
         setInterfaceLogic(interfaceLogic, slotIndex);
     }
 
+    /**
+     * Binds the config and storage child slots to interface logic inventories.
+     * <p>
+     * Side effects: stores the logic reference and slot index, then points the top slot at {@code getConfig()} and the
+     * bottom slot at {@code getStorage()}. The slot index must be valid for both inventories.
+     *
+     * @param interfaceLogic interface logic that owns the config/storage inventories
+     * @param slotIndex      zero-based slot index inside both inventories
+     */
     public void setInterfaceLogic(SerializableInterfaceLogic interfaceLogic, int slotIndex) {
         this.interfaceLogic = interfaceLogic;
         this.slotIndex = slotIndex;
@@ -71,14 +99,29 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         configSlot.setConfigInventory(interfaceLogic.getConfig(), slotIndex);
     }
 
+    /**
+     * Sets the ingredient role exposed by the storage slot to recipe viewers.
+     *
+     * @param ingredientIO role reported by the lower storage slot
+     */
     public void setIngredientIO(IngredientIO ingredientIO) {
         storageSlot.setIngredientIO(ingredientIO);
     }
 
+    /**
+     * Controls whether users may extract or clear the storage slot through this widget.
+     *
+     * @param support {@code true} to allow taking/clearing from the storage slot
+     */
     public void setCanTakeItems(boolean support) {
         storageSlot.setCanTakeItems(support);
     }
 
+    /**
+     * Controls whether users may insert or replace the storage slot through this widget.
+     *
+     * @param support {@code true} to allow putting/replacing the storage slot key
+     */
     public void setCanPutItems(boolean support) {
         storageSlot.setCanPutItems(support);
     }
@@ -88,6 +131,17 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         slot.setId(id);
     }
 
+    /**
+     * Adapts one AE2 config inventory slot to LDLib item transfer APIs used by recipe handlers and widgets.
+     * <p>
+     * The returned transfer exposes a single logical slot backed by {@code inventory}. Insert and extract operations
+     * delegate to AE2 and respect the inventory's insert/extract flags, capacity, and allowed-key filter. Snapshot
+     * methods are no-ops because the backing AE2 config inventory is the source of truth.
+     *
+     * @param inventory AE2 inventory to adapt; must remain valid for the lifetime of the transfer
+     * @param slotIndex zero-based slot index in {@code inventory}
+     * @return single-slot item transfer view over the requested AE2 slot
+     */
     public static @NotNull IItemTransfer createAEItemTransfer(ConfigInventory inventory, int slotIndex) {
         return new IItemTransfer() {
             @Override
@@ -152,6 +206,17 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         };
     }
 
+    /**
+     * Adapts one AE2 config inventory slot to LDLib fluid transfer APIs while preserving AE fluid keys and tags.
+     * <p>
+     * The returned transfer exposes a single logical tank backed by {@code inventory}. Fill and drain operations delegate
+     * to AE2 and respect insert/extract flags, per-key capacity, and allowed-key filters. Snapshot methods are no-ops
+     * because the backing AE2 config inventory is the source of truth.
+     *
+     * @param inventory AE2 inventory to adapt; must remain valid for the lifetime of the transfer
+     * @param slotIndex zero-based slot index in {@code inventory}
+     * @return single-tank fluid transfer view over the requested AE2 slot
+     */
     public static @NotNull IFluidTransfer createAEFluidTransfer(ConfigInventory inventory, int slotIndex) {
         return new IFluidTransfer() {
             @Override

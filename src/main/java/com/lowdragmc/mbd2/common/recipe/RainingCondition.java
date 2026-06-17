@@ -35,6 +35,16 @@ public class RainingCondition extends RecipeCondition {
     @NumberRange(range = {0f, 1f})
     private float maxLevel;
 
+    /**
+     * Creates a condition that requires the world's rain strength to be inside an inclusive range.
+     * <p>
+     * Minecraft rain strength is normally {@code 0.0..1.0}. The values are stored as supplied; editor input constrains
+     * them to that range, but programmatic callers should pass sensible bounds. If {@code minLevel > maxLevel}, the
+     * condition can never pass. Testing fails when the machine has no level.
+     *
+     * @param minLevel inclusive lower rain strength
+     * @param maxLevel inclusive upper rain strength
+     */
     public RainingCondition(float minLevel, float maxLevel) {
         this.minLevel = minLevel;
         this.maxLevel = maxLevel;

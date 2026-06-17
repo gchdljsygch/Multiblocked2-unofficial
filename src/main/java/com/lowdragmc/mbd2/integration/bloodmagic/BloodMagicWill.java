@@ -13,13 +13,33 @@ import wayoftime.bloodmagic.api.compat.EnumDemonWillType;
 
 import java.util.Locale;
 
+/**
+ * Recipe content payload for Blood Magic demon will.
+ *
+ * @param type demon will type; defaults to {@link EnumDemonWillType#DEFAULT} when null or invalid
+ * @param amount required or produced will amount, clamped to zero or above
+ * @param maxOutput maximum ambient will value allowed when outputting into the world
+ */
 public record BloodMagicWill(EnumDemonWillType type, double amount, double maxOutput) {
     public static final double DEFAULT_MAX_OUTPUT = 100d;
 
+    /**
+     * Creates a will payload with a default output cap at least as large as the amount.
+     *
+     * @param type demon will type
+     * @param amount will amount
+     * @return normalized will payload
+     */
     public static BloodMagicWill of(EnumDemonWillType type, double amount) {
         return new BloodMagicWill(type, amount, Math.max(amount, DEFAULT_MAX_OUTPUT));
     }
 
+    /**
+     * Parses a Blood Magic will type name safely.
+     *
+     * @param type serialized type name
+     * @return matching will type, or {@link EnumDemonWillType#DEFAULT}
+     */
     public static EnumDemonWillType parseType(String type) {
         if (type == null || type.isBlank()) {
             return EnumDemonWillType.DEFAULT;
@@ -36,6 +56,12 @@ public record BloodMagicWill(EnumDemonWillType type, double amount, double maxOu
         maxOutput = Math.max(0, maxOutput);
     }
 
+    /**
+     * Serializer for JSON, NBT, network, and script coercion of Blood Magic will payloads.
+     *
+     * <p>String coercion accepts {@code type:amount:maxOutput}, {@code type:amount}, or a plain
+     * numeric amount for default will.</p>
+     */
     public static class SerializerBloodMagicWill implements IContentSerializer<BloodMagicWill> {
         public static final IContentSerializer<BloodMagicWill> INSTANCE = new SerializerBloodMagicWill();
 

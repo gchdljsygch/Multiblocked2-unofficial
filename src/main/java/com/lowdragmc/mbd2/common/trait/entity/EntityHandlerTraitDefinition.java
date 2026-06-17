@@ -32,6 +32,13 @@ import javax.annotation.Nullable;
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * Definition for a recipe entity handler trait.
+ *
+ * <p>The definition stores the machine-relative area used both for input entity detection and output spawning.
+ * Rotated areas are cached per front-facing direction and invalidated when configuration or serialized state
+ * changes.</p>
+ */
 @LDLRegister(name = "entity_handler", group = "trait", priority = -99)
 public class EntityHandlerTraitDefinition extends RecipeCapabilityTraitDefinition {
 
@@ -46,32 +53,70 @@ public class EntityHandlerTraitDefinition extends RecipeCapabilityTraitDefinitio
     // runtime
     private final Map<Direction, AABB> areaCache = new EnumMap<>(Direction.class);
 
+    /**
+     * Creates the runtime trait attached to one machine.
+     *
+     * @param machine machine instance that will own the entity handler
+     * @return a new {@link EntityHandlerTrait}
+     */
     @Override
     public ITrait createTrait(MBDMachine machine) {
         return new EntityHandlerTrait(machine, this);
     }
 
+    /**
+     * Returns the editor icon for this trait type.
+     *
+     * @return pig spawn egg texture used to identify entity handlers
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(Items.PIG_SPAWN_EGG);
     }
 
+    /**
+     * Updates the unrotated machine-relative area and clears cached rotations.
+     *
+     * @param area new scan/spawn area; callers should provide a non-null AABB with min values below max values
+     */
     @ConfigSetter(field = "area")
     public void setArea(AABB area) {
         this.area = area;
         areaCache.clear();
     }
 
+    /**
+     * Restores persisted settings and invalidates runtime-only rotated-area cache entries.
+     *
+     * @param tag serialized trait definition tag
+     */
     @Override
     public void deserializeNBT(CompoundTag tag) {
         super.deserializeNBT(tag);
         areaCache.clear();
     }
 
+    /**
+     * Returns the scan/spawn area rotated to match a machine front.
+     *
+     * <p>{@code null} and {@link Direction#NORTH} use the stored area directly. Other directions are cached after
+     * rotation. The returned AABB is shared configuration/cache state and should be treated as immutable.</p>
+     *
+     * @param direction machine front direction, or {@code null} for the unrotated area
+     * @return machine-relative area for that direction
+     */
     public AABB getArea(@Nullable Direction direction) {
         return (direction == Direction.NORTH || direction == null) ? area : this.areaCache.computeIfAbsent(direction, dir -> ShapeUtils.rotate(area, dir));
     }
 
+    /**
+     * Draws the configured entity interaction area in the machine trait editor.
+     *
+     * <p>This method is client-only and mutates render state while drawing; it restores depth testing and culling
+     * before returning.</p>
+     *
+     * @param panel editor panel currently rendering the trait preview
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void renderAfterWorldInTraitPanel(MachineTraitPanel panel) {
@@ -92,8 +137,8 @@ public class EntityHandlerTraitDefinition extends RecipeCapabilityTraitDefinitio
 
         var color = 0xff11aaee;
         RenderBufferUtils.drawCubeFrame(poseStack, buffer,
-                (float)area.minX, (float)area.minY, (float)area.minZ,
-                (float)area.maxX, (float)area.maxY, (float)area.maxZ,
+                (float) area.minX, (float) area.minY, (float) area.minZ,
+                (float) area.maxX, (float) area.maxY, (float) area.maxZ,
                 ColorUtils.red(color), ColorUtils.green(color), ColorUtils.blue(color), ColorUtils.alpha(color));
 
         tessellator.end();

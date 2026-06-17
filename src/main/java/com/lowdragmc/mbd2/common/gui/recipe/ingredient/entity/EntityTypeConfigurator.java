@@ -14,10 +14,28 @@ import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Searchable configurator for selecting an {@link EntityType}.
+ *
+ * <p>The configurator shows a search field populated from
+ * {@link BuiltInRegistries#ENTITY_TYPE}, accepts dragged {@link Entity} or
+ * {@link EntityType} values, and previews results with {@link EntityPreviewWidget}. It is
+ * used by entity ingredient configuration in the recipe editor.</p>
+ */
 public class EntityTypeConfigurator extends ValueConfigurator<EntityType<?>> implements SearchComponentWidget.IWidgetSearch<EntityType<?>> {
     protected SearchComponentWidget<EntityType<?>> searchComponent;
     protected ImageWidget image;
 
+    /**
+     * Creates an entity-type configurator.
+     *
+     * @param name         configurator label translation key or literal text
+     * @param supplier     current value supplier
+     * @param onUpdate     callback invoked when the selected entity type changes
+     * @param defaultValue fallback value used when the supplier returns {@code null}
+     * @param forceUpdate  whether updates should be emitted even when the value appears
+     *                     unchanged, matching {@link ValueConfigurator} behavior
+     */
     public EntityTypeConfigurator(String name, Supplier<EntityType<?>> supplier, Consumer<EntityType<?>> onUpdate, @Nonnull EntityType<?> defaultValue, boolean forceUpdate) {
         super(name, supplier, onUpdate, defaultValue, forceUpdate);
         if (value == null) {

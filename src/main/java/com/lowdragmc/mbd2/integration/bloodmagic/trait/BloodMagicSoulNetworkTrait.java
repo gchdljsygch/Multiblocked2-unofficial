@@ -24,6 +24,13 @@ import wayoftime.bloodmagic.util.helper.NetworkHelper;
 
 import java.util.List;
 
+/**
+ * Trait that connects a machine to the Soul Network of a bound Blood Orb.
+ *
+ * <p>The trait stores one orb item, drops it with the machine, and uses Blood Magic's
+ * {@link SoulNetwork} APIs to syphon or add Life Essence during recipe processing. Recipe
+ * operations require a valid binding and a non-zero orb capacity.</p>
+ */
 public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<Integer> {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicSoulNetworkTrait.class);
 
@@ -58,6 +65,12 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         return transfer;
     }
 
+    /**
+     * Adds the stored orb to machine drops.
+     *
+     * @param entity entity that caused the drop
+     * @param drops mutable drop list
+     */
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
         var orb = getOrbStack();
@@ -66,19 +79,31 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         }
     }
 
+    /**
+     * Returns the Blood Orb stored in the trait slot.
+     */
     public ItemStack getOrbStack() {
         return orbSlot.getStackInSlot(0);
     }
 
+    /**
+     * Checks whether the stored orb can resolve to a usable Soul Network.
+     */
     public boolean hasBoundOrb() {
         return getBinding() != null && getOrbCapacity() > 0;
     }
 
+    /**
+     * Returns the current LP in the bound Soul Network, or zero when unbound.
+     */
     public int getCurrentEssence() {
         var network = getSoulNetwork();
         return network == null ? 0 : network.getCurrentEssence();
     }
 
+    /**
+     * Returns the capacity of the stored Blood Orb tier.
+     */
     public int getOrbCapacity() {
         var stack = getOrbStack();
         if (stack.getItem() instanceof IBloodOrb bloodOrb) {
@@ -88,6 +113,9 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         return 0;
     }
 
+    /**
+     * Resolves Blood Magic binding data from the stored orb.
+     */
     @Nullable
     protected Binding getBinding() {
         var stack = getOrbStack();
@@ -100,6 +128,9 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         return Binding.fromStack(stack);
     }
 
+    /**
+     * Resolves the bound Soul Network and updates its max orb tier from the stored orb.
+     */
     @Nullable
     protected SoulNetwork getSoulNetwork() {
         var binding = getBinding();
@@ -117,6 +148,11 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         return network;
     }
 
+    /**
+     * Syphons LP for recipe inputs or adds LP for recipe outputs.
+     *
+     * @return unsatisfied LP amounts, or {@code null} when fully handled
+     */
     @Override
     public List<Integer> handleRecipeInner(IO io, MBDRecipe recipe, List<Integer> left, @Nullable String slotName, boolean simulate) {
         if (!compatibleWith(io)) return left;
@@ -152,11 +188,17 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
         return required > 0 ? List.of(required) : null;
     }
 
+    /**
+     * Returns the recipe capability handled by this trait.
+     */
     @Override
     public RecipeCapability<Integer> getRecipeCapability() {
         return BloodMagicSoulNetworkRecipeCapability.CAP;
     }
 
+    /**
+     * Exposes this trait as its own recipe handler.
+     */
     @Override
     public List<IRecipeHandlerTrait<?>> getRecipeHandlerTraits() {
         return List.of(this);

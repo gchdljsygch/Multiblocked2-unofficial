@@ -35,6 +35,19 @@ import org.jetbrains.annotations.Nullable;
 import javax.annotation.Nonnull;
 import java.util.*;
 
+/**
+ * Part-machine runtime that can join one or more multiblock controllers.
+ * <p>
+ * A part keeps the controller positions it currently belongs to, exposes its
+ * own recipe handlers to formed controllers, and can proxy selected controller
+ * capabilities through this block according to {@link ConfigPartSettings}. It
+ * also mirrors controller item-trait contents to clients so hidden/proxy parts
+ * can render representative inventory items.
+ * <p>
+ * Thread safety: controller membership and proxied render data are mutated from
+ * normal level/block-entity callbacks on the logical server or client thread.
+ * The collections are not safe for arbitrary concurrent access.
+ */
 public class MBDPartMachine extends MBDMachine implements IMultiPart {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDPartMachine.class, MBDMachine.MANAGED_FIELD_HOLDER);
 
@@ -53,6 +66,13 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
     private final Map<String, List<ItemStack>> proxiedTraitRenderItems = new HashMap<>();
     private CompoundTag lastProxiedTraitRenderItemsTag = new CompoundTag();
 
+    /**
+     * Creates a part machine bound to a block entity holder.
+     *
+     * @param machineHolder block entity holder that owns this part
+     * @param definition    part-capable machine definition
+     * @param args          optional subclass-specific creation arguments
+     */
     public MBDPartMachine(IMachineBlockEntity machineHolder, MBDMachineDefinition definition, Object... args) {
         super(machineHolder, definition, args);
     }
@@ -225,6 +245,15 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         return false;
     }
 
+    /**
+     * Checks whether this part proxies the given controller redstone trait on
+     * any side.
+     *
+     * @param redstoneTrait redstone trait attached to a controller that this
+     *                      part belongs to
+     * @return {@code true} when at least one side exposes input or output for
+     * that trait
+     */
     public boolean isProxyingControllerRedstone(RedstoneSignalCapabilityTrait redstoneTrait) {
         if (getControllerRedstoneProxyPartSettings(redstoneTrait) == null) {
             return false;
@@ -237,6 +266,16 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         return false;
     }
 
+    /**
+     * Resolves the effective IO permission for proxying a controller redstone
+     * trait through this part.
+     *
+     * @param redstoneTrait controller trait being proxied
+     * @param side          world side queried by redstone logic; {@code null} means an
+     *                      internal/unsided query
+     * @return merged IO permission for all matching proxy rules, or
+     * {@link IO#NONE} when the trait is not proxied through this part
+     */
     public IO getControllerRedstoneProxyIO(RedstoneSignalCapabilityTrait redstoneTrait, @Nullable Direction side) {
         var partSettings = getControllerRedstoneProxyPartSettings(redstoneTrait);
         if (partSettings == null) {
@@ -308,6 +347,14 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         return signal;
     }
 
+    /**
+     * Runs this part's own server tick and any enabled auto-IO rules that proxy
+     * controller traits.
+     * <p>
+     * Auto-IO is executed from the part position toward the configured sides,
+     * then proxied item render contents are synchronized to tracking clients
+     * when they change.
+     */
     @Override
     public void internalServerTick() {
         super.internalServerTick();
@@ -334,6 +381,14 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         syncProxiedTraitRenderItems();
     }
 
+    /**
+     * Returns the item stacks currently mirrored from a proxied controller item
+     * trait for client rendering.
+     *
+     * @param traitName controller trait definition name
+     * @return immutable empty list when no mirrored items exist; otherwise the
+     * current mirrored stacks for rendering only
+     */
     @NotNull
     public List<ItemStack> getProxiedTraitRenderItems(String traitName) {
         return proxiedTraitRenderItems.getOrDefault(traitName, Collections.emptyList());
@@ -390,6 +445,12 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         }
     }
 
+    /**
+     * RPC entry point used to apply server-collected proxied item render data on
+     * clients.
+     *
+     * @param tag serialized map of trait names to item stacks
+     */
     @RPCMethod
     public void applyProxiedTraitRenderItems(CompoundTag tag) {
         proxiedTraitRenderItems.clear();
@@ -417,6 +478,14 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
         }
     }
 
+    /**
+     * Returns this part's own capability or a configured proxy of a controller
+     * capability.
+     * <p>
+     * When multiple matching controller contents are found, the controller
+     * trait's provider is asked to merge them. The returned capability respects
+     * the part's side-relative proxy IO settings.
+     */
     @Override
     public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
         var result = super.getCapability(cap, side);

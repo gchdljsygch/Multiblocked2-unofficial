@@ -23,9 +23,22 @@ import net.minecraft.core.BlockPos;
 import java.util.Collections;
 import java.util.Optional;
 
+/**
+ * Draggable preview card for one {@link MachineState} in the machine editor.
+ *
+ * <p>The widget displays a small isolated scene for the state, supports renderer drag-and-drop onto the card, exposes a
+ * right-click menu for adding/removing child states, and notifies the owning {@link MachineConfigPanel} when selected.
+ * It is an editor-only UI object and mutates the underlying state tree only through menu actions.</p>
+ */
 public class MachineStatePreview extends DraggableWidgetGroup {
+    /**
+     * Panel that owns this preview.
+     */
     @Getter
     private final MachineConfigPanel panel;
+    /**
+     * Machine state represented by this preview.
+     */
     @Getter
     private final MachineState state;
     private final WidgetGroup title;
@@ -36,6 +49,12 @@ public class MachineStatePreview extends DraggableWidgetGroup {
     // runtime
     private long lastClickTick;
 
+    /**
+     * Creates a state preview card and its embedded scene.
+     *
+     * @param panel owning configuration panel
+     * @param state state represented by this widget
+     */
     public MachineStatePreview(MachineConfigPanel panel, MachineState state) {
         super(0, 0, 100, 100 + 15);
         this.panel = panel;
@@ -81,6 +100,12 @@ public class MachineStatePreview extends DraggableWidgetGroup {
                 });
     }
 
+    /**
+     * Sets up the embedded block-machine preview scene.
+     *
+     * @param scene scene widget inside the card
+     * @param level dummy world owned by the scene
+     */
     protected void setupPreviewScene(SceneWidget scene, TrackedDummyWorld level) {
         level.addBlock(BlockPos.ZERO, BlockInfo.fromBlock(MBDRegistries.FAKE_MACHINE().block()));
         Optional.ofNullable(level.getBlockEntity(BlockPos.ZERO)).ifPresent(blockEntity -> {
@@ -91,6 +116,9 @@ public class MachineStatePreview extends DraggableWidgetGroup {
         });
     }
 
+    /**
+     * Toggles the card between collapsed title-only and expanded preview modes.
+     */
     public void collapse() {
         this.isCollapse = !this.isCollapse;
         if (this.isCollapse) {
@@ -108,32 +136,53 @@ public class MachineStatePreview extends DraggableWidgetGroup {
         }
     }
 
+    /**
+     * Returns the icon used by menus or external lists for state previews.
+     */
     public IGuiTexture getIcon() {
         return Icons.HISTORY;
     }
 
+    /**
+     * Checks whether this preview represents the state-machine root.
+     *
+     * @return {@code true} for the root state
+     */
     public boolean isRoot() {
         return this.state.isRoot();
     }
 
+    /**
+     * Allows the preview card to be dragged outside its parent bounds.
+     *
+     * @return always {@code true}
+     */
     @Override
     public boolean canDragOutRange() {
         return true;
     }
 
+    /**
+     * Notifies the owning panel that this state was selected.
+     */
     @Override
     public void onSelected() {
         super.onSelected();
         panel.onStateSelected(state);
     }
 
+    /**
+     * Builds the right-click menu for state tree operations.
+     *
+     * @return menu containing add and, for non-root states, remove actions
+     */
     protected TreeBuilder.Menu createMenuTree() {
         var menu = TreeBuilder.Menu.start();
         menu.leaf(Icons.ADD, "editor.machine_state.add", () -> {
             DialogWidget.showStringEditorDialog(panel, "editor.machine_state.add", "new_state",
                     s -> true, s -> {
                         if (s != null && state.stateMachine() != null && !state.stateMachine().hasState(s)) {
-                            var newState =  state.addChild(s);
+                            var newState = state.addChild(s);
                             panel.onStateAdded(newState);
                         }
                     });
@@ -147,6 +196,9 @@ public class MachineStatePreview extends DraggableWidgetGroup {
         return menu;
     }
 
+    /**
+     * Handles right-click state menu opening and double-click collapse toggling.
+     */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (content.isMouseOverElement(mouseX, mouseY) && button == 1) {

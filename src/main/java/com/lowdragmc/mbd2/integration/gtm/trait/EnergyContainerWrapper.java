@@ -4,6 +4,9 @@ import com.gregtechceu.gtceu.api.capability.IEnergyContainer;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import net.minecraft.core.Direction;
 
+/**
+ * IO-filtered GregTech energy container view exposed through machine capability sides.
+ */
 public class EnergyContainerWrapper implements IEnergyContainer {
     private final IEnergyContainer container;
     private final IO io;

@@ -24,6 +24,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Server-side dispatcher that posts MBD entity machine events into KubeJS handlers.
+ */
 public interface MBDEntityMachineEventDispatcher {
     Map<Class<? extends EntityMachineEvent>, Function<EntityMachineEvent, EventResult>> entityMachineEventHandlers = new HashMap<>();
 

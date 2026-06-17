@@ -7,6 +7,13 @@ import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.nbt.IntTag;
 
+/**
+ * Mutable Ars Nouveau Source storage that can be copied for recipe simulation.
+ *
+ * <p>The store implements Ars Nouveau's {@link ISourceTile} contract, LowDragLib sync hooks, and
+ * integer NBT persistence. Amounts are clamped to {@code [0, maxSource]} and content changes fire
+ * the configured callback.</p>
+ */
 public class CopiableSourceStorage implements ISourceTile, ITagSerializable<IntTag>, IContentChangeAware {
     @Getter
     @Setter
@@ -26,6 +33,11 @@ public class CopiableSourceStorage implements ISourceTile, ITagSerializable<IntT
         this.source = clamp(source);
     }
 
+    /**
+     * Creates a detached copy for simulation paths.
+     *
+     * @return storage with the same capacity, transfer rate, and current Source
+     */
     public CopiableSourceStorage copy() {
         return new CopiableSourceStorage(maxSource, transferRate, source);
     }
@@ -86,6 +98,9 @@ public class CopiableSourceStorage implements ISourceTile, ITagSerializable<IntT
         setSource(nbt.getAsInt());
     }
 
+    /**
+     * Clamps a Source value to this storage's valid range.
+     */
     private int clamp(int value) {
         return Math.max(0, Math.min(value, maxSource));
     }

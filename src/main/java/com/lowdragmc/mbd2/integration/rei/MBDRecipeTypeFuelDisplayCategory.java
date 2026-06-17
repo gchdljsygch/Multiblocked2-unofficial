@@ -23,8 +23,14 @@ import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.function.Function;
 
+/**
+ * REI display category for fuel recipes used by an MBD recipe type.
+ */
 public class MBDRecipeTypeFuelDisplayCategory extends ModularUIDisplayCategory<MBDRecipeTypeFuelDisplayCategory.MBDRecipeDisplay> {
 
+    /**
+     * REI display wrapper that supplies an MBD modular fuel UI.
+     */
     public static class MBDRecipeDisplay extends ModularDisplay<Widget> {
 
         private final MBDRecipe recipe;

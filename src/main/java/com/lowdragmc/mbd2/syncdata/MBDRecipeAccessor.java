@@ -9,6 +9,9 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipeSerializer;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * Sync-data accessor for serializing MBD recipes through NBT payloads.
+ */
 public class MBDRecipeAccessor extends CustomObjectAccessor<MBDRecipe> {
 
     public MBDRecipeAccessor() {
@@ -27,8 +30,10 @@ public class MBDRecipeAccessor extends CustomObjectAccessor<MBDRecipe> {
     @Override
     public MBDRecipe deserialize(AccessorOp accessorOp, ITypedPayload<?> payload) {
         if (payload instanceof NbtTagPayload nbtTagPayload && nbtTagPayload.getPayload() instanceof CompoundTag tag) {
-            var id = new ResourceLocation(tag.getString("id"));
-            return MBDRecipeSerializer.SERIALIZER.fromNBT(id, tag.getCompound("recipe"));
+            var id = ResourceLocation.tryParse(tag.getString("id"));
+            if (id != null) {
+                return MBDRecipeSerializer.SERIALIZER.fromNBT(id, tag.getCompound("recipe"));
+            }
         }
         return null;
     }

@@ -18,10 +18,25 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Main block-machine configuration panel.
+ *
+ * <p>The panel combines the shared preview scene with a draggable state-tree overlay. Selecting states opens their
+ * configurators and updates the preview machine state. State preview widgets are editor-only views; actual state
+ * mutation happens through the underlying {@link MachineState} objects.</p>
+ */
 @Getter
 public class MachineConfigPanel extends MachineScenePanel {
+    /**
+     * Draggable overlay that contains state preview widgets and connection lines.
+     */
     protected final FloatView floatView;
 
+    /**
+     * Creates the block-machine configuration panel.
+     *
+     * @param editor owning machine editor
+     */
     public MachineConfigPanel(MachineEditor editor) {
         super(editor);
         setDrawShapeFrameLines(true);
@@ -32,7 +47,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Opens the current machine definition in the basic configurator tab.
      */
     public void onPanelSelected() {
         if (editor.getCurrentProject() instanceof MachineProject project) {
@@ -41,7 +56,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Load the machine state.
+     * Builds the state preview tree from the current project's state machine.
      */
     public void loadMachineState() {
         if (editor.getCurrentProject() instanceof MachineProject project) {
@@ -64,16 +79,24 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * add a state preview. it doesn't mean to add a real state to the state machine.
+     * Adds a preview widget for a newly created state.
+     *
+     * <p>This does not add the state to the state machine; callers must mutate the state tree first.</p>
+     *
+     * @param newState state to show in the overlay
      */
     public void onStateAdded(MachineState newState) {
         var preview = new MachineStatePreview(this, newState);
         preview.setSelfPosition(new Position((getSize().width - preview.getSize().width) / 2, (getSize().height - preview.getSize().height) / 2));
-        floatView.addWidgetAnima(preview,  new Transform().duration(200).scale(0.2f));
+        floatView.addWidgetAnima(preview, new Transform().duration(200).scale(0.2f));
     }
 
     /**
-     * remove a state preview. it doesn't mean to remove a real state from the state machine.
+     * Removes preview widgets for a state and its descendants.
+     *
+     * <p>This does not remove the state from the state machine; callers must mutate the state tree separately.</p>
+     *
+     * @param state state whose preview should be removed
      */
     public void onStateRemoved(MachineState state) {
         for (Widget widget : floatView.widgets) {
@@ -90,7 +113,9 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Called when a state is selected.
+     * Opens a state's configurator and changes the preview machine to that state.
+     *
+     * @param state selected machine state
      */
     public void onStateSelected(MachineState state) {
         editor.getConfigPanel().openConfigurator(MachineEditor.SECOND, state);
@@ -100,7 +125,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Making scene to be intractable even the float view is hovered.
+     * Forwards clicks through the float view so the scene remains interactable under empty overlay space.
      */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -114,7 +139,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Making scene to be intractable even the float view is hovered.
+     * Forwards releases to the preview scene.
      */
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
@@ -123,7 +148,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Making scene to be intractable even the float view is hovered.
+     * Forwards drag events to the preview scene.
      */
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
@@ -132,7 +157,7 @@ public class MachineConfigPanel extends MachineScenePanel {
     }
 
     /**
-     * Making scene to be intractable even the float view is hovered.
+     * Forwards mouse-wheel movement through empty overlay space to the preview scene.
      */
     @Override
     public boolean mouseWheelMove(double mouseX, double mouseY, double wheelDelta) {
@@ -142,11 +167,17 @@ public class MachineConfigPanel extends MachineScenePanel {
         return super.mouseWheelMove(mouseX, mouseY, wheelDelta);
     }
 
+    /**
+     * Draggable overlay that draws parent-child links between state preview widgets.
+     */
     public class FloatView extends DraggableScrollableWidgetGroup {
         private FloatView() {
             super(0, 0, MachineConfigPanel.super.getSize().width, MachineConfigPanel.super.getSize().height);
         }
 
+        /**
+         * Draws connection lines between child states and their parent state preview widgets.
+         */
         @Override
         protected boolean hookDrawInBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
             for (var widget : widgets) {

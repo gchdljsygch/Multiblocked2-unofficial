@@ -19,6 +19,7 @@ import net.minecraft.util.GsonHelper;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -32,8 +33,17 @@ import java.util.function.Consumer;
 public class DimensionCondition extends RecipeCondition {
 
     public final static DimensionCondition INSTANCE = new DimensionCondition();
-    private ResourceLocation dimension = new ResourceLocation("dummy");
+    private static final ResourceLocation DUMMY_DIMENSION = Objects.requireNonNull(ResourceLocation.tryParse("minecraft:dummy"));
+    private ResourceLocation dimension = DUMMY_DIMENSION;
 
+    /**
+     * Creates a recipe condition that requires the machine to be in a specific dimension.
+     * <p>
+     * The dimension id is compared with {@link Level#dimension()} during recipe testing. The condition fails when the
+     * machine has no level.
+     *
+     * @param dimension dimension registry id to require
+     */
     public DimensionCondition(ResourceLocation dimension) {
         this.dimension = dimension;
     }
@@ -65,15 +75,14 @@ public class DimensionCondition extends RecipeCondition {
     @Override
     public RecipeCondition deserialize(@Nonnull JsonObject config) {
         super.deserialize(config);
-        dimension = new ResourceLocation(
-                GsonHelper.getAsString(config, "dim", "dummy"));
+        dimension = parseDimension(GsonHelper.getAsString(config, "dim", "dummy"));
         return this;
     }
 
     @Override
     public RecipeCondition fromNetwork(FriendlyByteBuf buf) {
         super.fromNetwork(buf);
-        dimension = new ResourceLocation(buf.readUtf());
+        dimension = parseDimension(buf.readUtf());
         return this;
     }
 
@@ -93,7 +102,7 @@ public class DimensionCondition extends RecipeCondition {
     @Override
     public RecipeCondition fromNBT(CompoundTag tag) {
         super.fromNBT(tag);
-        dimension = new ResourceLocation(tag.getString("dim"));
+        dimension = parseDimension(tag.getString("dim"));
         return this;
     }
 
@@ -103,7 +112,7 @@ public class DimensionCondition extends RecipeCondition {
         var selector = new SearchComponentConfigurator<>(getTranslationKey(),
                 () -> this.dimension,
                 d -> this.dimension = d,
-                new ResourceLocation("dummy"),
+                DUMMY_DIMENSION,
                 true,
                 this::search,
                 ResourceLocation::toString
@@ -113,6 +122,20 @@ public class DimensionCondition extends RecipeCondition {
         father.addConfigurators(selector);
     }
 
+    private static ResourceLocation parseDimension(String raw) {
+        var parsed = ResourceLocation.tryParse(raw);
+        return parsed == null ? DUMMY_DIMENSION : parsed;
+    }
+
+    /**
+     * Searches loaded dimension-type registry keys for the editor selector.
+     * <p>
+     * This method is client-only because it reads {@link Minecraft#getInstance()} registry access. It cooperates with
+     * asynchronous search cancellation by returning when the current thread is interrupted.
+     *
+     * @param word case-insensitive substring to match against dimension ids
+     * @param find callback receiving matching dimension ids
+     */
     protected void search(String word, Consumer<ResourceLocation> find) {
         var wordLower = word.toLowerCase();
         for (var biomeEntry : Minecraft.getInstance().level.registryAccess().registry(Registries.DIMENSION_TYPE).get().keySet()) {

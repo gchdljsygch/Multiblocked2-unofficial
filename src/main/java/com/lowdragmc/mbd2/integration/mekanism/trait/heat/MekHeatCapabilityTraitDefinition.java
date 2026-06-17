@@ -23,6 +23,9 @@ import mekanism.common.registries.MekanismBlocks;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
+/**
+ * Configurable trait definition for Mekanism heat storage and temperature UI.
+ */
 @Setter
 @Getter
 @LDLRegister(name = "mek_heat_container", group = "trait", modID = "mekanism")

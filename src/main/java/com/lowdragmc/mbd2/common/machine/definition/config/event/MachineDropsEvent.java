@@ -13,15 +13,41 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Fired when a block-backed machine contributes item drops.
+ * <p>
+ * The mutable {@link #drops} list is the actual drop list being assembled.
+ * Graph handlers receive the original list as {@code drops.in} and can replace
+ * its contents by returning a list through {@code drops.out}. Non-ItemStack
+ * values in {@code drops.out} are ignored.
+ */
 @Getter
 @LDLRegister(name = "MachineDropsEvent", group = "MachineEvent")
 public class MachineDropsEvent extends MachineEvent {
+    /**
+     * Entity responsible for the drop operation, or the context entity supplied
+     * by the caller.
+     */
     @GraphParameterGet
     public final Entity entity;
+    /**
+     * Mutable drop list. Adding, removing, or replacing entries affects the
+     * drops spawned by the caller.
+     */
     @GraphParameterGet(identity = "drops.in")
     @GraphParameterSet(identity = "drops.out")
     public List<ItemStack> drops;
 
+    /**
+     * Creates a drop event backed by the caller's mutable drop list.
+     * <p>
+     * Side effects after graph processing may include clearing and repopulating {@code drops} from {@code drops.out}.
+     * Pass a mutable list; immutable lists will fail if handlers attempt replacement.
+     *
+     * @param machine machine contributing drops
+     * @param entity  entity context for the drop operation, such as the breaker or cause
+     * @param drops   mutable drop list that the caller will later spawn or return
+     */
     public MachineDropsEvent(MBDMachine machine, Entity entity, List<ItemStack> drops) {
         super(machine);
         this.entity = entity;

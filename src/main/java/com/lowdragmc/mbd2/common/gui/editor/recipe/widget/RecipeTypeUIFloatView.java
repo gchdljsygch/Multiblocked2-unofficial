@@ -20,12 +20,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * Floating helper palette for generating recipe XEI UI template widgets.
+ *
+ * <p>The palette inspects the active {@link RecipeTypeProject}, offers fixed helpers such
+ * as progress, duration, and condition labels, and derives capability slot buttons from the
+ * maximum input/output counts used by the built-in recipes. Buttons add widgets to either
+ * the common recipe UI or the fuel UI depending on {@link #isFuel}; generated widgets use
+ * stable {@code @...} ids so the runtime binder can update them for individual recipes.</p>
+ *
+ * <p>This is client editor UI and should only mutate widgets on the render/UI thread.</p>
+ */
 @Getter
 public class RecipeTypeUIFloatView extends FloatViewWidget {
 
     protected final DraggableScrollableWidgetGroup uiList;
     private final boolean isFuel;
 
+    /**
+     * Creates a helper palette for a recipe UI type.
+     *
+     * @param isFuel whether helper buttons target the fuel recipe UI template
+     */
     public RecipeTypeUIFloatView(boolean isFuel) {
         super(200, 200, 206, 120, false);
         this.isFuel = isFuel;
@@ -43,6 +59,9 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
         return "editor.machine";
     }
 
+    /**
+     * Returns the icon shown when the float view is collapsed.
+     */
     public IGuiTexture getIcon() {
         return new ProgressTexture();
     }
@@ -52,6 +71,9 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
         return Icons.REMOVE;
     }
 
+    /**
+     * Returns the owning machine editor.
+     */
     public MachineEditor getEditor() {
         return (MachineEditor) editor;
     }
@@ -63,6 +85,13 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
         reloadList();
     }
 
+    /**
+     * Rebuilds helper buttons from the active recipe type project.
+     *
+     * <p>Existing widgets in the target template are not removed. Each helper checks for the
+     * expected id before adding a new widget so repeated clicks are idempotent for singleton
+     * widgets and fill missing capability slots for slot helpers.</p>
+     */
     public void reloadList() {
         uiList.clearAllWidgets();
         if (getEditor().getCurrentProject() instanceof RecipeTypeProject project) {
@@ -125,7 +154,14 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
         }
     }
 
-    public void addButton(Widget icon, Supplier<String > value, Runnable onClick) {
+    /**
+     * Adds one helper row to the float-view list.
+     *
+     * @param icon    preview icon widget; its position is overwritten for the row
+     * @param value   label supplier used to show current helper status
+     * @param onClick action that mutates the target UI template
+     */
+    public void addButton(Widget icon, Supplier<String> value, Runnable onClick) {
         int yOffset = 3 + uiList.getAllWidgetSize() * 20;
         var widgetGroup = new WidgetGroup(0, yOffset, 90, 18);
         icon.setSelfPosition(1, 0);
@@ -141,6 +177,13 @@ public class RecipeTypeUIFloatView extends FloatViewWidget {
         uiList.addWidget(widgetGroup);
     }
 
+    /**
+     * Adds a helper row that creates missing XEI template slots for one capability.
+     *
+     * @param cap     capability whose template widgets are generated
+     * @param maxSize maximum slot count observed in built-in recipes for this capability
+     * @param io      side represented by the generated template ids
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void addCap(RecipeCapability cap, int maxSize, IO io) {
         if (getEditor().getCurrentProject() instanceof RecipeTypeProject project) {

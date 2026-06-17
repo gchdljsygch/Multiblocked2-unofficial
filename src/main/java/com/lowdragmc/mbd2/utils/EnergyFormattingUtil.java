@@ -2,6 +2,9 @@ package com.lowdragmc.mbd2.utils;
 
 import java.text.DecimalFormat;
 
+/**
+ * Legacy helpers for formatting energy values with compact SI suffixes.
+ */
 public class EnergyFormattingUtil {
     private static final DecimalFormat COMPACT_FORMAT = new DecimalFormat("#.##");
     private static final String[] SUFFIXES = {"", "k", "M", "G"};

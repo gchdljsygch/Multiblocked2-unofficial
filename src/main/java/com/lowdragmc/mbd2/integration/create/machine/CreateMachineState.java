@@ -19,6 +19,9 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import javax.annotation.Nullable;
 import java.util.List;
 
+/**
+ * Machine state extension that carries an optional rotating Create shaft renderer for kinetic machines.
+ */
 public class CreateMachineState extends MachineState {
 
     @Persisted(subPersisted = true)
@@ -70,9 +73,15 @@ public class CreateMachineState extends MachineState {
             rotationRenderer = uiResourceRenderer.getRenderer();
         }
         if (rotationRenderer instanceof IModelRenderer modelRenderer) {
-            return new KineticInstanceRenderer(baseRenderer, modelRenderer.getRotatedModel(Direction.NORTH));
+            return new KineticInstanceRenderer(baseRenderer, getNorthRotatedModel(modelRenderer));
         }
         return baseRenderer;
+    }
+
+    @SuppressWarnings("removal")
+    @OnlyIn(Dist.CLIENT)
+    private static net.minecraft.client.resources.model.BakedModel getNorthRotatedModel(IModelRenderer modelRenderer) {
+        return modelRenderer.getRotatedModel(Direction.NORTH);
     }
 
     public IRenderer getRotationRenderer() {
@@ -95,6 +104,9 @@ public class CreateMachineState extends MachineState {
         return new Builder();
     }
 
+    /**
+     * Builder that preserves the kinetic rotation renderer when creating machine states.
+     */
     @Setter
     @Accessors(chain = true, fluent = true)
     public static class Builder extends MachineState.Builder<CreateMachineState> {

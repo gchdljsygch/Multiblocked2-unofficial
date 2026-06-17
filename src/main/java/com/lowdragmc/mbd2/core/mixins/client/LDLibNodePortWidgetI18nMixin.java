@@ -12,8 +12,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.Locale;
 
+/**
+ * Localizes LDLib graph node port labels, types, and tooltip lines.
+ *
+ * <p>Port widgets size themselves from the original text during initialization. After replacing
+ * the visible strings this mixin also recalculates the widget width and rebuilds hover tooltips,
+ * otherwise translated labels can be clipped or mixed with untranslated type names.</p>
+ */
 @Mixin(value = NodePortWidget.class, remap = false)
 public class LDLibNodePortWidgetI18nMixin {
+    /**
+     * Replaces a port display name after LDLib resolves the original value.
+     *
+     * @param cir callback containing the raw port display name and receiving the translated text
+     */
     @Inject(method = "getDisplayName", at = @At("RETURN"), cancellable = true, remap = false)
     private void mbd2$translateDisplayName(CallbackInfoReturnable<String> cir) {
         String key = cir.getReturnValue();
@@ -26,6 +38,11 @@ public class LDLibNodePortWidgetI18nMixin {
         }
     }
 
+    /**
+     * Recomputes the initialized port widget after translation has changed visible text.
+     *
+     * @param ci mixin callback info
+     */
     @Inject(method = "initPortInformation", at = @At("TAIL"), remap = false)
     private void mbd2$recalcWidthAfterTranslation(CallbackInfo ci) {
         NodePortWidget self = (NodePortWidget) (Object) this;
@@ -47,6 +64,12 @@ public class LDLibNodePortWidgetI18nMixin {
         self.setHoverTooltips(tooltips.toArray(new String[0]));
     }
 
+    /**
+     * Resolves plain LDLib UI text through MBD2 graph keys before falling back to direct keys.
+     *
+     * @param raw raw display text or translation key
+     * @return translated text when available, otherwise trimmed raw text
+     */
     private static String translateText(String raw) {
         if (raw == null) return "";
         String trimmed = raw.trim();
@@ -57,6 +80,12 @@ public class LDLibNodePortWidgetI18nMixin {
         return trimmed;
     }
 
+    /**
+     * Resolves a tooltip line, preferring the dedicated graph tooltip namespace.
+     *
+     * @param raw raw tooltip text
+     * @return translated tooltip text or the normal display translation fallback
+     */
     private static String translateTooltipLine(String raw) {
         if (raw == null) return "";
         String trimmed = raw.trim();
@@ -66,6 +95,12 @@ public class LDLibNodePortWidgetI18nMixin {
         return translateText(trimmed);
     }
 
+    /**
+     * Converts arbitrary port text into the normalized key suffix used by MBD2 language files.
+     *
+     * @param key raw display text
+     * @return sanitized, lower-case key suffix
+     */
     private static String normalizeKey(String key) {
         String k = key.trim().toLowerCase(Locale.ROOT);
         if (k.isEmpty()) return "";

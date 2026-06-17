@@ -27,6 +27,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Toolbox list for the built-in recipes of one {@link RecipeTypePanel}.
+ *
+ * <p>The list filters recipes by common/fuel mode, renders compact previews, and opens the
+ * selected recipe in the editor content area. Context-menu operations add, rename, copy,
+ * and remove entries in {@link com.lowdragmc.mbd2.api.recipe.MBDRecipeType#getBuiltinRecipes()}
+ * immediately.</p>
+ *
+ * <p>This widget is client editor UI and assumes all access happens on the render/UI
+ * thread.</p>
+ */
 public class RecipeList extends DraggableScrollableWidgetGroup {
     private final RecipeTypePanel recipeTypePanel;
     private final boolean isFuel;
@@ -36,6 +47,13 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
     @Nullable
     private Runnable onSelected;
 
+    /**
+     * Creates a recipe list for either common recipes or fuel recipes.
+     *
+     * @param recipeTypePanel owning recipe-type panel
+     * @param size            available toolbox size in pixels
+     * @param isFuel          whether this list displays and creates fuel recipes
+     */
     public RecipeList(RecipeTypePanel recipeTypePanel, Size size, boolean isFuel) {
         super(0, 0, size.width, size.height);
         this.recipeTypePanel = recipeTypePanel;
@@ -44,6 +62,14 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
         this.recipeTypePanel.recipeType.getBuiltinRecipes().values().stream().filter(recipe -> recipe.isFuel == isFuel).forEach(this::addRecipe);
     }
 
+    /**
+     * Adds a recipe row to the list and wires its editor UI.
+     *
+     * <p>This method only creates the row; callers must ensure the recipe is already present
+     * in the recipe type's built-in recipe map when persistence is required.</p>
+     *
+     * @param recipe recipe represented by the new row
+     */
     public void addRecipe(MBDRecipe recipe) {
         int yOffset = 3 + widgets.size() * 32;
         var selectableWidgetGroup = new SelectableWidgetGroup(0, yOffset, getSizeWidth() - 2, 30);
@@ -56,7 +82,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                 isFuel ? new ProgressTexture() : new ProgressTexture(
                         new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0, 1, 0.5),
                         new ResourceTexture("mbd2:textures/gui/arrow_bar.png").getSubTexture(0, 0.5, 1, 0.5)
-        )));
+                )));
         // add inputs
         AtomicReference<WidgetGroup> inputs = new AtomicReference<>();
         inputs.set(createContents(recipe.inputs, 0, 20));
@@ -81,7 +107,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
             recipeTypePanel.contentGroup.addWidget(tabContainer);
             // add contents tab
             ContentContainer inputsContainer, outputsContainer;
-            var container =  new WidgetGroup(0, 0, w, h)
+            var container = new WidgetGroup(0, 0, w, h)
                     .addWidget(new ImageWidget(0, 0, w, 10, new TextTexture(IO.IN.getTooltip()).setWidth(w)))
                     .addWidget(inputsContainer = new ContentContainer(0, 10, w, h / 2 - 18, recipe.inputs, () -> {
                         selectableWidgetGroup.removeWidget(inputs.get());
@@ -96,12 +122,12 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
             container.addWidget(durationWidget);
             var priorityWidget = new NumberConfigurator("recipe.priority", () -> recipe.priority, v -> recipe.priority = v.intValue(), 0, true);
             priorityWidget.setRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
-            priorityWidget.setTips( "recipe.priority.tooltip");
+            priorityWidget.setTips("recipe.priority.tooltip");
             priorityWidget.init(100);
             priorityWidget.setSelfPosition((w - 300) / 2 + 100, h / 2 - 7);
             container.addWidget(priorityWidget);
             var xeiHiddenWidget = new BooleanConfigurator("recipe.xei_hidden", () -> recipe.isXEIHidden, v -> recipe.isXEIHidden = v, false, true);
-            xeiHiddenWidget.setTips( "recipe.xei_hidden.tooltip");
+            xeiHiddenWidget.setTips("recipe.xei_hidden.tooltip");
             xeiHiddenWidget.init(100);
             xeiHiddenWidget.setSelfPosition((w - 300) / 2 + 200, h / 2 - 7);
             container.addWidget(xeiHiddenWidget);
@@ -138,6 +164,13 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
         addWidget(selectableWidgetGroup);
     }
 
+    /**
+     * Creates a tab button for the selected recipe editor.
+     *
+     * @param index tab index used to position the button
+     * @param name  translation key for the button label
+     * @return configured tab button
+     */
     private TabButton createTabButton(int index, String name) {
         return new TabButton(index * 100, -16, 80, 11)
                 .setTexture(
@@ -151,6 +184,15 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                                 new TextTexture(name).setWidth(80).setDropShadow(false).setType(TextTexture.TextType.ROLL)));
     }
 
+    /**
+     * Builds the compact input/output preview shown in each recipe row.
+     *
+     * @param recipeContents capability-to-content map to preview
+     * @param x              starting x position for the first content widget
+     * @param offset         x offset applied between content widgets; negative values lay widgets
+     *                       out to the left
+     * @return widget group containing as many content widgets as fit in the row half
+     */
     private WidgetGroup createContents(Map<RecipeCapability<?>, List<Content>> recipeContents, int x, int offset) {
         WidgetGroup group = new WidgetGroup(0, 0, 0, 0);
         var left = (getSizeWidth() - 22) / 2 / 20;
@@ -170,6 +212,12 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
         return group;
     }
 
+    /**
+     * Removes a recipe from both the backing recipe type and this list.
+     *
+     * @param recipe recipe instance to remove; if it is currently selected, the editor area
+     *               and preview float view are cleared
+     */
     public void removeRecipe(MBDRecipe recipe) {
         this.recipeTypePanel.recipeType.getBuiltinRecipes().remove(recipe.getId(), recipe);
         for (Widget widget : widgets) {
@@ -177,7 +225,7 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                 if (selectableWidgetGroup.getPrefab() == recipe) {
                     var index = widgets.indexOf(selectableWidgetGroup);
                     for (int i = index + 1; i < widgets.size(); i++) {
-                        widgets.get(i).addSelfPosition(0, - 30);
+                        widgets.get(i).addSelfPosition(0, -30);
                     }
                     widgets.remove(selectableWidgetGroup);
                     break;
@@ -202,9 +250,9 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                         DialogWidget.showStringEditorDialog(this.recipeTypePanel.editor, "editor.machine.recipe_type.add_recipe", "unique_id",
                                 s -> true, s -> {
                                     if (s == null || !ResourceLocation.isValidResourceLocation(s)) return;
-                                    var id = new ResourceLocation(s);
+                                    var id = ResourceLocation.parse(s);
                                     if (isFuel) {
-                                        id = new ResourceLocation(id.getNamespace(), "fuel/" + id.getPath());
+                                        id = ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "fuel/" + id.getPath());
                                     }
                                     if (!this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
                                         addRecipe(this.recipeTypePanel.recipeType.recipeBuilder(id)
@@ -217,9 +265,9 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                     .leaf(Icons.ADD_FILE, "editor.machine.recipe_type.add_recipe_auto_id", () -> {
                         var index = 0;
                         var path = this.recipeTypePanel.recipeType.getRegistryName().getPath() + "/" + (isFuel ? "fuel/" : "") + "recipe_";
-                        var id = new ResourceLocation(this.recipeTypePanel.recipeType.getRegistryName().getNamespace(), path + index++);
+                        var id = ResourceLocation.fromNamespaceAndPath(this.recipeTypePanel.recipeType.getRegistryName().getNamespace(), path + index++);
                         while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
-                            id = new ResourceLocation(id.getNamespace(), path + index++);
+                            id = ResourceLocation.fromNamespaceAndPath(id.getNamespace(), path + index++);
                         }
                         addRecipe(this.recipeTypePanel.recipeType.recipeBuilder(id)
                                 .isFuel(isFuel)
@@ -233,10 +281,10 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                     DialogWidget.showStringEditorDialog(this.recipeTypePanel.editor, "ldlib.gui.editor.tips.rename", currentID,
                             s -> true, s -> {
                                 if (s == null || !ResourceLocation.isValidResourceLocation(s)) return;
-                                var id = new ResourceLocation(s);
+                                var id = ResourceLocation.parse(s);
                                 var index2 = 0;
                                 while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
-                                    id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
+                                    id = ResourceLocation.fromNamespaceAndPath(id.getNamespace(), id.getPath() + "_" + index2++);
                                 }
                                 if (currentID.equals(id.toString())) return;
                                 var copied = selected.deepCopied(id);
@@ -246,18 +294,18 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                             });
                 });
                 menu.leaf(Icons.COPY, "ldlib.gui.editor.menu.copy", () -> {
-                    var copiedID = new ResourceLocation(selected.getId().getNamespace(), selected.getId().getPath() + "_copy");
+                    var copiedID = ResourceLocation.fromNamespaceAndPath(selected.getId().getNamespace(), selected.getId().getPath() + "_copy");
                     var index = 0;
                     while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(copiedID)) {
-                        copiedID = new ResourceLocation(copiedID.getNamespace(), copiedID.getPath() + "_" + index++);
+                        copiedID = ResourceLocation.fromNamespaceAndPath(copiedID.getNamespace(), copiedID.getPath() + "_" + index++);
                     }
                     DialogWidget.showStringEditorDialog(this.recipeTypePanel.editor, "ldlib.gui.editor.menu.copy", copiedID.toString(),
                             s -> true, s -> {
                                 if (s == null || !ResourceLocation.isValidResourceLocation(s)) return;
-                                var id = new ResourceLocation(s);
+                                var id = ResourceLocation.parse(s);
                                 var index2 = 0;
                                 while (this.recipeTypePanel.recipeType.getBuiltinRecipes().containsKey(id)) {
-                                    id = new ResourceLocation(id.getNamespace(), id.getPath() + "_" + index2++);
+                                    id = ResourceLocation.fromNamespaceAndPath(id.getNamespace(), id.getPath() + "_" + index2++);
                                 }
                                 var copied = selected.deepCopied(id);
                                 this.recipeTypePanel.recipeType.getBuiltinRecipes().put(id, copied);

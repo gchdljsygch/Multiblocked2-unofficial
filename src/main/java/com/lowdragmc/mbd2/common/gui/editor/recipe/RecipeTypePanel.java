@@ -13,6 +13,16 @@ import lombok.Getter;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Editor panel for one machine recipe type and its built-in recipes.
+ *
+ * <p>The panel installs separate common and fuel recipe lists in the editor toolbox,
+ * exposes the recipe type itself in the basic configurator, and shows a floating XEI
+ * preview for whichever recipe row is selected. Recipe rows write directly into the
+ * backing {@link MBDRecipeType} built-in recipe map.</p>
+ *
+ * <p>This class is client editor UI and is expected to run on the render/UI thread.</p>
+ */
 public class RecipeTypePanel extends WidgetGroup {
     @Getter
     protected final MachineEditor editor;
@@ -21,6 +31,12 @@ public class RecipeTypePanel extends WidgetGroup {
     @Getter
     private final RecipeXEIPreviewFloatView floatView = new RecipeXEIPreviewFloatView();
 
+    /**
+     * Creates a recipe-type editor panel.
+     *
+     * @param recipeType recipe type whose built-in recipes and settings are edited
+     * @param editor     owning machine editor
+     */
     public RecipeTypePanel(MBDRecipeType recipeType, MachineEditor editor) {
         super(0, MenuPanel.HEIGHT, editor.getSize().getWidth() - ConfigPanel.WIDTH, editor.getSize().height - MenuPanel.HEIGHT - 16);
         this.recipeType = recipeType;
@@ -34,7 +50,7 @@ public class RecipeTypePanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Installs recipe-list toolboxes, opens recipe-type settings, and shows the preview view.
      */
     public void onPanelSelected() {
         editor.getConfigPanel().clearAllConfigurators();
@@ -68,13 +84,13 @@ public class RecipeTypePanel extends WidgetGroup {
         } else {
             editor.getToolPanel().show();
         }
-        editor.getFloatView().addWidgetAnima(floatView,  new Transform().duration(200).scale(0.2f));
+        editor.getFloatView().addWidgetAnima(floatView, new Transform().duration(200).scale(0.2f));
         floatView.clearRecipe();
         editor.getConfigPanel().openConfigurator(MachineEditor.BASIC, recipeType);
     }
 
     /**
-     * Called when the panel is deselected/switched from.
+     * Removes recipe-specific toolboxes, configurators, and preview widgets.
      */
     public void onPanelDeselected() {
         editor.getToolPanel().setTitle("ldlib.gui.editor.group.tool_box");

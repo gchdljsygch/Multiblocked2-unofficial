@@ -27,12 +27,33 @@ import java.util.List;
 import static com.lowdragmc.lowdraglib.client.model.forge.LDLRendererModel.RendererBakedModel.POS;
 import static com.lowdragmc.lowdraglib.client.model.forge.LDLRendererModel.RendererBakedModel.WORLD;
 
+/**
+ * Delegates proxy-part block rendering to the multiblock controller machine.
+ *
+ * <p>Proxy blocks do not own their visual identity. This renderer locates the controller recorded by
+ * {@link ProxyPartBlockEntity} and asks the controller's active machine renderer for baked quads, dynamic block-entity
+ * rendering, and particle texture data. All methods are client-side render paths and must tolerate missing worlds,
+ * unloaded controllers, and stale proxy metadata by returning empty/default rendering.</p>
+ */
 public class ProxyPartRenderer implements IRenderer {
+    /**
+     * Shared stateless renderer instance used by proxy-part block definitions.
+     */
     public static final ProxyPartRenderer INSTANCE = new ProxyPartRenderer();
 
     private ProxyPartRenderer() {
     }
 
+    /**
+     * Renders the proxy block as the controller's current machine model.
+     *
+     * @param level world/tint context; may be {@code null} for item or fallback model calls
+     * @param pos   proxy block position; may be {@code null}
+     * @param state proxy block state supplied by the block renderer
+     * @param side  side to render, or {@code null} for unculled quads
+     * @param rand  random source forwarded to the controller renderer
+     * @return controller-rendered quads, or an empty list when no controller machine is available
+     */
     @Override
     public List<BakedQuad> renderModel(@Nullable BlockAndTintGetter level, @Nullable BlockPos pos, @Nullable BlockState state, @Nullable Direction side, RandomSource rand) {
         return getMachine(level, pos)
@@ -46,6 +67,19 @@ public class ProxyPartRenderer implements IRenderer {
                 .orElseGet(Collections::emptyList);
     }
 
+    /**
+     * Emits dynamic renderer override quads for proxy parts whose controller uses a dynamic renderer.
+     *
+     * <p>The method has no persistent side effects, but it writes vertices to {@code buffer} using the caller's current
+     * pose. Missing controller information is treated as a no-op.</p>
+     *
+     * @param blockEntity     proxy part block entity being rendered
+     * @param partialTicks    render interpolation fraction supplied by Minecraft
+     * @param stack           active pose stack
+     * @param buffer          target buffer source for emitted quads
+     * @param combinedLight   packed light value
+     * @param combinedOverlay packed overlay value
+     */
     @Override
     public void render(BlockEntity blockEntity, float partialTicks, PoseStack stack, MultiBufferSource buffer, int combinedLight, int combinedOverlay) {
         if (!(blockEntity instanceof ProxyPartBlockEntity proxyPart) || proxyPart.getControllerPos() == null || blockEntity.getLevel() == null) {
@@ -77,6 +111,11 @@ public class ProxyPartRenderer implements IRenderer {
                 });
     }
 
+    /**
+     * Resolves the controller renderer's particle texture from the active model-data context.
+     *
+     * @return controller particle sprite when available; otherwise {@link IRenderer}'s default particle texture
+     */
     @NotNull
     @Override
     @OnlyIn(Dist.CLIENT)
@@ -96,6 +135,13 @@ public class ProxyPartRenderer implements IRenderer {
         return IRenderer.super.getParticleTexture();
     }
 
+    /**
+     * Looks up the controller machine for a proxy block.
+     *
+     * @param level world containing the proxy
+     * @param pos   proxy block position
+     * @return controller machine when the proxy metadata is complete and loaded
+     */
     private java.util.Optional<MBDMachine> getMachine(@Nullable BlockAndTintGetter level, @Nullable BlockPos pos) {
         if (level == null || pos == null || !(level.getBlockEntity(pos) instanceof ProxyPartBlockEntity blockEntity) || blockEntity.getControllerPos() == null) {
             return java.util.Optional.empty();

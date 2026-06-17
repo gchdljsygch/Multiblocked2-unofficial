@@ -58,14 +58,25 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Consumer;
 
+/**
+ * KubeJS recipe schema and builder API for MBD recipe types.
+ */
 public interface MBDRecipeSchema {
     RecipeSchema SCHEMA = new RecipeSchema(MBDRecipeJS.class, MBDRecipeJS::new);
 
+    /**
+     * KubeJS recipe builder that collects MBD inputs, outputs, conditions, and custom data.
+     */
     @Getter
     @Accessors(chain = true, fluent = true)
     class MBDRecipeJS extends RecipeJS {
+        /**
+         * Functional hook for scripts that configure an MBD recipe builder instance.
+         */
         @FunctionalInterface
-        public interface RecipeBuilder extends Consumer<MBDRecipeJS> { }
+        public interface RecipeBuilder extends Consumer<MBDRecipeJS> {
+        }
+
         public final Map<RecipeCapability<?>, List<Content>> inputs = new LinkedHashMap<>();
         public final Map<RecipeCapability<?>, List<Content>> outputs = new LinkedHashMap<>();
         public final List<RecipeCondition> conditions = new ArrayList<>();
@@ -95,7 +106,7 @@ public interface MBDRecipeSchema {
             this.recipeType = recipeType;
         }
 
-        //////////////// misc ////////////////
+        /// ///////////// misc ////////////////
         public MBDRecipeJS duration(int duration) {
             this.duration = duration;
             save();
@@ -120,7 +131,7 @@ public interface MBDRecipeSchema {
             return this;
         }
 
-        //////////////// data ////////////////
+        /// ///////////// data ////////////////
         public MBDRecipeJS addData(String key, Tag data) {
             this.data.put(key, data);
             save();
@@ -145,7 +156,7 @@ public interface MBDRecipeSchema {
             return this;
         }
 
-        //////////////// state machine ////////////////
+        /// ///////////// state machine ////////////////
         public MBDRecipeJS perTick(boolean perTick) {
             this.perTick = perTick;
             return this;
@@ -192,7 +203,7 @@ public interface MBDRecipeSchema {
         }
 
 
-        //////////////// ingredients ////////////////
+        /// ///////////// ingredients ////////////////
         public MBDRecipeJS inputs(RecipeCapability<?> capability, Object... obj) {
             inputs.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                     .filter(Objects::nonNull)
@@ -238,7 +249,7 @@ public interface MBDRecipeSchema {
         public MBDRecipeJS outputItemsDurability(InputItem... items) {
             return outputs(ItemDurabilityRecipeCapability.CAP, Arrays.stream(items).map(item -> SizedIngredient.create(item.ingredient, item.count)).toArray());
         }
-        
+
         public MBDRecipeJS inputFluids(FluidIngredientJS... fluids) {
             return inputs(FluidRecipeCapability.CAP, Arrays.stream(fluids).map(FluidIngredientJS::ingredient).toArray());
         }
@@ -567,7 +578,7 @@ public interface MBDRecipeSchema {
             return outputs(MekanismChemicalRecipeCapability.CAP_PIGMENT, (Object[]) stack);
         }
 
-        //////////////// condition ////////////////
+        /// ///////////// condition ////////////////
         public MBDRecipeJS addCondition(RecipeCondition condition) {
             conditions.add(condition);
             save();
@@ -736,7 +747,11 @@ public interface MBDRecipeSchema {
                 int x = str.indexOf('x');
                 if (x > 0 && x < str.length() - 2 && str.charAt(x + 1) == ' ') {
                     try {
-                        var entityType = BuiltInRegistries.ENTITY_TYPE.get(new ResourceLocation(str.substring(x + 2)));
+                        var entityId = ResourceLocation.tryParse(str.substring(x + 2));
+                        if (entityId == null) {
+                            throw new IllegalArgumentException(str.substring(x + 2));
+                        }
+                        var entityType = BuiltInRegistries.ENTITY_TYPE.get(entityId);
                         var amount = Integer.parseInt(str.substring(0, x));
                         return new EntityIngredientJS(EntityIngredient.of(amount, entityType));
                     } catch (Exception ignore) {

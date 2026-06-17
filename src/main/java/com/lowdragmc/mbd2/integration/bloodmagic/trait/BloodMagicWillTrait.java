@@ -18,6 +18,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+/**
+ * Recipe handler trait for ambient Blood Magic demon will.
+ *
+ * <p>The trait samples chunk centers around the machine, drains accepted will types for inputs,
+ * and fills ambient will for outputs. It does not store will itself; all state is in Blood Magic's
+ * world demon will handler.</p>
+ */
 public class BloodMagicWillTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<BloodMagicWill> {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicWillTrait.class);
 
@@ -35,6 +42,11 @@ public class BloodMagicWillTrait extends RecipeCapabilityTrait implements IRecip
         return (BloodMagicWillTraitDefinition) super.getDefinition();
     }
 
+    /**
+     * Handles typed demon will requirements by interacting with nearby loaded chunk aura.
+     *
+     * @return unhandled will payloads, or {@code null} when all accepted requirements were handled
+     */
     @Override
     public List<BloodMagicWill> handleRecipeInner(IO io, MBDRecipe recipe, List<BloodMagicWill> left, @Nullable String slotName, boolean simulate) {
         if (!compatibleWith(io)) return left;
@@ -105,6 +117,12 @@ public class BloodMagicWillTrait extends RecipeCapabilityTrait implements IRecip
         return remainingLeft.isEmpty() ? null : remainingLeft;
     }
 
+    /**
+     * Combines the recipe output cap with the trait-level output cap.
+     *
+     * @param will recipe output payload
+     * @return effective max ambient will value for fill operations
+     */
     private double resolveMaxOutput(BloodMagicWill will) {
         var recipeMaxOutput = will.maxOutput();
         var traitMaxOutput = getDefinition().getMaxOutput();
@@ -113,11 +131,17 @@ public class BloodMagicWillTrait extends RecipeCapabilityTrait implements IRecip
         return Math.min(traitMaxOutput, recipeMaxOutput);
     }
 
+    /**
+     * Returns the typed demon will recipe capability handled by this trait.
+     */
     @Override
     public RecipeCapability<BloodMagicWill> getRecipeCapability() {
         return BloodMagicWillRecipeCapability.CAP;
     }
 
+    /**
+     * Exposes this trait as its own recipe handler.
+     */
     @Override
     public List<IRecipeHandlerTrait<?>> getRecipeHandlerTraits() {
         return List.of(this);

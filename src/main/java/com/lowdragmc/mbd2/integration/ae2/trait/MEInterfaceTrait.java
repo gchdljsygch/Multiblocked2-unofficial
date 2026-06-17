@@ -44,13 +44,18 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
+/**
+ * MBD trait that exposes a machine as an AE2 ME interface with item and fluid recipe storage.
+ */
 @Getter
 @Setter
 public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConnectedBlockEntity, InterfaceLogicHost {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEInterfaceTrait.class);
 
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     private final Random random = new Random();
 
@@ -65,12 +70,29 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     private final GenericInternalInventoryCap genericInternalInventoryCap = new GenericInternalInventoryCap();
     private final StorageCap storageCap = new StorageCap();
 
+    /**
+     * Creates an ME interface trait for a machine definition.
+     * <p>
+     * Side effects: creates the persisted AE2 grid node and interface logic immediately, but the node is attached to the
+     * world later from the server load lifecycle. Runtime access is expected from the machine/server thread.
+     *
+     * @param machine    machine instance that owns the trait and block entity
+     * @param definition interface definition that supplies IO settings and slot count
+     */
     public MEInterfaceTrait(MBDMachine machine, MEInterfaceTraitDefinition definition) {
         super(machine, definition);
         mainNode = createMainNode();
         interfaceLogic = createLogic();
     }
 
+    /**
+     * Builds the persisted AE2 grid node used by this interface.
+     * <p>
+     * The node is configured as an in-world node with the machine drop item as its visual representation. Grid-state
+     * changes notify the interface logic so AE2 neighbor and storage state stay in sync.
+     *
+     * @return configured, not-yet-created managed grid node
+     */
     protected SerializableManagedGridNode createMainNode() {
         return (SerializableManagedGridNode) new SerializableManagedGridNode(this, (nodeOwner, node) -> nodeOwner.interfaceLogic.gridChanged())
                 .setVisualRepresentation(getMachine().getDropItem())
@@ -78,14 +100,31 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
                 .setTagName("proxy");
     }
 
+    /**
+     * Creates the serializable AE2 interface logic bound to the main grid node.
+     *
+     * @return interface logic using the definition slot count and machine drop item as its representation
+     */
     protected SerializableInterfaceLogic createLogic() {
         return new SerializableInterfaceLogic(getMainNode(), this, getMachine().getDropItem().getItem(), getDefinition().getSlotSize());
     }
 
+    /**
+     * Maps a logical item recipe slot to the AE2 interface storage slot.
+     *
+     * @param slotIndex zero-based recipe slot index in {@code [0, getDefinition().getSlotSize())}
+     * @return zero-based AE2 item storage slot index
+     */
     protected int getItemSlotIndex(int slotIndex) {
         return slotIndex;
     }
 
+    /**
+     * Maps a logical fluid recipe slot to the AE2 interface storage slot.
+     *
+     * @param slotIndex zero-based recipe slot index in {@code [0, getDefinition().getSlotSize())}
+     * @return zero-based AE2 fluid storage slot index
+     */
     protected int getFluidSlotIndex(int slotIndex) {
         return slotIndex;
     }
@@ -162,6 +201,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     /// Capability Provider ///
     ///////////////////////////
 
+    /**
+     * Exposes this machine as an in-world AE2 grid node host.
+     */
     public class ManagedGridNodeCap implements ICapabilityProviderTrait<IInWorldGridNodeHost> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -179,6 +221,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
         }
     }
 
+    /**
+     * Exposes the interface storage as AE2's generic internal inventory capability.
+     */
     public class GenericInternalInventoryCap implements ICapabilityProviderTrait<GenericInternalInventory> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -196,6 +241,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
         }
     }
 
+    /**
+     * Exposes the interface network inventory as an ME storage capability.
+     */
     public class StorageCap implements ICapabilityProviderTrait<MEStorage> {
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
@@ -214,12 +262,29 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     }
 
 
+    /**
+     * Handles MBD item recipe IO against the AE2 interface storage slots.
+     */
     public class ItemRecipeHandler extends RecipeHandlerTrait<Ingredient> {
 
+        /**
+         * Creates the item recipe handler attached to the outer ME interface trait.
+         * <p>
+         * The handler delegates all storage access to the outer trait and should be used from recipe-processing/server
+         * logic rather than from arbitrary worker threads.
+         */
         protected ItemRecipeHandler() {
             super(MEInterfaceTrait.this, ItemRecipeCapability.CAP);
         }
 
+        /**
+         * Builds a detached item-storage snapshot for simulated recipe handling.
+         * <p>
+         * Side effect: copies only item-key entries from the AE2 storage into an LDLib transfer. Mutating the returned
+         * transfer does not affect the live AE2 interface.
+         *
+         * @return independent item transfer containing the current item stacks
+         */
         protected IItemTransfer getSafeStorage() {
             var transfer = new ItemStackTransfer(getDefinition().getSlotSize());
             for (int i = 0; i < transfer.getSlots(); i++) {
@@ -231,6 +296,14 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
             return transfer;
         }
 
+        /**
+         * Builds a live item transfer view over every AE2 interface storage slot.
+         * <p>
+         * Mutations through the returned transfer are applied to AE2 storage and therefore should only be used for
+         * non-simulated recipe execution.
+         *
+         * @return item transfer list covering all configured interface slots
+         */
         protected IItemTransfer getStorage() {
             List<IItemTransfer> transfers = new ArrayList<>();
             for (int i = 0; i < getDefinition().getSlotSize(); i++) {
@@ -328,11 +401,28 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
         }
     }
 
+    /**
+     * Handles MBD fluid recipe IO against the AE2 interface storage slots.
+     */
     public class FluidRecipeHandler extends RecipeHandlerTrait<FluidIngredient> {
+        /**
+         * Creates the fluid recipe handler attached to the outer ME interface trait.
+         * <p>
+         * The handler delegates all storage access to the outer trait and should be used from recipe-processing/server
+         * logic rather than from arbitrary worker threads.
+         */
         protected FluidRecipeHandler() {
             super(MEInterfaceTrait.this, FluidRecipeCapability.CAP);
         }
 
+        /**
+         * Builds detached fluid-storage snapshots for simulated recipe handling.
+         * <p>
+         * Each returned tank mirrors one AE2 fluid-key storage slot. Mutating these tanks does not affect the live AE2
+         * interface.
+         *
+         * @return independent fluid transfer list containing the current fluid stacks
+         */
         protected List<IFluidTransfer> getSafeStorage() {
             List<IFluidTransfer> storages = new ArrayList<>();
             for (int i = 0; i < getDefinition().getSlotSize(); i++) {
@@ -346,6 +436,14 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
             return storages;
         }
 
+        /**
+         * Builds live fluid transfer views over every AE2 interface storage slot.
+         * <p>
+         * Mutations through the returned transfers are applied to AE2 storage and therefore should only be used for
+         * non-simulated recipe execution.
+         *
+         * @return fluid transfer list covering all configured interface slots
+         */
         protected List<IFluidTransfer> getStorage() {
             List<IFluidTransfer> storages = new ArrayList<>();
             for (int i = 0; i < getDefinition().getSlotSize(); i++) {

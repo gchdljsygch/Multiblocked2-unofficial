@@ -10,6 +10,9 @@ import net.minecraft.MethodsReturnNonnullByDefault;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+/**
+ * REI plugin entry point for MBD categories, displays, and workstation entries.
+ */
 @REIPluginClient
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault

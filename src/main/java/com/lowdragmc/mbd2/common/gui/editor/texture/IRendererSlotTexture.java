@@ -26,6 +26,19 @@ import org.joml.Matrix4f;
 
 import java.util.function.Supplier;
 
+/**
+ * GUI texture that draws an {@link IRenderer} as a preview inside a slot background.
+ *
+ * <p>The texture is used by editor resource lists where a renderer must be shown without a
+ * real machine instance. During the render call it exposes the active
+ * {@link MachineProject}'s definition through {@link #CURRENT_MACHINE_DEFINITION} so
+ * renderer implementations that need machine context can query it. The static context is
+ * restored in a {@code finally} block and should be treated as render-thread-only state.</p>
+ *
+ * <p>Renderer failures are caught so a broken renderer resource does not close the editor.
+ * The first failure is logged as a warning with a stack trace; later failures are debug
+ * logs to avoid flooding the client log every frame.</p>
+ */
 public class IRendererSlotTexture implements IGuiTexture {
     @Nullable
     public static MBDMachineDefinition CURRENT_MACHINE_DEFINITION;
@@ -37,6 +50,12 @@ public class IRendererSlotTexture implements IGuiTexture {
     @Setter
     private IGuiTexture slotTexture = new ResourceTexture("ldlib:textures/gui/slot.png");
 
+    /**
+     * Creates a renderer preview texture.
+     *
+     * @param rendererSupplier supplier invoked every draw call; must return the renderer to
+     *                         preview and should be cheap enough for UI rendering
+     */
     public IRendererSlotTexture(Supplier<IRenderer> rendererSupplier) {
         this.rendererSupplier = rendererSupplier;
     }
@@ -113,6 +132,9 @@ public class IRendererSlotTexture implements IGuiTexture {
         pose.popPose();
     }
 
+    /**
+     * Logs preview render failures with first-failure escalation only.
+     */
     private static void logRenderFailure(Throwable exception) {
         if (!loggedRenderFailure) {
             loggedRenderFailure = true;

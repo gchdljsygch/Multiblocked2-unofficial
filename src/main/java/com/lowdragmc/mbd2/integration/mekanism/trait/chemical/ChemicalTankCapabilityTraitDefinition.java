@@ -31,6 +31,9 @@ import mekanism.api.chemical.pigment.PigmentStack;
 import mekanism.api.chemical.slurry.SlurryStack;
 import mekanism.common.registries.MekanismBlocks;
 
+/**
+ * Configurable trait definition for Mekanism chemical tanks and their UI/rendering behavior.
+ */
 public abstract class ChemicalTankCapabilityTraitDefinition<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> extends SimpleCapabilityTraitDefinition {
     @Getter
     @Setter

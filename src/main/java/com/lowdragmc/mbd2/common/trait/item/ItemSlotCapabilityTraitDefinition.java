@@ -34,8 +34,17 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.lwjgl.opengl.GL11;
 
+/**
+ * Editable definition for item slot traits.
+ *
+ * <p>The business goal is to configure machine item storage size, stack limits,
+ * item filters, GUI slots, automatic item IO, world item pickup/drop ranges, and
+ * optional item rendering. Instances are mutable editor state and should be
+ * treated as read-only by runtime {@link ItemSlotCapabilityTrait} instances.</p>
+ */
 @LDLRegister(name = "item_slot", group = "trait", priority = -100)
-@Getter @Setter
+@Getter
+@Setter
 public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
 
     @Configurable(name = "config.definition.trait.item_slot.slot_size", tips = "config.definition.trait.item_slot.slot_size.tooltip")
@@ -55,21 +64,48 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
     @Configurable(name = "config.definition.trait.item_slot.fancy_renderer", subConfigurable = true, tips = "config.definition.trait.item_slot.fancy_renderer.tooltip")
     private final ItemFancyRendererSettings itemRendererSettings = new ItemFancyRendererSettings(this);
 
+    /**
+     * Creates the runtime item slot trait for a machine.
+     *
+     * @param machine machine that will own the item storage
+     * @return new item slot capability trait
+     */
     @Override
     public ItemSlotCapabilityTrait createTrait(MBDMachine machine) {
         return new ItemSlotCapabilityTrait(machine, this);
     }
 
+    /**
+     * Returns the editor icon for item slot traits.
+     *
+     * @return chest item texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(Items.CHEST);
     }
 
+    /**
+     * Returns the optional block-entity item renderer configured by this
+     * definition.
+     *
+     * @param machine machine whose renderer is being requested
+     * @return renderer from {@link ItemFancyRendererSettings}
+     */
     @Override
     public IRenderer getBESRenderer(IMachine machine) {
         return itemRendererSettings.getFancyRenderer(machine);
     }
 
+    /**
+     * Creates the default ModularUI slot template for this item storage.
+     *
+     * <p>Side effects: adds {@link SlotWidget} instances to {@code ui}. Slot ids
+     * use this definition's UI prefix plus a zero-based index, allowing
+     * {@link #initTraitUI(ITrait, WidgetGroup)} to bind runtime storage later.</p>
+     *
+     * @param ui mutable UI group receiving template slots
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var row = Math.ceil(Math.sqrt(slotSize));
@@ -83,6 +119,16 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
         }
     }
 
+    /**
+     * Binds runtime item storage to template slot widgets.
+     *
+     * <p>Side effects: mutates matching {@link SlotWidget}s by assigning storage,
+     * slot index, recipe-viewer role, and insertion/extraction permissions based
+     * on configured GUI IO.</p>
+     *
+     * @param trait runtime trait instance
+     * @param group UI group containing template slot widgets
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof ItemSlotCapabilityTrait itemSlotTrait) {
@@ -101,6 +147,14 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
         }
     }
 
+    /**
+     * Draws auto-world-IO ranges in the editor preview.
+     *
+     * <p>Client-side only. Side effects are limited to OpenGL/render-state changes
+     * and drawing colored range frames: orange for output and blue for input.</p>
+     *
+     * @param panel trait panel currently rendering this definition
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public void renderAfterWorldInTraitPanel(MachineTraitPanel panel) {
@@ -123,8 +177,8 @@ public class ItemSlotCapabilityTraitDefinition extends SimpleCapabilityTraitDefi
         if (autoOutput.enable) {
             var color = 0xffee6500;
             RenderBufferUtils.drawCubeFrame(poseStack, buffer,
-                    (float)autoOutput.range.minX, (float)autoOutput.range.minY, (float)autoOutput.range.minZ,
-                    (float)autoOutput.range.maxX, (float)autoOutput.range.maxY, (float)autoOutput.range.maxZ,
+                    (float) autoOutput.range.minX, (float) autoOutput.range.minY, (float) autoOutput.range.minZ,
+                    (float) autoOutput.range.maxX, (float) autoOutput.range.maxY, (float) autoOutput.range.maxZ,
                     ColorUtils.red(color), ColorUtils.green(color), ColorUtils.blue(color), ColorUtils.alpha(color));
         }
 

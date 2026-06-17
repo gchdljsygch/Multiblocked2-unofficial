@@ -18,23 +18,54 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+/**
+ * Predicate that accepts exact block states, with optional pattern-facing
+ * rotation.
+ *
+ * <p>The business goal is to let patterns require concrete property values,
+ * such as casing variants or oriented blocks, while still allowing a machine to
+ * face different horizontal directions. If {@link #controllerFront} is disabled
+ * the expected states are rotated from the pattern base facing to the current
+ * pattern facing before comparison.</p>
+ */
 @LDLRegister(name = "blockstates", group = "predicate")
 @NoArgsConstructor
 public class PredicateStates extends SimplePredicate {
     @Configurable(name = "config.predicate.blockstates", tips = "config.predicate.blockstates.tooltip", collapse = false)
-    protected BlockState[] states = new BlockState[] {Blocks.RAIL.defaultBlockState()};
+    protected BlockState[] states = new BlockState[]{Blocks.RAIL.defaultBlockState()};
 
+    /**
+     * Creates a block-state predicate.
+     *
+     * @param states accepted states; null entries are discarded during rebuild
+     */
     public PredicateStates(BlockState... states) {
         this.states = states;
         buildPredicate();
     }
 
+    /**
+     * Updates accepted states from the editor.
+     *
+     * <p>Side effects: rebuilds the runtime predicate and preview candidates.</p>
+     *
+     * @param states accepted states
+     */
     @ConfigSetter(field = "states")
     public void setStates(BlockState[] states) {
         this.states = states;
         buildPredicate();
     }
 
+    /**
+     * Rebuilds the exact-state matcher.
+     *
+     * <p>Side effects: removes null states, installs a barrier fallback when the
+     * list is empty, wraps matching with pattern-facing rotation when allowed,
+     * and updates inherited preview state.</p>
+     *
+     * @return this predicate for chaining
+     */
     @Override
     public SimplePredicate buildPredicate() {
         states = Arrays.stream(states).filter(Objects::nonNull).toArray(BlockState[]::new);

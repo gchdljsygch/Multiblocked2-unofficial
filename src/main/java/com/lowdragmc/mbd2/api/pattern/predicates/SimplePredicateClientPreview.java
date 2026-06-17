@@ -12,11 +12,28 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+/**
+ * Client-only scene widget factory for predicate previews.
+ *
+ * <p>The business goal is to render one candidate block at a time inside the
+ * predicate editor and cycle through multiple candidates once per second. This
+ * class must only be loaded on the client.</p>
+ */
 @OnlyIn(Dist.CLIENT)
 final class SimplePredicateClientPreview {
     private SimplePredicateClientPreview() {
     }
 
+    /**
+     * Creates a non-interactive scene preview for a predicate.
+     *
+     * <p>Side effects: creates a dummy world, places the first candidate at the
+     * origin, and returns a widget that periodically swaps the displayed block
+     * when the predicate has multiple candidates.</p>
+     *
+     * @param predicate predicate whose candidates are displayed
+     * @return scene widget for the editor preview
+     */
     static Widget create(SimplePredicate predicate) {
         var level = new TrackedDummyWorld();
         var blockInfo = Optional.ofNullable(predicate.candidates).map(Supplier::get).filter(x -> x.length > 0).map(x -> x[0]).orElse(BlockInfo.EMPTY);

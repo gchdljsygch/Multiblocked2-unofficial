@@ -8,6 +8,9 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * Sync-data accessor for serializing recipe type references by registry name.
+ */
 public class MBDRecipeTypeAccessor extends CustomObjectAccessor<MBDRecipeType> {
 
     public MBDRecipeTypeAccessor() {
@@ -22,7 +25,8 @@ public class MBDRecipeTypeAccessor extends CustomObjectAccessor<MBDRecipeType> {
     @Override
     public MBDRecipeType deserialize(AccessorOp accessorOp, ITypedPayload<?> payload) {
         if (payload instanceof StringPayload stringPayload) {
-            return MBDRegistries.RECIPE_TYPES.get(new ResourceLocation(stringPayload.getPayload()));
+            var id = ResourceLocation.tryParse(stringPayload.getPayload());
+            return id == null ? null : MBDRegistries.RECIPE_TYPES.get(id);
         }
         return null;
     }

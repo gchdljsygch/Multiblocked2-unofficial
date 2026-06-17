@@ -12,6 +12,12 @@ import lombok.Getter;
 
 import javax.annotation.Nullable;
 
+/**
+ * Editor panel for machine event graphs.
+ *
+ * <p>The panel switches between the event configuration list and an embedded {@link MachineEventGraphView}. It tracks
+ * the graph currently being edited and hides the resource panel while a graph view is open.</p>
+ */
 @Getter
 public class MachineEventsPanel extends WidgetGroup {
     @Getter
@@ -19,11 +25,21 @@ public class MachineEventsPanel extends WidgetGroup {
     @Nullable
     private BaseGraph currentGraph;
 
+    /**
+     * Creates an event panel sized to the editor content area.
+     *
+     * @param editor owning machine editor
+     */
     public MachineEventsPanel(MachineEditor editor) {
         super(0, MenuPanel.HEIGHT + 16, editor.getSize().getWidth() - ConfigPanel.WIDTH, editor.getSize().height - MenuPanel.HEIGHT - 16);
         this.editor = editor;
     }
 
+    /**
+     * Opens an embedded graph editor for an event graph.
+     *
+     * @param graph graph model to edit
+     */
     public void openEventGraphEditor(BaseGraph graph) {
         clearAllWidgets();
         currentGraph = graph;
@@ -31,18 +47,27 @@ public class MachineEventsPanel extends WidgetGroup {
         editor.getResourcePanel().hide();
     }
 
+    /**
+     * Closes the embedded graph editor and clears its widgets.
+     */
     public void closeEventGraphEditor() {
         clearAllWidgets();
         currentGraph = null;
     }
 
+    /**
+     * Checks whether this panel owns a given machine-event configuration object.
+     *
+     * @param config event config to test
+     * @return {@code true} when the config belongs to the current machine definition
+     */
     public boolean handlesEventConfig(ConfigMachineEvents config) {
         return editor.getCurrentProject() instanceof MachineProject project &&
                 project.getDefinition().machineEvents() == config;
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Opens the current machine definition's event configuration.
      */
     public void onPanelSelected() {
         if (editor.getCurrentProject() instanceof MachineProject project) {
@@ -51,7 +76,7 @@ public class MachineEventsPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is deselected/switched from.
+     * Clears configurators when leaving the event panel.
      */
     public void onPanelDeselected() {
         editor.getConfigPanel().clearAllConfigurators();

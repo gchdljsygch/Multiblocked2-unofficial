@@ -42,6 +42,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability implementation for Mekanism gas, infusion, pigment, and slurry stacks.
+ */
 public class MekanismChemicalRecipeCapability<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> extends RecipeCapability<STACK> {
     public static final MekanismChemicalRecipeCapability<Gas, GasStack> CAP_GAS =
             new MekanismChemicalRecipeCapability<>("mek_gas",
@@ -225,7 +228,7 @@ public class MekanismChemicalRecipeCapability<CHEMICAL extends Chemical<CHEMICAL
 
         @Override
         public STACK fromJson(JsonElement json) {
-            ResourceLocation type = new ResourceLocation(json.getAsJsonObject().get("type").getAsString());
+            ResourceLocation type = parseResourceLocation(json.getAsJsonObject().get("type").getAsString());
             long amount = json.getAsJsonObject().get("amount").getAsLong();
             CHEMICAL chemical = ChemicalUtils.readChemicalFromRegistry(type, empty, registry.get());
             return createStack.apply(chemical, amount);
@@ -249,17 +252,25 @@ public class MekanismChemicalRecipeCapability<CHEMICAL extends Chemical<CHEMICAL
                 int x = str.indexOf('x');
                 if (x > 0 && x < str.length() - 2 && str.charAt(x + 1) == ' ') {
                     try {
-                        var chemical = registry.get().getValue(new ResourceLocation(str.substring(x + 2)));
+                        var chemical = registry.get().getValue(parseResourceLocation(str.substring(x + 2)));
                         var amount = Long.parseLong(str.substring(0, x));
                         return createStack.apply(chemical, amount);
                     } catch (Exception ignore) {
                         throw new IllegalStateException("Invalid chemical input: " + str);
                     }
                 } else {
-                    return createStack.apply(registry.get().getValue(new ResourceLocation(str)), 1L);
+                    return createStack.apply(registry.get().getValue(parseResourceLocation(str)), 1L);
                 }
             }
             return (STACK) empty.getStack(0);
+        }
+
+        private static ResourceLocation parseResourceLocation(String id) {
+            var location = ResourceLocation.tryParse(id);
+            if (location == null) {
+                throw new IllegalArgumentException("Invalid chemical id: " + id);
+            }
+            return location;
         }
 
         @Override

@@ -20,12 +20,25 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nullable;
 
+/**
+ * Scrollable editor list of trait definitions for the current machine project.
+ *
+ * <p>The list supports selecting traits for configuration, adding new trait definitions from registered trait types,
+ * copying traits that allow multiples, and removing traits. Mutations update the project definition and refresh preview
+ * machines in open scene panels so trait-provided render/logic hooks appear immediately.</p>
+ */
 public class TraitList extends DraggableScrollableWidgetGroup {
     private final MachineEditor editor;
     @Nullable
     @Getter
     private TraitDefinition selected;
 
+    /**
+     * Creates a trait list populated from the current project.
+     *
+     * @param editor owning machine editor
+     * @param size   list size supplied by the tool panel
+     */
     public TraitList(MachineEditor editor, Size size) {
         super(0, 0, size.width, size.height);
         this.editor = editor;
@@ -35,7 +48,11 @@ public class TraitList extends DraggableScrollableWidgetGroup {
         }
     }
 
-
+    /**
+     * Adds one trait definition row to the list.
+     *
+     * @param definition trait definition to display
+     */
     public void addDefinition(TraitDefinition definition) {
         int yOffset = 3 + widgets.size() * 20;
         var selectableWidgetGroup = new SelectableWidgetGroup(0, yOffset, getSizeWidth() - 2, 18);
@@ -50,13 +67,18 @@ public class TraitList extends DraggableScrollableWidgetGroup {
         addWidget(selectableWidgetGroup);
     }
 
+    /**
+     * Removes a trait definition from the project and list.
+     *
+     * @param definition trait definition to remove
+     */
     public void removeDefinition(TraitDefinition definition) {
         if (!(editor.getCurrentProject() instanceof MachineProject project)) return;
         int index = project.getDefinition().machineSettings().traitDefinitions().indexOf(definition);
         if (index >= 0) {
             project.getDefinition().machineSettings().removeTraitDefinition(definition);
             for (int i = index + 1; i < widgets.size(); i++) {
-                widgets.get(i).addSelfPosition(0, - 15);
+                widgets.get(i).addSelfPosition(0, -15);
             }
             widgets.remove(index);
             computeMax();
@@ -67,6 +89,9 @@ public class TraitList extends DraggableScrollableWidgetGroup {
         }
     }
 
+    /**
+     * Reloads additional traits in all open machine scene panels.
+     */
     public void updateScenePreviewMachine() {
         for (var panel : this.editor.getTabPages().tabs.values()) {
             if (panel instanceof MachineScenePanel scenePanel) {
@@ -75,6 +100,9 @@ public class TraitList extends DraggableScrollableWidgetGroup {
         }
     }
 
+    /**
+     * Opens the add/copy/remove context menu for trait definitions.
+     */
     @Override
     @OnlyIn(Dist.CLIENT)
     public boolean mouseClicked(double mouseX, double mouseY, int button) {

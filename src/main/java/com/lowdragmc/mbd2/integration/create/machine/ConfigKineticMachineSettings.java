@@ -9,10 +9,16 @@ import lombok.Getter;
 import lombok.experimental.Accessors;
 import net.minecraft.core.Direction;
 
+/**
+ * Persisted configuration for Create kinetic machine behavior and shaft presentation.
+ */
 @Getter
 @Builder
 @Accessors(fluent = true)
 public class ConfigKineticMachineSettings implements IConfigurable, IPersistedSerializable {
+    /**
+     * Relative shaft-facing options resolved from the machine front.
+     */
     public enum RotationFacing {
         FRONT,
         BACK,
@@ -69,6 +75,9 @@ public class ConfigKineticMachineSettings implements IConfigurable, IPersistedSe
     @Builder.Default
     public boolean useFlywheel = true;
 
+    /**
+     * Render-layer hint for kinetic machine visuals.
+     */
     public enum RenderLayer {
         SOLID,
         CUTOUT,

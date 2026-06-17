@@ -18,6 +18,13 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Client screen that lets a player choose MBD gadget modes from a radial menu.
+ *
+ * <p>The screen is non-pausing and closes immediately after a selection or when no gadget is held. Selection sends a
+ * small client-to-server packet for the target hand; the screen itself does not mutate item NBT locally. All rendering
+ * and input handling run on the Minecraft client thread.</p>
+ */
 public class MbdGadgetModeWheelScreen extends Screen {
     private static final int RADIUS = 46;
     private static final int ENTRY_BOX = 40;
@@ -26,10 +33,18 @@ public class MbdGadgetModeWheelScreen extends Screen {
     @Nullable
     private InteractionHand targetHand;
 
+    /**
+     * Creates an empty wheel; entries are populated during {@link #init()} from the currently held gadget.
+     */
     public MbdGadgetModeWheelScreen() {
         super(Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.title"));
     }
 
+    /**
+     * Rebuilds menu entries for the currently held gadget.
+     *
+     * <p>If the player no longer holds an {@link MBDGadgetsItem}, the screen closes without sending packets.</p>
+     */
     @Override
     protected void init() {
         entries.clear();
@@ -70,6 +85,14 @@ public class MbdGadgetModeWheelScreen extends Screen {
         }
     }
 
+    /**
+     * Draws the radial entries and highlights the entry under the mouse.
+     *
+     * @param graphics     GUI graphics context
+     * @param mouseX       current mouse x coordinate
+     * @param mouseY       current mouse y coordinate
+     * @param partialTicks frame interpolation value supplied by Minecraft
+     */
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         renderBackground(graphics);
@@ -118,6 +141,14 @@ public class MbdGadgetModeWheelScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTicks);
     }
 
+    /**
+     * Applies the selected entry on left click and closes the wheel.
+     *
+     * @param mouseX mouse x coordinate
+     * @param mouseY mouse y coordinate
+     * @param button GLFW mouse button
+     * @return {@code true} when the click is consumed by the wheel
+     */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
@@ -131,6 +162,9 @@ public class MbdGadgetModeWheelScreen extends Screen {
         return true;
     }
 
+    /**
+     * Closes the wheel when Escape is pressed.
+     */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == 256) {
@@ -140,11 +174,23 @@ public class MbdGadgetModeWheelScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
+    /**
+     * Keeps gameplay simulation running while the radial menu is open.
+     *
+     * @return always {@code false}
+     */
     @Override
     public boolean isPauseScreen() {
         return false;
     }
 
+    /**
+     * Finds the wheel entry whose fixed box contains the mouse.
+     *
+     * @param mouseX mouse x coordinate
+     * @param mouseY mouse y coordinate
+     * @return selected entry index, or {@code -1} when the mouse is outside all entries
+     */
     private int getSelectedIndex(int mouseX, int mouseY) {
         int cx = width / 2;
         int cy = height / 2;
@@ -170,6 +216,11 @@ public class MbdGadgetModeWheelScreen extends Screen {
         return best;
     }
 
+    /**
+     * Finds which hand currently holds an MBD gadget.
+     *
+     * @return main or off hand, or {@code null} when neither hand holds the gadget
+     */
     @Nullable
     private static InteractionHand findTargetHand() {
         Minecraft mc = Minecraft.getInstance();
@@ -179,12 +230,24 @@ public class MbdGadgetModeWheelScreen extends Screen {
         return null;
     }
 
+    /**
+     * Returns the current item stack in a hand.
+     *
+     * @param hand hand to inspect
+     * @return held stack, or {@link ItemStack#EMPTY} if the player is unavailable
+     */
     private static ItemStack getHeld(InteractionHand hand) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return ItemStack.EMPTY;
         return mc.player.getItemInHand(hand);
     }
 
+    /**
+     * Sends the packet that corresponds to a selected wheel entry.
+     *
+     * @param entry selected menu entry
+     * @param hand  hand containing the gadget; encoded as main-hand {@code 0} or off-hand {@code 1}
+     */
     private static void applySelection(Entry entry, InteractionHand hand) {
         if (entry.type == EntryType.MODE) {
             MBD2Network.NETWORK.sendToServer(new C2SSetGadgetModePacket(hand == InteractionHand.OFF_HAND ? 1 : 0, entry.modeDamage));
@@ -202,24 +265,56 @@ public class MbdGadgetModeWheelScreen extends Screen {
         }
     }
 
+    /**
+     * Type of server-side gadget action represented by a wheel entry.
+     */
     private enum EntryType {
+        /**
+         * Changes the base gadget mode by setting the item damage value.
+         */
         MODE,
+        /**
+         * Toggles builder behavior between slow and instant build.
+         */
         BUILDER_TOGGLE,
+        /**
+         * Moves the builder pattern index by a signed delta.
+         */
         BUILDER_PATTERN
     }
 
+    /**
+     * Immutable render and action data for one radial menu entry.
+     *
+     * @param type         action type
+     * @param modeDamage   gadget damage value for mode entries
+     * @param builderSlow  current builder build mode for toggle entries
+     * @param patternIndex current builder pattern index
+     * @param patternDelta signed pattern index delta for pattern entries
+     * @param label        text drawn under the icon
+     * @param icon         single-item icon stack used for rendering
+     */
     private record Entry(EntryType type, int modeDamage, boolean builderSlow, int patternIndex, int patternDelta,
                          Component label, ItemStack icon) {
+        /**
+         * Creates a base gadget-mode entry and stamps the icon with the target damage value.
+         */
         private static Entry mode(int modeDamage, Component label, ItemStack icon) {
             icon.setDamageValue(modeDamage);
             return new Entry(EntryType.MODE, modeDamage, false, 0, 0, label, icon);
         }
 
+        /**
+         * Creates a builder-mode toggle entry.
+         */
         private static Entry builderToggle(Component label, boolean slow, ItemStack icon) {
             icon.setDamageValue(0);
             return new Entry(EntryType.BUILDER_TOGGLE, -1, slow, 0, 0, label, icon);
         }
 
+        /**
+         * Creates a builder-pattern navigation entry.
+         */
         private static Entry builderPattern(Component label, int patternIndex, int patternDelta, ItemStack icon) {
             icon.setDamageValue(0);
             return new Entry(EntryType.BUILDER_PATTERN, -1, false, patternIndex, patternDelta, label, icon);

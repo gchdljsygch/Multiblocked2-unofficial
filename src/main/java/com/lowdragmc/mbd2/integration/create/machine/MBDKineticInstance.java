@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Flywheel visual instance that animates the kinetic machine's rotating shaft model.
+ */
 public class MBDKineticInstance extends KineticBlockEntityVisual<MBDKineticMachineBlockEntity> {
 
     protected final List<RotatingInstance> keys = new ArrayList<>();

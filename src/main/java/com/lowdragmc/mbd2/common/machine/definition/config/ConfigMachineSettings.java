@@ -14,10 +14,24 @@ import net.minecraft.nbt.ListTag;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Persisted general settings for a block-backed machine definition.
+ * <p>
+ * This config controls machine level, UI availability, block drop behavior,
+ * redstone connection defaults, and the list of trait definitions that will be
+ * instantiated by {@link com.lowdragmc.mbd2.common.machine.MBDMachine}.
+ */
 @Accessors(fluent = true)
 @Builder
 public class ConfigMachineSettings implements IPersistedSerializable, IConfigurable {
-    @Getter @Setter
+    /**
+     * Side-relative redstone connection settings.
+     * <p>
+     * Horizontal sides are interpreted relative to the machine front facing;
+     * top and bottom are absolute world directions.
+     */
+    @Getter
+    @Setter
     public static class SignalConnection {
         @Configurable(name = "config.machine_settings.signal_connection.front")
         private boolean frontConnection = false;
@@ -32,6 +46,13 @@ public class ConfigMachineSettings implements IPersistedSerializable, IConfigura
         @Configurable(name = "config.machine_settings.signal_connection.bottom")
         private boolean bottomConnection = false;
 
+        /**
+         * Resolves whether redstone can connect on a world side.
+         *
+         * @param front current machine front direction
+         * @param side  queried world side
+         * @return {@code true} when this config allows a connection
+         */
         public boolean getConnection(Direction front, Direction side) {
             if (side == Direction.UP) {
                 return topConnection;
@@ -49,6 +70,7 @@ public class ConfigMachineSettings implements IPersistedSerializable, IConfigura
             return false;
         }
     }
+
     @Getter
     @Builder.Default
     @Configurable(name = "config.machine_settings.machine_level", tips = "config.machine_settings.machine_level.tooltip")
@@ -101,11 +123,22 @@ public class ConfigMachineSettings implements IPersistedSerializable, IConfigura
         }
     }
 
+    /**
+     * Adds a trait definition to this machine config.
+     *
+     * @param definition trait definition to instantiate for new machine
+     *                   runtimes
+     */
     public void addTraitDefinition(TraitDefinition definition) {
         traitDefinitions = new ArrayList<>(traitDefinitions);
         traitDefinitions.add(definition);
     }
 
+    /**
+     * Removes a trait definition by object identity.
+     *
+     * @param definition trait definition instance to remove
+     */
     public void removeTraitDefinition(TraitDefinition definition) {
         traitDefinitions = this.traitDefinitions.stream().filter(s -> s != definition).toList();
     }

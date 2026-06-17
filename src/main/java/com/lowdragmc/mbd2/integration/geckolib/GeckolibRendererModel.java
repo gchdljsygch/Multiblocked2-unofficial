@@ -5,6 +5,9 @@ import net.minecraft.resources.ResourceLocation;
 import software.bernie.geckolib.core.animatable.GeoAnimatable;
 import software.bernie.geckolib.model.GeoModel;
 
+/**
+ * GeckoLib model adapter that supplies renderer-configured model, texture, and animation resources.
+ */
 public class GeckolibRendererModel extends GeoModel<GeoAnimatable> {
     private final GeckolibRenderer renderer;
 
@@ -12,11 +15,13 @@ public class GeckolibRendererModel extends GeoModel<GeoAnimatable> {
         this.renderer = renderer;
     }
 
+    @SuppressWarnings("removal")
     @Override
     public ResourceLocation getModelResource(GeoAnimatable animatable) {
         return renderer.getModelPath();
     }
 
+    @SuppressWarnings("removal")
     @Override
     public ResourceLocation getTextureResource(GeoAnimatable animatable) {
         return renderer.getTexturePath();
@@ -29,6 +34,6 @@ public class GeckolibRendererModel extends GeoModel<GeoAnimatable> {
 
     @Override
     public RenderType getRenderType(GeoAnimatable animatable, ResourceLocation texture) {
-        return renderer.useTranslucent ?  RenderType.entityTranslucentCull(texture) : RenderType.entityCutoutNoCull(texture);
+        return renderer.useTranslucent ? RenderType.entityTranslucentCull(texture) : RenderType.entityCutoutNoCull(texture);
     }
 }

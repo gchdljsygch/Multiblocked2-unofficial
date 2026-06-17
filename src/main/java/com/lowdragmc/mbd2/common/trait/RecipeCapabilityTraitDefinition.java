@@ -8,9 +8,16 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * A trait definition that have recipe handling capability.
+ * Editable definition for a trait that exposes recipe handlers.
+ *
+ * <p>The business goal is to configure how a trait participates in recipe
+ * matching: input/output direction, distinct matching, slot-name routing, and
+ * recipe-group isolation. Definition instances are mutable editor/configuration
+ * state; runtime traits should read them from the machine thread and avoid
+ * concurrent edits.</p>
  */
-@Getter @Setter
+@Getter
+@Setter
 public abstract class RecipeCapabilityTraitDefinition extends TraitDefinition {
 
     @Configurable(name = "config.definition.trait.recipe_handler", tips = "config.definition.trait.recipe_handler.tooltip")
@@ -25,11 +32,27 @@ public abstract class RecipeCapabilityTraitDefinition extends TraitDefinition {
     @Configurable(name = "config.definition.trait.recipe_group", tips = "config.definition.trait.recipe_group.tooltip")
     private String recipeGroup = RecipeGroup.DEFAULT;
 
+    /**
+     * Sets and normalizes the recipe group used by handlers created from this
+     * definition.
+     *
+     * <p>Side effects: blank or {@code null} values are stored as
+     * {@link RecipeGroup#DEFAULT}.</p>
+     *
+     * @param recipeGroup configured recipe group id from the editor or project
+     *                    file
+     */
     @ConfigSetter(field = "recipeGroup")
     public void setRecipeGroup(String recipeGroup) {
         this.recipeGroup = RecipeGroup.normalizeOrDefault(recipeGroup);
     }
 
+    /**
+     * Returns the normalized recipe group used by handlers created from this
+     * definition.
+     *
+     * @return configured group id, or {@link RecipeGroup#DEFAULT} when blank
+     */
     public String getRecipeGroup() {
         return RecipeGroup.normalizeOrDefault(recipeGroup);
     }

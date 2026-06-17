@@ -27,6 +27,17 @@ import java.util.HashMap;
 import static com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability.ENERGY_BAR;
 import static com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability.ENERGY_BASE;
 
+/**
+ * Editable definition for long-precision Forge Energy traits.
+ *
+ * <p>The business goal is to configure energy buffers whose capacity and
+ * transfer limits may exceed Forge Energy's {@code int} range, while still
+ * providing the same editor UI and automatic IO controls as ordinary Forge
+ * Energy storage. Values are clamped to non-negative {@code long} values during
+ * editor updates. Definition instances are mutable editor state and should be
+ * treated as read-only by runtime {@link LongFeEnergyCapabilityTrait}
+ * instances.</p>
+ */
 @LDLRegister(name = "long_fe_container", group = "trait")
 public class LongFeEnergyCapabilityTraitDefinition extends SimpleCapabilityTraitDefinition {
     @Persisted
@@ -43,22 +54,52 @@ public class LongFeEnergyCapabilityTraitDefinition extends SimpleCapabilityTrait
     )
     private final ToggleAutoIO autoIO = new ToggleAutoIO();
 
+    /**
+     * Returns maximum long FE capacity.
+     *
+     * @return configured capacity in FE, from {@code 0} to
+     * {@link Long#MAX_VALUE}
+     */
     public long getCapacity() {
         return capacity;
     }
 
+    /**
+     * Returns maximum input transfer per automatic IO or capability call.
+     *
+     * @return configured FE receive limit per tick/call, non-negative
+     */
     public long getMaxReceivePerTick() {
         return maxReceivePerTick;
     }
 
+    /**
+     * Returns maximum output transfer per automatic IO or capability call.
+     *
+     * @return configured FE extract limit per tick/call, non-negative
+     */
     public long getMaxExtractPerTick() {
         return maxExtractPerTick;
     }
 
+    /**
+     * Returns side-based automatic IO configuration.
+     *
+     * @return mutable auto IO settings owned by this definition
+     */
     public ToggleAutoIO getAutoIO() {
         return autoIO;
     }
 
+    /**
+     * Builds editor configurators for long energy values and auto IO.
+     *
+     * <p>Side effects: appends configurators to {@code father}. Long values are
+     * edited with {@link SILongConfigurator} so they do not lose precision through
+     * integer-only editor controls.</p>
+     *
+     * @param father parent configurator group receiving controls
+     */
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         father.addConfigurators(new SILongConfigurator(
@@ -95,20 +136,46 @@ public class LongFeEnergyCapabilityTraitDefinition extends SimpleCapabilityTrait
         ConfiguratorParser.createConfigurators(father, new HashMap<>(), getClass(), this);
     }
 
+    /**
+     * Clamps editor input to the supported non-negative range.
+     *
+     * @param v candidate value
+     * @return {@code max(0, v)}
+     */
     private static long clampNonNegative(long v) {
         return Math.max(0L, v);
     }
 
+    /**
+     * Creates the runtime long FE trait for a machine.
+     *
+     * @param machine machine that will own the energy container
+     * @return new long FE capability trait
+     */
     @Override
     public SimpleCapabilityTrait createTrait(MBDMachine machine) {
         return new LongFeEnergyCapabilityTrait(machine, this);
     }
 
+    /**
+     * Returns the editor icon for long FE traits.
+     *
+     * @return FE resource texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ResourceTexture("mbd2:textures/gui/forge_energy.png");
     }
 
+    /**
+     * Creates the default ModularUI long FE energy bar template.
+     *
+     * <p>Side effects: adds a progress bar and a text widget to {@code ui}. Widget
+     * ids use this definition's UI prefix so
+     * {@link #initTraitUI(ITrait, WidgetGroup)} can bind runtime storage later.</p>
+     *
+     * @param ui mutable UI group receiving the energy widgets
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var prefix = uiPrefixName();
@@ -125,6 +192,16 @@ public class LongFeEnergyCapabilityTraitDefinition extends SimpleCapabilityTrait
         ui.addWidget(energyBarText);
     }
 
+    /**
+     * Binds runtime long FE storage to template energy widgets.
+     *
+     * <p>Side effects: mutates matching widgets by assigning progress suppliers,
+     * dynamic hover text, transfer-limit tooltip text, and dynamic stored/capacity
+     * text.</p>
+     *
+     * @param trait runtime trait instance
+     * @param group UI group containing template energy widgets
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (!(trait instanceof LongFeEnergyCapabilityTrait energyTrait)) return;

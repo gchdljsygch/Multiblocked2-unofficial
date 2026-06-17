@@ -8,6 +8,9 @@ import vazkii.botania.api.mana.ManaPool;
 
 import java.util.Optional;
 
+/**
+ * IO-filtered wrapper around a Botania mana pool.
+ */
 public class ManaPoolWrapper implements ManaPool {
     private final ManaPool manaPool;
     private final IO io;

@@ -10,10 +10,30 @@ import net.minecraft.world.entity.Entity;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Base event for entity-backed machine hooks.
+ * <p>
+ * Entity machine events reuse {@link MachineEvent}'s graph parameter binding but
+ * dispatch through the entity machine AI settings and entity-specific KubeJS
+ * dispatcher. The {@link #entity} field is the Minecraft entity represented by
+ * the machine.
+ */
 public class EntityMachineEvent extends MachineEvent {
+    /**
+     * Runtime entity that owns or represents the machine.
+     */
     @GraphParameterGet
     public final Entity entity;
 
+    /**
+     * Creates an event for an entity-backed machine.
+     * <p>
+     * The event is mutable and single-use. Create, post, and read it on the same logical thread that is executing the
+     * entity machine hook.
+     *
+     * @param machine entity machine runtime that triggered the hook
+     * @param entity  Minecraft entity represented by the machine
+     */
     public EntityMachineEvent(MBDEntityMachine machine, Entity entity) {
         super(machine);
         this.entity = entity;

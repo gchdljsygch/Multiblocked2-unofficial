@@ -39,10 +39,28 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
     @NumberRange(range = {1, Integer.MAX_VALUE})
     private ContentModifier maxParallel = ContentModifier.identity();
 
+    /**
+     * Sets this modifier's max-parallel multiplier from a fixed integer.
+     * <p>
+     * Values below {@code 1} are clamped to {@code 1}. Side effect: replaces the current max-parallel
+     * {@link ContentModifier}; recipe content and duration modifiers are unchanged.
+     *
+     * @param maxParallel requested max parallel multiplier
+     * @return this modifier for chaining
+     */
     public RecipeModifier setMaxParallel(int maxParallel) {
         return setMaxParallel(ContentModifier.multiplier(Math.max(1, maxParallel)));
     }
 
+    /**
+     * Sets this modifier's max-parallel transformation.
+     * <p>
+     * A {@code null} value resets the max-parallel contribution to identity. The modifier is evaluated only when its
+     * recipe conditions pass.
+     *
+     * @param maxParallel content modifier applied to max parallel values
+     * @return this modifier for chaining
+     */
     public RecipeModifier setMaxParallel(ContentModifier maxParallel) {
         this.maxParallel = maxParallel == null ? ContentModifier.identity() : maxParallel;
         return this;
@@ -146,11 +164,29 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
             father.addConfigurators(modifiers);
         }
 
+        /**
+         * Sets a global max-parallel multiplier across this modifier list.
+         * <p>
+         * The method reuses an existing condition-free modifier that changes only max parallel, or creates one when none
+         * exists. Values below {@code 1} are clamped by {@link RecipeModifier#setMaxParallel(int)}.
+         *
+         * @param maxParallel requested max parallel multiplier
+         * @return this modifier list for chaining
+         */
         public RecipeModifiers setMaxParallel(int maxParallel) {
             getOrCreateGlobalMaxParallelModifier().setMaxParallel(maxParallel);
             return this;
         }
 
+        /**
+         * Sets a global max-parallel transformation across this modifier list.
+         * <p>
+         * The method reuses an existing condition-free modifier that changes only max parallel, or creates one when none
+         * exists. A {@code null} modifier resets that global contribution to identity.
+         *
+         * @param maxParallel content modifier applied to max parallel values
+         * @return this modifier list for chaining
+         */
         public RecipeModifiers setMaxParallel(ContentModifier maxParallel) {
             getOrCreateGlobalMaxParallelModifier().setMaxParallel(maxParallel);
             return this;
@@ -175,11 +211,15 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
         }
 
         /**
-         * Apply the modifiers to the recipe.
+         * Applies matching content and duration modifiers to a recipe.
+         * <p>
+         * Only modifiers whose conditions pass for the supplied logic/recipe pair contribute. Input and output content
+         * modifiers are merged independently according to {@link IO}; duration modifiers are merged and applied to the
+         * copied recipe duration. The original recipe is returned unchanged when no modifier applies.
          *
-         * @param recipeLogic the recipe logic
-         * @param recipe      the original recipe
-         * @return the modified recipe with the max parallel number
+         * @param recipeLogic recipe logic providing runtime context for conditions
+         * @param recipe      original recipe to inspect and copy as needed
+         * @return original recipe or a modified copy
          */
         public @Nonnull MBDRecipe applyModifiers(RecipeLogic recipeLogic, @Nonnull MBDRecipe recipe) {
             if (recipeModifiers.isEmpty()) return recipe;
@@ -216,7 +256,14 @@ public class RecipeModifier implements IConfigurable, IPersistedSerializable {
         }
 
         /**
-         * Get the max parallel number of the recipe.
+         * Resolves the merged max-parallel contribution for a recipe.
+         * <p>
+         * Only modifiers whose conditions pass and whose max-parallel modifier is not identity contribute. The return
+         * value is a modifier rather than the final integer so callers can merge it with dynamic runtime contributions.
+         *
+         * @param recipeLogic recipe logic providing runtime context for conditions
+         * @param recipe      recipe being evaluated
+         * @return merged max-parallel modifier, or {@link ContentModifier#IDENTITY} when none apply
          */
         public ContentModifier getMaxParallel(RecipeLogic recipeLogic, @Nonnull MBDRecipe recipe) {
             if (recipeModifiers.isEmpty()) return ContentModifier.IDENTITY;

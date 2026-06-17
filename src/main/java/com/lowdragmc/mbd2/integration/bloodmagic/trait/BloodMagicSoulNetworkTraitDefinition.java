@@ -18,19 +18,34 @@ import com.lowdragmc.mbd2.utils.WidgetUtils;
 import net.minecraft.network.chat.Component;
 import wayoftime.bloodmagic.common.item.BloodMagicItems;
 
+/**
+ * Trait definition for Blood Magic Soul Network recipe handling.
+ *
+ * <p>The generated UI gives the machine a single Blood Orb slot and a live LP readout. The runtime
+ * trait uses that orb's binding as the account to drain from or fill during recipes.</p>
+ */
 @LDLRegister(name = "bloodmagic_soul_network", group = "trait", modID = "bloodmagic")
 public class BloodMagicSoulNetworkTraitDefinition extends RecipeCapabilityTraitDefinition implements IUIProviderTrait {
 
+    /**
+     * Creates the runtime Soul Network trait for a machine.
+     */
     @Override
     public ITrait createTrait(MBDMachine machine) {
         return new BloodMagicSoulNetworkTrait(machine, this);
     }
 
+    /**
+     * Returns the weak Blood Orb icon used in trait lists.
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ItemStackTexture(BloodMagicItems.WEAK_BLOOD_ORB.get());
     }
 
+    /**
+     * Builds the orb slot and LP text widgets for machine UI templates.
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         var prefix = uiPrefixName();
@@ -48,6 +63,9 @@ public class BloodMagicSoulNetworkTraitDefinition extends RecipeCapabilityTraitD
         ui.addWidget(text);
     }
 
+    /**
+     * Binds the orb slot and live Soul Network text to a runtime trait instance.
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (trait instanceof BloodMagicSoulNetworkTrait soulNetworkTrait) {

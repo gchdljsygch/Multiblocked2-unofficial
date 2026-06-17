@@ -7,6 +7,9 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Vector3f;
 
+/**
+ * Graph node that stops a Photon FX instance attached to an MBD machine.
+ */
 @LDLRegister(name = "kill photon fx", group = "graph_processor.node.mbd2.machine.photon", modID = "photon")
 public class KillPhotonFXNode extends LinearTriggerNode {
     @InputPort
@@ -14,7 +17,7 @@ public class KillPhotonFXNode extends LinearTriggerNode {
     @InputPort(name = "identifier", tips = "graph_processor.node.mbd2.machine.photon.identifier")
     public String identifier;
     @InputPort(name = "forced death", tips = {"graph_processor.node.mbd2.machine.photon.force_death.tips.0",
-    "graph_processor.node.mbd2.machine.photon.force_death.tips.1", "graph_processor.node.mbd2.machine.photon.force_death.tips.2"})
+            "graph_processor.node.mbd2.machine.photon.force_death.tips.1", "graph_processor.node.mbd2.machine.photon.force_death.tips.2"})
     public boolean forcedDeath;
 
     @Override

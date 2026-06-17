@@ -21,6 +21,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
+/**
+ * Replaces LDLib scene rendering with a guarded render path that restores GUI state.
+ *
+ * <p>Editor scene previews render arbitrary generated worlds and renderer resources. If a preview
+ * renderer throws, LDLib can leave camera, batch, depth, or render-type state dirty. This mixin
+ * skips rendering during Minecraft's loading overlay, catches preview failures, clears batches,
+ * resets the camera, and restores GUI render state for following widgets.</p>
+ */
 @Mixin(value = WorldSceneRenderer.class, remap = false)
 public abstract class WorldSceneRendererRenderMixin {
     @Unique
@@ -53,6 +61,18 @@ public abstract class WorldSceneRendererRenderMixin {
     @Shadow
     protected abstract void resetCamera();
 
+    /**
+     * Renders a world-scene widget with exception handling and explicit render-state restoration.
+     *
+     * @param poseStack GUI pose stack
+     * @param x         scene X coordinate
+     * @param y         scene Y coordinate
+     * @param width     scene width
+     * @param height    scene height
+     * @param mouseX    current mouse X
+     * @param mouseY    current mouse Y
+     * @param ci        callback always cancelled because this method replaces LDLib's render body
+     */
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void mbd2$renderSafely(@Nonnull PoseStack poseStack, float x, float y, float width, float height, int mouseX, int mouseY, CallbackInfo ci) {
         ci.cancel();
@@ -107,6 +127,9 @@ public abstract class WorldSceneRendererRenderMixin {
         }
     }
 
+    /**
+     * Flushes Minecraft's main buffer source after scene rendering.
+     */
     @Unique
     private static void mbd2$endSceneBatch() {
         try {
@@ -115,6 +138,9 @@ public abstract class WorldSceneRendererRenderMixin {
         }
     }
 
+    /**
+     * Restores render-type and GL state expected by normal GUI widgets.
+     */
     @Unique
     private static void mbd2$restoreGuiRenderState() {
         for (RenderType renderType : RenderType.chunkBufferLayers()) {
@@ -130,6 +156,12 @@ public abstract class WorldSceneRendererRenderMixin {
         RenderSystem.disableDepthTest();
     }
 
+    /**
+     * Logs the first scene render failure at warn level and later failures at debug level.
+     *
+     * @param phase     render phase that failed
+     * @param exception thrown renderer exception
+     */
     @Unique
     private static void mbd2$logSceneRenderFailure(String phase, RuntimeException exception) {
         if (!mbd2$loggedSceneRenderFailure) {

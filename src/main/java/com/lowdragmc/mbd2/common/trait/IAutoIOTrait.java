@@ -7,18 +7,32 @@ import net.minecraft.core.Direction;
 import javax.annotation.Nullable;
 
 /**
- * This interface is used to mark a trait as an auto IO trait.
- * Auto IO traits are traits that automatically handle the IO of the machine based on the configuration.
- * e.g. Auto extract items from the machine's inventory, auto insert items to the machine's inventory, etc.
+ * Trait that performs configured automatic IO on neighboring blocks.
+ *
+ * <p>The business goal is to periodically call
+ * {@link #handleAutoIO(BlockPos, Direction, IO)} for each configured side so
+ * concrete traits can auto-insert or auto-extract items, fluids, energy, or
+ * other resources. The default implementation runs on the server tick path and
+ * assumes the trait is owned by the machine's logical server thread.</p>
  */
 public interface IAutoIOTrait extends IProxyAutoIOTrait {
     /**
-     * @return the auto IO configuration of this trait by default.
-     *        If the trait does not support / do not have the auto IO, return null instead.
+     * Returns this trait's automatic IO configuration.
+     *
+     * @return configuration used by the default server tick, or {@code null} when
+     * this trait currently does not support automatic IO
      */
     @Nullable
     AutoIO getAutoIO();
 
+    /**
+     * Runs automatic IO on the configured interval.
+     *
+     * <p>Side effects: on matching ticks, calls
+     * {@link #handleAutoIO(BlockPos, Direction, IO)} once for each world side
+     * whose resolved IO is not {@link IO#NONE}. The port position is the owning
+     * machine position.</p>
+     */
     @Override
     default void serverTick() {
         var autoIO = getAutoIO();

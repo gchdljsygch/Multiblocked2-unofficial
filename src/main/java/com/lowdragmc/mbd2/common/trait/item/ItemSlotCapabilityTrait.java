@@ -31,11 +31,30 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
+/**
+ * Runtime trait that gives a machine item storage, item recipe handlers, Forge
+ * item-handler capability access, and optional automatic item transfer.
+ *
+ * <p>The business goal is to use one configured item slot definition for editor
+ * slots, recipe input/output matching, durability-based recipe handling,
+ * side-aware Forge item IO, neighboring block transfer, and world item pickup or
+ * dropping. The trait owns mutable inventory state and is not thread-safe; all
+ * mutation should run on the owning machine's logical server thread, while
+ * preview initialization runs on the editor/client thread.</p>
+ */
 public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ItemSlotCapabilityTrait.class);
     private final Random random = new Random();
+
+    /**
+     * Returns the sync-data field holder for item slot traits.
+     *
+     * @return static managed field holder used by LowDragLib sync/persistence
+     */
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -45,12 +64,32 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
     private final ItemDurabilityRecipeHandler durabilityRecipeHandler = new ItemDurabilityRecipeHandler();
     private final ItemHandlerCap itemHandlerCap = new ItemHandlerCap();
 
+    /**
+     * Creates item storage and binds it to a machine.
+     *
+     * <p>Side effects: allocates an {@link ItemStackTransfer}, applies the
+     * configured item filter, and registers a content-change callback that
+     * invalidates the empty cache and notifies recipe listeners.</p>
+     *
+     * @param machine    owning machine
+     * @param definition item slot definition controlling size, limits, filters,
+     *                   UI, and auto IO
+     */
     public ItemSlotCapabilityTrait(MBDMachine machine, ItemSlotCapabilityTraitDefinition definition) {
         super(machine, definition);
         this.storage = createStorage();
         this.storage.setOnContentsChanged(this::onContentsChanged);
     }
 
+    /**
+     * Adds all stored item stacks to the machine drop list.
+     *
+     * <p>Side effects: appends non-empty stored stacks to {@code drops}; it does
+     * not clear the internal storage.</p>
+     *
+     * @param entity entity that caused the drop, when available
+     * @param drops  mutable drop list
+     */
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
         for (int i = 0; i < storage.getSlots(); i++) {
@@ -61,11 +100,22 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         }
     }
 
+    /**
+     * Returns this trait's concrete definition type.
+     *
+     * @return item slot capability definition
+     */
     @Override
     public ItemSlotCapabilityTraitDefinition getDefinition() {
         return (ItemSlotCapabilityTraitDefinition) super.getDefinition();
     }
 
+    /**
+     * Seeds preview storage with a representative item stack.
+     *
+     * <p>Editor-only side effect: inserts iron ingots into slot {@code 0} when at
+     * least one slot exists so the preview UI and renderer have visible content.</p>
+     */
     @Override
     public void onLoadingTraitInPreview() {
         if (storage.getSlots() > 0) {
@@ -73,6 +123,15 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         }
     }
 
+    /**
+     * Creates the backing inventory for this trait.
+     *
+     * <p>Side effects: applies the configured slot limit and optional item filter.
+     * The returned transfer is empty and has no listeners until the constructor
+     * attaches them.</p>
+     *
+     * @return new item transfer sized by the definition
+     */
     protected ItemStackTransfer createStorage() {
         var transfer = new ItemStackTransfer(getDefinition().getSlotSize()) {
             @Override
@@ -86,11 +145,25 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         return transfer;
     }
 
+    /**
+     * Handles storage mutations.
+     *
+     * <p>Side effects: invalidates the cached empty-state value and notifies
+     * recipe listeners so active recipe logic can re-check item availability.</p>
+     */
     public void onContentsChanged() {
         isEmpty = null;
         notifyListeners();
     }
 
+    /**
+     * Returns whether all item slots are empty.
+     *
+     * <p>Side effects: lazily computes and caches the answer until
+     * {@link #onContentsChanged()} invalidates it.</p>
+     *
+     * @return {@code true} when every storage slot is empty
+     */
     public boolean isEmpty() {
         if (isEmpty == null) {
             isEmpty = true;
@@ -104,11 +177,21 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         return isEmpty;
     }
 
+    /**
+     * Returns recipe handlers contributed by this item storage.
+     *
+     * @return item stack handler and durability handler
+     */
     @Override
     public List<IRecipeHandlerTrait<?>> getRecipeHandlerTraits() {
         return List.of(itemRecipeHandler, durabilityRecipeHandler);
     }
 
+    /**
+     * Returns Forge capabilities contributed by this item storage.
+     *
+     * @return item handler capability provider
+     */
     @Override
     public List<ICapabilityProviderTrait<?>> getCapabilityProviderTraits() {
         return List.of(itemHandlerCap);
@@ -118,11 +201,26 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
     //********     AUTO IO     *********//
     //////////////////////////////////////
 
+    /**
+     * Returns enabled side-based automatic item IO configuration.
+     *
+     * @return auto IO configuration, or {@code null} when side auto IO is
+     * disabled
+     */
     @Override
     public @Nullable AutoIO getAutoIO() {
         return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
     }
 
+    /**
+     * Performs side auto IO and world item pickup/drop automation.
+     *
+     * <p>Server-side side effects include moving items through neighboring item
+     * handlers, absorbing nearby {@link ItemEntity} stacks up to the configured
+     * speed, discarding emptied entities, and spawning dropped item entities from
+     * inventory slots. Work is throttled by the configured intervals and the
+     * machine offset timer.</p>
+     */
     @Override
     public void serverTick() {
         IAutoIOTrait.super.serverTick();
@@ -132,7 +230,7 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         if (autoInput.isEnable() && timer % autoInput.getInterval() == 0) {
             var items = getMachine().getLevel().getEntitiesOfClass(ItemEntity.class,
                     autoInput.getRotatedRange(getMachine().getFrontFacing().orElse(Direction.NORTH)).move(getMachine().getPos()),
-                            EntitySelector.ENTITY_STILL_ALIVE);
+                    EntitySelector.ENTITY_STILL_ALIVE);
             var leftCount = autoInput.getSpeed();
             for (ItemEntity itemEntity : items) {
                 if (leftCount <= 0) break;
@@ -181,6 +279,17 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         }
     }
 
+    /**
+     * Performs one neighboring block item transfer pass.
+     *
+     * <p>Side effects: for input IO, imports items from the neighbor into this
+     * storage using the configured item filter; for output IO, exports from this
+     * storage to the neighbor. Calls are expected on the logical server thread.</p>
+     *
+     * @param port position whose neighbor is accessed
+     * @param side side of {@code port} used for transfer
+     * @param io   transfer direction to perform
+     */
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
         if (io.support(IO.IN)) {
@@ -188,18 +297,47 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
                     getDefinition().getItemFilterSettings().isEnable() ? getDefinition().getItemFilterSettings() : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
-        if (io.support(IO.OUT)){
+        if (io.support(IO.OUT)) {
             ItemTransferHelperImpl.exportToTarget(new ItemTransferList(storage), Integer.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
     }
 
+    /**
+     * Recipe handler that consumes or produces item ingredient stacks.
+     *
+     * <p>Business goal: match item recipe content against this trait's storage.
+     * Simulation uses a copy of the storage; commit mode mutates the real storage
+     * and records consumed input stacks through {@link RecipeConsumptionTracker}.</p>
+     */
     public class ItemRecipeHandler extends RecipeHandlerTrait<Ingredient> {
 
+        /**
+         * Creates the item recipe handler bound to the outer trait.
+         */
         protected ItemRecipeHandler() {
             super(ItemSlotCapabilityTrait.this, ItemRecipeCapability.CAP);
         }
 
+        /**
+         * Matches or commits item recipe content.
+         *
+         * <p>For {@link IO#IN}, matching extracts the required ingredient counts
+         * from storage. For {@link IO#OUT}, matching inserts an output stack into
+         * storage; when multiple candidate output stacks exist, the choice is
+         * shuffled deterministically from the machine offset timer. Returning
+         * {@code null} marks all content satisfied.</p>
+         *
+         * @param io       recipe IO direction
+         * @param recipe   recipe being matched or committed
+         * @param left     mutable ingredient list still unsatisfied
+         * @param slotName optional recipe slot name, passed to consumption
+         *                 tracking
+         * @param simulate {@code true} to check using copied storage;
+         *                 {@code false} to mutate real storage
+         * @return remaining unsatisfied ingredients, or {@code null} when
+         * complete
+         */
         @Override
         public List<Ingredient> handleRecipeInner(IO io, MBDRecipe recipe, List<Ingredient> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;
@@ -289,11 +427,35 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         }
     }
 
+    /**
+     * Recipe handler that treats item durability as consumable or restorable
+     * recipe content.
+     *
+     * <p>For input recipes, matching damages acceptable damageable items. For
+     * output recipes, matching repairs acceptable damageable items. Simulation
+     * uses copied storage; commit mode mutates the real storage.</p>
+     */
     public class ItemDurabilityRecipeHandler extends RecipeHandlerTrait<Ingredient> {
+        /**
+         * Creates the durability recipe handler bound to the outer trait.
+         */
         protected ItemDurabilityRecipeHandler() {
             super(ItemSlotCapabilityTrait.this, ItemDurabilityRecipeCapability.CAP);
         }
 
+        /**
+         * Matches or commits durability recipe content.
+         *
+         * @param io       recipe IO direction
+         * @param recipe   recipe being matched or committed
+         * @param left     mutable ingredient list still unsatisfied
+         * @param slotName optional recipe slot name, passed to consumption
+         *                 tracking for input durability use
+         * @param simulate {@code true} to check using copied storage;
+         *                 {@code false} to mutate real storage
+         * @return remaining unsatisfied ingredients, or {@code null} when
+         * complete
+         */
         @Override
         public List<Ingredient> handleRecipeInner(IO io, MBDRecipe recipe, List<Ingredient> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;
@@ -364,23 +526,49 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         }
     }
 
+    /**
+     * Forge capability provider for this trait's item storage.
+     */
     public class ItemHandlerCap implements ICapabilityProviderTrait<IItemHandler> {
 
+        /**
+         * Resolves item capability IO for a queried side.
+         *
+         * @param side queried side, or {@code null} for internal access
+         * @return effective item handler IO
+         */
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
             return ItemSlotCapabilityTrait.this.getCapabilityIO(side);
         }
 
+        /**
+         * Returns the Forge item handler capability token.
+         *
+         * @return item handler capability
+         */
         @Override
         public Capability<IItemHandler> getCapability() {
             return ForgeCapabilities.ITEM_HANDLER;
         }
 
+        /**
+         * Creates a side-filtered item handler wrapper.
+         *
+         * @param capbilityIO effective IO for the queried side
+         * @return wrapper over this trait's storage
+         */
         @Override
         public IItemHandler getCapContent(IO capbilityIO) {
             return new ItemHandlerWrapper(storage, capbilityIO);
         }
 
+        /**
+         * Merges multiple item handler providers into one flattened handler.
+         *
+         * @param contents item handlers collected from compatible traits
+         * @return concatenated item handler list
+         */
         @Override
         public IItemHandler mergeContents(List<IItemHandler> contents) {
             return new ItemHandlerList(contents.toArray(new IItemHandler[0]));

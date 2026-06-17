@@ -18,6 +18,9 @@ import org.jetbrains.annotations.NotNull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Arrays;
 
+/**
+ * Combined Mekanism chemical handler view over multiple underlying handlers.
+ */
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public abstract class ChemicalHandlerList<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> implements IChemicalHandler<CHEMICAL, STACK> {

@@ -14,8 +14,26 @@ import net.minecraftforge.fml.ModLoader;
 
 import java.util.function.Supplier;
 
+/**
+ * Startup registrar for machine definition implementation types.
+ * <p>
+ * This class populates {@link MBDRegistries#MACHINE_DEFINITION_TYPES} with the
+ * built-in machine definition classes and then posts
+ * {@link MBDRegistryEvent.MachineDefinitionType} so addons can contribute their
+ * own editor/loadable definition types.
+ * <p>
+ * Thread safety: call {@link #init()} only during mod loading. The backing
+ * registry is unfrozen while this method runs and frozen before it returns.
+ */
 public class MBDMachineDefinitionTypes {
 
+    /**
+     * Registers built-in and addon machine definition types.
+     * <p>
+     * Optional integration types are registered only when their owning mod is
+     * loaded. Calling this method after definitions have been loaded can make
+     * project deserialization inconsistent.
+     */
     public static void init() {
         MBDRegistries.MACHINE_DEFINITION_TYPES.unfreeze();
         register(MBDMachineDefinition.class, MBDMachineDefinition::createDefault);
@@ -28,6 +46,15 @@ public class MBDMachineDefinitionTypes {
         MBDRegistries.MACHINE_DEFINITION_TYPES.freeze();
     }
 
+    /**
+     * Registers one machine definition implementation type.
+     *
+     * @param clazz   definition class annotated with {@link LDLRegister}; the
+     *                annotation name becomes the serialized type id
+     * @param creator factory that returns a fresh definition instance for
+     *                project loading
+     * @param <T>     concrete definition type
+     */
     public static <T extends MBDMachineDefinition> void register(Class<T> clazz, Supplier<T> creator) {
         if (clazz.isAnnotationPresent(LDLRegister.class)) {
             var annotation = clazz.getAnnotation(LDLRegister.class);

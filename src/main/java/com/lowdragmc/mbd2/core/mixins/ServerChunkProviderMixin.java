@@ -21,6 +21,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 
+/**
+ * Provides safe, non-loading chunk lookup for MBD2/LDLib worker threads.
+ *
+ * <p>Vanilla {@link ServerChunkCache#getChunkNow(int, int)} is main-thread oriented. This
+ * mixin intercepts approved off-thread calls from MBD2 multiblock or async recipe services
+ * and reads already-visible full chunks directly. It maintains a tiny synchronized
+ * four-entry cache to reduce repeated future lookups during pattern scans.</p>
+ */
 @Mixin(ServerChunkCache.class)
 public abstract class ServerChunkProviderMixin {
 
@@ -34,6 +42,12 @@ public abstract class ServerChunkProviderMixin {
 
     @Shadow @Nullable protected abstract ChunkHolder getVisibleChunkIfPresent(long p_217213_1_);
 
+    /**
+     * Stores a visible chunk in the small most-recently-used cache.
+     *
+     * @param pos packed chunk position
+     * @param chunkAccess full level chunk to cache
+     */
     @Unique
     private void mbd2$storeInCache(long pos, LevelChunk chunkAccess) {
         synchronized (this.mbd2$mbdLastChunkPos) {
@@ -47,6 +61,11 @@ public abstract class ServerChunkProviderMixin {
         }
     }
 
+    /**
+     * Clears the off-thread chunk cache whenever vanilla clears its own cache.
+     *
+     * @param ci mixin callback info
+     */
     @Inject(method = "clearCache", at = @At(value = "TAIL"))
     private void injectClearCache(CallbackInfo ci) {
         synchronized (this.mbd2$mbdLastChunkPos) {
@@ -55,6 +74,13 @@ public abstract class ServerChunkProviderMixin {
         }
     }
 
+    /**
+     * Handles approved off-thread {@code getChunkNow} calls without loading chunks.
+     *
+     * @param pChunkX chunk x coordinate
+     * @param pChunkZ chunk z coordinate
+     * @param cir cancellable callback receiving a visible full chunk or {@code null}
+     */
     @Inject(method = "getChunkNow", at = @At(value = "HEAD"), cancellable = true)
     private void getTileEntity(int pChunkX, int pChunkZ, CallbackInfoReturnable<LevelChunk> cir) {
         if (Thread.currentThread() != this.mainThread && (MultiblockWorldSavedData.isThreadService() || AsyncThreadData.isThreadService())) {

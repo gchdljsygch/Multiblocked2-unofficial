@@ -24,8 +24,16 @@ import com.lowdragmc.mbd2.common.gui.widget.SyncedHoverTooltipWidget;
 import com.lowdragmc.mbd2.common.gui.widget.ThreadProgressDigitsLabelWidget;
 import com.lowdragmc.mbd2.common.gui.widget.ThreadStatusLabelWidget;
 import net.minecraft.resources.ResourceLocation;
+
 import java.util.Objects;
 
+/**
+ * Definition for the multi-lane recipe thread trait.
+ *
+ * <p>The definition stores global lane count, default status text, optional compatibility switches, and per-lane
+ * display/filter settings. Per-lane recipe filter entries are persisted as {@code threadId|recipe_id} strings so the
+ * editor can resize lane count without nested collection serialization.</p>
+ */
 @LDLRegister(name = "recipe_thread", group = "capability")
 public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIProviderTrait {
 
@@ -68,12 +76,26 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
     @Persisted
     private final java.util.List<String> threadBlacklistEntries = new java.util.ArrayList<>();
 
+    /**
+     * Creates the runtime recipe-thread trait after normalizing per-thread config list sizes.
+     *
+     * @param machine owning machine
+     * @return new {@link RecipeThreadTrait}
+     */
     @Override
     public ITrait createTrait(MBDMachine machine) {
         syncThreadConfigCount();
         return new RecipeThreadTrait(machine, this);
     }
 
+    /**
+     * Builds the reusable UI template showing one row for each logical recipe lane.
+     *
+     * <p>Rows are identified by this trait's UI prefix plus the lane id. The template is static; live suppliers are
+     * attached later in {@link #initTraitUI(ITrait, WidgetGroup)}.</p>
+     *
+     * @param ui destination widget group
+     */
     @Override
     public void createTraitUITemplate(WidgetGroup ui) {
         String p = uiPrefixName();
@@ -101,6 +123,15 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
         }
     }
 
+    /**
+     * Binds live recipe-thread suppliers to a previously created UI template.
+     *
+     * <p>Status, progress digits, and hover tooltip widgets are matched by id suffix. Non-recipe-thread traits are
+     * ignored.</p>
+     *
+     * @param trait runtime trait instance
+     * @param group instantiated widget tree containing this definition's template ids
+     */
     @Override
     public void initTraitUI(ITrait trait, WidgetGroup group) {
         if (!(trait instanceof RecipeThreadTrait recipeTrait)) return;
@@ -123,17 +154,35 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
         });
     }
 
+    /**
+     * Returns the editor icon for recipe-thread traits.
+     *
+     * @return mod icon texture
+     */
     @Override
     public IGuiTexture getIcon() {
         return new ResourceTexture("mbd2:textures/icon.png");
     }
 
+    /**
+     * Sets the logical lane count and resizes per-thread configuration.
+     *
+     * @param maxThreads requested lane count; clamped to {@code 1..20}
+     */
     @ConfigSetter(field = "maxThreads")
     public void setMaxThreads(int maxThreads) {
         this.maxThreads = Math.max(1, Math.min(20, maxThreads));
         syncThreadConfigCount();
     }
 
+    /**
+     * Builds editor configurators for global and per-thread settings.
+     *
+     * <p>This method mutates the destination configurator tree and normalizes backing lists before exposing them.
+     * Blank recipe filter entries are stored as {@code minecraft:air} placeholders by the editor controls.</p>
+     *
+     * @param father parent configurator group to populate
+     */
     @Override
     public void buildConfigurator(ConfiguratorGroup father) {
         syncThreadConfigCount();
@@ -226,30 +275,72 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
         }
     }
 
+    /**
+     * Returns the custom idle text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @return trimmed localization key/literal text, or an empty string to use the default
+     */
     public String getThreadIdleText(int threadId) {
         return threadIdleTexts.get(threadId);
     }
 
+    /**
+     * Stores custom idle text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @param text     localization key/literal text; {@code null} or blank becomes an empty string
+     */
     public void setThreadIdleText(int threadId, String text) {
         threadIdleTexts.set(threadId, normalizeTextOrEmpty(text));
     }
 
+    /**
+     * Returns the custom running text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @return trimmed localization key/literal text, or an empty string to use the default
+     */
     public String getThreadRunningText(int threadId) {
         return threadRunningTexts.get(threadId);
     }
 
+    /**
+     * Stores custom running text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @param text     localization key/literal text; {@code null} or blank becomes an empty string
+     */
     public void setThreadRunningText(int threadId, String text) {
         threadRunningTexts.set(threadId, normalizeTextOrEmpty(text));
     }
 
+    /**
+     * Returns the custom waiting text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @return trimmed localization key/literal text, or an empty string to use the default
+     */
     public String getThreadWaitingText(int threadId) {
         return threadWaitingTexts.get(threadId);
     }
 
+    /**
+     * Stores custom waiting text for a lane.
+     *
+     * @param threadId lane id in {@code 0..maxThreads - 1}
+     * @param text     localization key/literal text; {@code null} or blank becomes an empty string
+     */
     public void setThreadWaitingText(int threadId, String text) {
         threadWaitingTexts.set(threadId, normalizeTextOrEmpty(text));
     }
 
+    /**
+     * Returns lower-case whitelist ids for one lane.
+     *
+     * @param threadId lane id
+     * @return new mutable list of lower-case recipe id strings
+     */
     public java.util.List<String> getThreadWhitelistIdsLowercase(int threadId) {
         java.util.List<String> result = new java.util.ArrayList<>();
         for (ResourceLocation id : getThreadWhitelist(threadId)) {
@@ -258,6 +349,12 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
         return result;
     }
 
+    /**
+     * Returns lower-case blacklist ids for one lane.
+     *
+     * @param threadId lane id
+     * @return new mutable list of lower-case recipe id strings
+     */
     public java.util.List<String> getThreadBlacklistIdsLowercase(int threadId) {
         java.util.List<String> result = new java.util.ArrayList<>();
         for (ResourceLocation id : getThreadBlacklist(threadId)) {

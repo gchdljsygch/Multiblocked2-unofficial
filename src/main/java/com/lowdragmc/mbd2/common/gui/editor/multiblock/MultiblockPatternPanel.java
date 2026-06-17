@@ -41,6 +41,18 @@ import org.joml.Vector3i;
 import java.io.File;
 import java.util.*;
 
+/**
+ * Main multiblock pattern editor panel.
+ *
+ * <p>The panel renders the current pattern into a {@link TrackedDummyWorld}, lets users
+ * select cells, assign predicate resources, choose the controller cell/facing, and switch
+ * between repeated pattern layers. Changes are applied directly to the active
+ * {@link MultiblockMachineProject} placeholder grid.</p>
+ *
+ * <p>The dummy-world preview creates fake controller block entities and loads additional
+ * machine traits so renderer and UI-dependent predicates can be inspected in context.
+ * This is client-editor state and is expected to run on the UI/render thread only.</p>
+ */
 public class MultiblockPatternPanel extends WidgetGroup {
     public static String COPY_TAG = "mb_predicates";
     @Getter
@@ -60,6 +72,13 @@ public class MultiblockPatternPanel extends WidgetGroup {
     private int visibleLayer = -1;
     private final Set<Vector3i> selectedBlocks = new HashSet<>();
 
+    /**
+     * Creates the pattern editor for the supplied project.
+     *
+     * @param editor  owning machine editor; used for config panels, tool panels, menus, and
+     *                clipboard state
+     * @param project multiblock project whose selected pattern is displayed and mutated
+     */
     public MultiblockPatternPanel(MachineEditor editor, MultiblockMachineProject project) {
         super(0, MenuPanel.HEIGHT + 16, Editor.INSTANCE.getSize().getWidth() - ConfigPanel.WIDTH, Editor.INSTANCE.getSize().height - MenuPanel.HEIGHT - 16);
         this.editor = editor;
@@ -79,7 +98,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is selected/switched to.
+     * Installs the layer-list toolbox and marks this panel as the active pattern editor.
      */
     public void onPanelSelected() {
         editor.getConfigPanel().clearAllConfigurators();
@@ -95,7 +114,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the panel is deselected/switched from.
+     * Hides pattern-specific tooling and clears all editor configurators.
      */
     public void onPanelDeselected() {
         isSelected = false;
@@ -105,6 +124,19 @@ public class MultiblockPatternPanel extends WidgetGroup {
         editor.getConfigPanel().clearAllConfigurators();
     }
 
+    /**
+     * Rebuilds the dummy-world preview from the active placeholder grid.
+     *
+     * <p>Controller placeholders are rendered as the fake machine block with the stored
+     * facing. Other cells render the first available candidate from their predicate list,
+     * filtered by controller-facing constraints. When a visible layer is active, only cells
+     * on that layer are added to the scene, but the rendered-core set still tracks every
+     * non-null placeholder position for hit testing.</p>
+     *
+     * @param clearSelected whether to clear current selected cells before rebuilding
+     * @param keepZoom      whether to restore the previous scene zoom after changing rendered
+     *                      blocks
+     */
     public void reloadScene(boolean clearSelected, boolean keepZoom) {
         this.level.clear();
         if (clearSelected) clearSelectedBlocks();
@@ -174,12 +206,28 @@ public class MultiblockPatternPanel extends WidgetGroup {
         }
     }
 
+    /**
+     * Configurator for editing the common predicate list shared by selected cells.
+     */
     private class PredicateConfigurator implements IConfigurable {
 
+        /**
+         * Formats a predicate key for display in the selector.
+         *
+         * @param key built-in or project-local predicate reference
+         * @return selector text, with project resources colored to distinguish them from
+         * built-ins
+         */
         public String mapName(Either<String, File> key) {
             return key.map(l -> l, r -> ChatFormatting.YELLOW + project.getPredicateResource().getStaticResourceName(r) + ChatFormatting.RESET);
         }
 
+        /**
+         * Converts selector text back to a predicate key.
+         *
+         * @param name formatted selector text produced by {@link #mapName(Either)}
+         * @return a built-in key or project-local file reference
+         */
         public Either<String, File> mapKey(String name) {
             if (name.startsWith(ChatFormatting.YELLOW.toString()) && name.endsWith(ChatFormatting.RESET.toString())) {
                 var realName = name.substring(ChatFormatting.YELLOW.toString().length(), name.length() - ChatFormatting.RESET.toString().length());
@@ -191,7 +239,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
 
         @Override
         public void buildConfigurator(ConfiguratorGroup father) {
-            var placeholders =  selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
+            var placeholders = selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
             var intersection = new LinkedList<>(placeholders.get(0).getPredicates());
             Runnable notifyUpdate = () -> placeholders.forEach(holder -> {
                 var predicates = holder.getPredicates();
@@ -252,7 +300,8 @@ public class MultiblockPatternPanel extends WidgetGroup {
                 intersection.addAll(values);
                 notifyUpdate.run();
             });
-            predicatesConfigurator.setOnReorder((index, value) -> {});
+            predicatesConfigurator.setOnReorder((index, value) -> {
+            });
             father.addConfigurators(predicatesConfigurator);
         }
     }
@@ -261,22 +310,40 @@ public class MultiblockPatternPanel extends WidgetGroup {
         editor.getConfigPanel().openConfigurator(MachineEditor.BASIC, new PredicateConfigurator());
     }
 
+    /**
+     * Filters preview rendering to one layer, or shows all layers.
+     *
+     * @param visibleLayer zero-based layer index along the project's active axis, or
+     *                     {@code -1} to show the entire pattern
+     */
     public void setVisibleLayer(int visibleLayer) {
         if (this.visibleLayer == visibleLayer) return;
         this.visibleLayer = visibleLayer;
         reloadScene(false, true);
     }
 
+    /**
+     * Resets layer filtering and selection after the project changes the active pattern.
+     */
     public void onPatternSwitched() {
         visibleLayer = -1;
         reloadScene(true, false);
         editor.getConfigPanel().clearAllConfigurators(MachineEditor.BASIC);
     }
 
+    /**
+     * Checks whether a pattern cell is currently selected.
+     *
+     * @param pos zero-based pattern coordinates
+     * @return {@code true} when the cell is selected in this editor panel
+     */
     public boolean isBlockSelected(Vector3i pos) {
         return selectedBlocks.contains(pos);
     }
 
+    /**
+     * Clears current cell selection and closes the predicate configurator when active.
+     */
     public void clearSelectedBlocks() {
         selectedBlocks.clear();
         if (isSelected) {
@@ -284,23 +351,45 @@ public class MultiblockPatternPanel extends WidgetGroup {
         }
     }
 
+    /**
+     * Adds one pattern cell to the current selection and opens the predicate configurator.
+     *
+     * @param pos zero-based pattern coordinates
+     */
     public void addSelectedBlock(Vector3i pos) {
         addSelectedBlock(pos, false);
         reloadPredicateConfigurator();
     }
 
+    /**
+     * Adds one pattern cell to the selection.
+     *
+     * @param pos   zero-based pattern coordinates
+     * @param clear whether to replace the existing selection before adding {@code pos}
+     */
     public void addSelectedBlock(Vector3i pos, boolean clear) {
         if (clear) selectedBlocks.clear();
         selectedBlocks.add(pos);
         reloadPredicateConfigurator();
     }
 
+    /**
+     * Adds multiple pattern cells to the selection.
+     *
+     * @param positions zero-based pattern coordinates to add
+     * @param clear     whether to replace the existing selection before adding the positions
+     */
     public void addSelectedBlocks(Collection<Vector3i> positions, boolean clear) {
         if (clear) selectedBlocks.clear();
         selectedBlocks.addAll(positions);
         reloadPredicateConfigurator();
     }
 
+    /**
+     * Removes one pattern cell from the selection.
+     *
+     * @param pos zero-based pattern coordinates to remove
+     */
     public void removeSelectedBlock(Vector3i pos) {
         selectedBlocks.remove(pos);
         if (selectedBlocks.isEmpty()) {
@@ -311,15 +400,19 @@ public class MultiblockPatternPanel extends WidgetGroup {
     }
 
     /**
-     * prepare the button group, you can add buttons / switches here.
+     * Adds extra toolbar controls for subclasses.
+     *
+     * <p>The base pattern panel only uses the side toolbox.</p>
      */
     protected void prepareButtonGroup() {
     }
 
     /**
-     * render the scene after the world is rendered.
-     * <br/> e.g. <br/>
-     * shape frame lines.
+     * Draws selection and drag-target overlays after world rendering.
+     *
+     * <p>This method changes render-state blend, depth, cull, and shader settings for the
+     * panel overlay. The surrounding scene renderer is responsible for restoring its own
+     * state on the next pass.</p>
      */
     private void renderAfterWorld(SceneWidget sceneWidget) {
         var poseStack = new PoseStack();
@@ -350,7 +443,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
             var pos = scene.getHoverPosFace().pos;
             RenderBufferUtils.drawCubeFace(poseStack, buffer,
                     pos.getX() - 0.002f, pos.getY() - 0.002f, pos.getZ() - 0.002f,
-                    pos.getX()  + 1.002f, pos.getY() + 1.002f, pos.getZ() + 1.002f,
+                    pos.getX() + 1.002f, pos.getY() + 1.002f, pos.getZ() + 1.002f,
                     0.1f, 0.7f, 0.7f, 0.5f, false);
         }
 
@@ -358,7 +451,7 @@ public class MultiblockPatternPanel extends WidgetGroup {
     }
 
     /**
-     * Called when the block placeholders are changed in the project.
+     * Refreshes scene and layer controls after the project's placeholder grid is replaced.
      */
     public void onBlockPlaceholdersChanged() {
         reloadScene(true, false);
@@ -369,11 +462,21 @@ public class MultiblockPatternPanel extends WidgetGroup {
                 .ifPresent(PatternLayerList::reloadLayers);
     }
 
+    /**
+     * Opens the context menu for the current selection.
+     *
+     * <p>The menu can copy the intersection of selected predicates, paste previously copied
+     * predicate lists, or mark a single selected cell as the controller. Paste and
+     * controller operations mutate the active project placeholder grid immediately.</p>
+     *
+     * @param mouseX screen x coordinate for the menu anchor
+     * @param mouseY screen y coordinate for the menu anchor
+     */
     public void openMenu(double mouseX, double mouseY) {
         if (!selectedBlocks.isEmpty()) {
             var menu = TreeBuilder.Menu.start();
             menu.leaf(Icons.COPY, "ldlib.gui.editor.menu.copy", () -> {
-                var placeholders =  selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
+                var placeholders = selectedBlocks.stream().map(pos -> project.getBlockPlaceholders()[pos.x][pos.y][pos.z]).toList();
                 var intersection = new ArrayList<>(placeholders.get(0).getPredicates());
                 for (var placeholder : placeholders) {
                     intersection.retainAll(placeholder.getPredicates());

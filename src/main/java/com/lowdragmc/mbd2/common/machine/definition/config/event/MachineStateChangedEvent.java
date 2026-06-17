@@ -11,15 +11,37 @@ import java.util.Map;
 import java.util.Optional;
 
 
+/**
+ * Fired before a machine state name changes.
+ * <p>
+ * Canceling this event prevents the state field from changing and skips the
+ * resulting block update, lighting update, sound update, and render refresh.
+ */
 @Getter
 @Cancelable
 @LDLRegister(name = "MachineStateChangedEvent", group = "MachineEvent")
 public class MachineStateChangedEvent extends MachineEvent {
+    /**
+     * Current state name.
+     */
     @GraphParameterGet(displayName = "old state")
     public final String oldState;
+    /**
+     * Requested state name.
+     */
     @GraphParameterGet(displayName = "new state")
     public final String newState;
 
+    /**
+     * Creates a cancellable event for a requested machine state change.
+     * <p>
+     * The old and new values are state names, not {@code MachineState} objects. Canceling the event keeps the machine in
+     * {@code oldState} and prevents the caller's visual/sound update path for the requested change.
+     *
+     * @param machine  machine whose state is changing
+     * @param oldState current state name
+     * @param newState requested state name
+     */
     public MachineStateChangedEvent(MBDMachine machine, String oldState, String newState) {
         super(machine);
         this.oldState = oldState;

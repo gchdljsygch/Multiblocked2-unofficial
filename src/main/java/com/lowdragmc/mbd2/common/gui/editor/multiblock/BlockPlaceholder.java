@@ -16,6 +16,17 @@ import net.minecraft.nbt.Tag;
 import java.io.File;
 import java.util.*;
 
+/**
+ * Mutable pattern cell used by the multiblock editor to describe one block position.
+ *
+ * <p>The placeholder stores ordered predicate references rather than resolved predicate
+ * objects. Built-in predicates are kept as registry-like strings, while project-local
+ * predicates are kept as files inside the project resource set. The associated
+ * {@link PredicateResource} is runtime context and is not written to NBT.</p>
+ *
+ * <p>Instances are edited directly by GUI widgets and are intended for client-editor use
+ * on the render/UI thread. They are not thread-safe.</p>
+ */
 @Accessors(chain = true)
 @EqualsAndHashCode
 public class BlockPlaceholder implements IConfigurable, ITagSerializable<CompoundTag> {
@@ -41,10 +52,27 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
     @Setter
     protected Direction facing = Direction.NORTH;
 
+    /**
+     * Creates an empty placeholder bound to a predicate resource table.
+     * <p>
+     * The constructor is protected so callers use {@link #create(PredicateResource, Either[])} or
+     * {@link #controller(PredicateResource, Either[])} and make the controller role explicit. The supplied resource table
+     * is retained as runtime context and is not serialized. Instances are mutable editor objects and are not thread-safe.
+     *
+     * @param predicateResource resource table used to resolve predicate references later
+     */
     protected BlockPlaceholder(PredicateResource predicateResource) {
         this.predicateResource = predicateResource;
     }
 
+    /**
+     * Creates a non-controller placeholder with the supplied predicate references.
+     *
+     * @param predicateResource resource table used later to resolve the predicate keys
+     * @param predicates        zero or more built-in or project predicate references; order is
+     *                          preserved and later candidates are evaluated by editor consumers
+     * @return a mutable placeholder bound to {@code predicateResource}
+     */
     @SafeVarargs
     public static BlockPlaceholder create(PredicateResource predicateResource, Either<String, File>... predicates) {
         var holder = new BlockPlaceholder(predicateResource);
@@ -52,6 +80,16 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
         return holder;
     }
 
+    /**
+     * Creates a controller placeholder.
+     *
+     * <p>The caller is responsible for ensuring that only one controller placeholder is
+     * active in a pattern. The facing defaults to north until explicitly changed.</p>
+     *
+     * @param predicateResource resource table used later to resolve any supplied predicates
+     * @param predicates        optional predicate references to keep with the controller cell
+     * @return a mutable controller placeholder
+     */
     @SafeVarargs
     public static BlockPlaceholder controller(PredicateResource predicateResource, Either<String, File>... predicates) {
         var holder = create(predicateResource, predicates);
@@ -59,12 +97,25 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
         return holder;
     }
 
+    /**
+     * Recreates a placeholder from serialized project data.
+     *
+     * @param predicateResource runtime resource table that resolves predicate keys after load
+     * @param tag               serialized placeholder state produced by {@link #serializeNBT()} or the
+     *                          legacy string-list format accepted by {@link #deserializeNBT(CompoundTag)}
+     * @return a mutable placeholder populated from {@code tag}
+     */
     public static BlockPlaceholder fromTag(PredicateResource predicateResource, CompoundTag tag) {
         var holder = new BlockPlaceholder(predicateResource);
         holder.deserializeNBT(tag);
         return holder;
     }
 
+    /**
+     * Serializes predicate references and controller metadata.
+     *
+     * @return a compound containing the predicate list, controller flag, and facing data value
+     */
     @Override
     public CompoundTag serializeNBT() {
         var tag = new CompoundTag();
@@ -76,7 +127,7 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
                         key.putString("key", l);
                         key.putString("type", "builtin");
                         return key;
-                    }, r-> {
+                    }, r -> {
                         var key = new CompoundTag();
                         key.putString("key", r.getPath());
                         key.putString("type", "project");
@@ -90,6 +141,16 @@ public class BlockPlaceholder implements IConfigurable, ITagSerializable<Compoun
         return tag;
     }
 
+    /**
+     * Replaces this placeholder with data from NBT.
+     *
+     * <p>The method clears existing predicate references before loading. It accepts both the
+     * current compound-list format and the older string-list format, where every string is
+     * interpreted as a built-in predicate key.</p>
+     *
+     * @param nbt serialized placeholder state; missing fields fall back to empty predicates,
+     *            non-controller status, and {@link Direction#NORTH}
+     */
     @Override
     public void deserializeNBT(CompoundTag nbt) {
         this.predicates.clear();

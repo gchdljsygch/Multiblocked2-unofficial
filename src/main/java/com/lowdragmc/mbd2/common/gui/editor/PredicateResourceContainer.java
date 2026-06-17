@@ -17,8 +17,21 @@ import com.mojang.datafixers.util.Either;
 
 import java.io.File;
 
+/**
+ * Resource-panel container for reusable multiblock predicates.
+ *
+ * <p>The container provides previews, drag payloads, add/edit/remove actions, and rename/global-change propagation for
+ * {@link PredicateResource}. When predicate keys are renamed, converted between built-in/static storage, or removed,
+ * open multiblock projects are updated so all {@link MultiblockMachineProject} placeholders keep valid references.</p>
+ */
 public class PredicateResourceContainer extends ResourceContainer<SimplePredicate, Widget> {
 
+    /**
+     * Creates a predicate resource container and installs all predicate-specific UI callbacks.
+     *
+     * @param resource predicate resource backing this container
+     * @param panel    owning resource panel
+     */
     public PredicateResourceContainer(Resource<SimplePredicate> resource, ResourcePanel panel) {
         super(resource, panel);
         setWidgetSupplier(k -> createPreview(getResource().getResource(k)));
@@ -84,51 +97,60 @@ public class PredicateResourceContainer extends ResourceContainer<SimplePredicat
         }));
     }
 
+    /**
+     * Creates the small texture preview used by the resource list.
+     *
+     * @param predicate predicate to preview
+     * @return image widget bound to the predicate preview texture
+     */
     protected ImageWidget createPreview(SimplePredicate predicate) {
         return new ImageWidget(0, 0, 33, 33, predicate::getPreviewTexture);
     }
 
+    /**
+     * Renames a predicate resource and rewrites open multiblock placeholder references.
+     */
     @Override
     protected void renameResource() {
         if (selected != null) {
             DialogWidget.showStringEditorDialog(Editor.INSTANCE,
                     LocalizationUtils.format("ldlib.gui.editor.tips.rename") + " " + LocalizationUtils.format(resource.name()),
                     resource.getResourceName(selected), s -> {
-                if (!selected.map(l -> resource.hasBuiltinResource(s), r -> resource.hasStaticResource(resource.getStaticResourceFile(s)))) {
-                    return false;
-                }
-                if (renamePredicate != null) {
-                    return renamePredicate.test(s);
-                }
-                return true;
-            }, s -> {
-                if (s == null) return;
-                var stored = resource.removeResource(selected);
-                if (stored != null) {
-                    var name = selected.mapBoth(l -> s, r -> resource.getStaticResourceFile(s));
-                    resource.addResource(name, stored);
-                }
-                if (Editor.INSTANCE.getCurrentProject() instanceof MultiblockMachineProject project) {
-                    boolean changed = false;
-                    for (var x : project.getBlockPlaceholders()) {
-                        for (var y : x) {
-                            for (var z : y) {
-                                if (z.getPredicates().remove(selected)) {
-                                    z.getPredicates().add(Either.left(s));
-                                    changed = true;
+                        if (!selected.map(l -> resource.hasBuiltinResource(s), r -> resource.hasStaticResource(resource.getStaticResourceFile(s)))) {
+                            return false;
+                        }
+                        if (renamePredicate != null) {
+                            return renamePredicate.test(s);
+                        }
+                        return true;
+                    }, s -> {
+                        if (s == null) return;
+                        var stored = resource.removeResource(selected);
+                        if (stored != null) {
+                            var name = selected.mapBoth(l -> s, r -> resource.getStaticResourceFile(s));
+                            resource.addResource(name, stored);
+                        }
+                        if (Editor.INSTANCE.getCurrentProject() instanceof MultiblockMachineProject project) {
+                            boolean changed = false;
+                            for (var x : project.getBlockPlaceholders()) {
+                                for (var y : x) {
+                                    for (var z : y) {
+                                        if (z.getPredicates().remove(selected)) {
+                                            z.getPredicates().add(Either.left(s));
+                                            changed = true;
+                                        }
+                                    }
                                 }
                             }
+                            if (changed) {
+                                Editor.INSTANCE.getTabPages().tabs.values().stream()
+                                        .filter(MultiblockPatternPanel.class::isInstance)
+                                        .map(MultiblockPatternPanel.class::cast)
+                                        .findAny().ifPresent(MultiblockPatternPanel::onBlockPlaceholdersChanged);
+                            }
                         }
-                    }
-                    if (changed) {
-                        Editor.INSTANCE.getTabPages().tabs.values().stream()
-                                .filter(MultiblockPatternPanel.class::isInstance)
-                                .map(MultiblockPatternPanel.class::cast)
-                                .findAny().ifPresent(MultiblockPatternPanel::onBlockPlaceholdersChanged);
-                    }
-                }
-                reBuild();
-            });
+                        reBuild();
+                    });
         }
     }
 

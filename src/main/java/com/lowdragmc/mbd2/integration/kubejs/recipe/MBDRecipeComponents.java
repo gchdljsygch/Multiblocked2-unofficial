@@ -10,6 +10,9 @@ import dev.latvian.mods.rhino.mod.util.NBTUtils;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * Custom KubeJS recipe components used by MBD recipe schemas.
+ */
 public class MBDRecipeComponents {
     public static final RecipeComponent<CompoundTag> TAG = new RecipeComponent<>() {
 

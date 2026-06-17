@@ -28,6 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Jade fluid storage provider for MBD tanks and AE2-backed fluid buffers.
+ */
 public class LongFluidStorageProvider implements IServerExtensionProvider<BlockEntity, CompoundTag>, IClientExtensionProvider<CompoundTag, FluidView> {
     public static final LongFluidStorageProvider INSTANCE = new LongFluidStorageProvider();
     private static final ResourceLocation UID = Objects.requireNonNull(ResourceLocation.tryParse("mbd2:long_fluid_storage"));

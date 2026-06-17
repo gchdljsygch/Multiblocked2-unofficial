@@ -19,11 +19,15 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Embers ember amounts.
+ */
 public class EmbersEmberRecipeCapability extends RecipeCapability<Double> {
     public final static EmbersEmberRecipeCapability CAP = new EmbersEmberRecipeCapability();
     public static final ResourceBorderTexture HUD_BACKGROUND = new ResourceBorderTexture(
             "mbd2:textures/gui/progress_bar_boiler_empty_steel.png", 54, 10, 1, 1);
     public static final ResourceTexture HUD_BAR = new ResourceTexture("mbd2:textures/gui/ember_hud.png");
+
     protected EmbersEmberRecipeCapability() {
         super("embers_ember", SerializerDouble.INSTANCE);
     }

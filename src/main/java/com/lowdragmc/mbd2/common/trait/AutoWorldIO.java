@@ -15,6 +15,13 @@ import net.minecraft.world.phys.AABB;
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * Configuration block for traits that automatically interact with the world.
+ *
+ * <p>The range is machine-relative and rotated according to the machine front when queried. Interval and speed are
+ * positive editor-configured values whose exact meaning is defined by the consuming trait, commonly ticks between
+ * transfers and maximum items/fluids/entities handled per pass.</p>
+ */
 @Setter
 @Getter
 public class AutoWorldIO implements IToggleConfigurable {
@@ -36,6 +43,15 @@ public class AutoWorldIO implements IToggleConfigurable {
     // runtime
     private final Map<Direction, AABB> rangeCache = new EnumMap<>(Direction.class);
 
+    /**
+     * Returns the configured range rotated for a machine front.
+     *
+     * <p>{@code null} and {@link Direction#NORTH} return the stored range directly. Other directions are cached after
+     * rotation. The returned AABB is shared config/cache state and should be treated as immutable by callers.</p>
+     *
+     * @param direction machine front direction, or {@code null} for the unrotated range
+     * @return machine-relative interaction range for that direction
+     */
     public AABB getRotatedRange(Direction direction) {
         return (direction == Direction.NORTH || direction == null) ? range : this.rangeCache.computeIfAbsent(direction, dir -> ShapeUtils.rotate(range, dir));
     }

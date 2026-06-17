@@ -9,10 +9,14 @@ import mekanism.api.heat.IHeatHandler;
 import net.minecraft.nbt.DoubleTag;
 import net.minecraft.nbt.Tag;
 
+/**
+ * Mekanism heat container that can be copied for recipe simulation.
+ */
 public class CopiableHeatContainer implements IHeatHandler, ITagSerializable<Tag>, IContentChangeAware {
     @Getter
     @Setter
-    public Runnable onContentsChanged = () -> {};
+    public Runnable onContentsChanged = () -> {
+    };
 
     public final double capacity;
     public final double inverseConduction;

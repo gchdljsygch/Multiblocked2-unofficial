@@ -11,13 +11,30 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Fired when a fuel recipe finishes burning.
+ * <p>
+ * The recipe may be {@code null} when the fuel logic completed without a
+ * concrete last fuel recipe.
+ */
 @Getter
 @LDLRegister(name = "MachineFuelBurningFinishEvent", group = "MachineEvent")
 public class MachineFuelBurningFinishEvent extends MachineEvent {
+    /**
+     * Fuel recipe that finished, if known.
+     */
     @GraphParameterGet(identity = "recipe")
     @Nullable
     public final MBDRecipe recipe;
 
+    /**
+     * Creates an event for a completed fuel burn.
+     * <p>
+     * The recipe may be {@code null} when the fuel logic has no concrete last fuel recipe to report.
+     *
+     * @param machine machine whose fuel logic finished burning
+     * @param recipe  fuel recipe that finished, or {@code null} when unknown
+     */
     public MachineFuelBurningFinishEvent(MBDMachine machine, MBDRecipe recipe) {
         super(machine);
         this.recipe = recipe;

@@ -51,10 +51,26 @@ import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Controller runtime for a pattern-formed multiblock machine.
+ * <p>
+ * This subclass extends {@link MBDMachine} with structure matching, formed
+ * state tracking, part membership, proxy-part replacement, and controller-wide
+ * recipe capability aggregation. A formed controller can route recipe handlers
+ * from matching parts and can hide/replace blocks that the pattern marks as
+ * rendered by the controller.
+ * <p>
+ * Structure matching is coordinated with {@link MultiblockWorldSavedData}.
+ * Pattern checks may be requested asynchronously by world saved data, while
+ * formed-structure validation is batched on the server tick to avoid checking
+ * large structures in one tick. Mutations of multiblock state should happen on
+ * the logical server main thread or while holding {@link #getPatternLock()}.
+ */
 public class MBDMultiblockMachine extends MBDMachine implements IMultiController {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMultiblockMachine.class, MBDMachine.MANAGED_FIELD_HOLDER);
     private static final int FORMED_VALIDATION_BATCH_SIZE = 64;
     private static final int FORMED_VALIDATION_FULL_CHECK_DELAY = 20;
+
     @Override
     public ManagedFieldHolder getFieldHolder() {
         return MANAGED_FIELD_HOLDER;
@@ -63,7 +79,8 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     private MultiblockState multiblockState;
     private final List<IMultiPart> parts = new ArrayList<>();
     @Getter
-    @DescSynced @UpdateListener(methodName = "onPartsUpdated")
+    @DescSynced
+    @UpdateListener(methodName = "onPartsUpdated")
     private BlockPos[] partPositions = new BlockPos[0];
     @Getter
     @Persisted
@@ -85,6 +102,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     private transient BlockPos[] formedValidationPositions = new BlockPos[0];
     private transient int formedValidationIndex;
 
+    /**
+     * Creates a multiblock controller bound to a block entity holder.
+     *
+     * @param machineHolder block entity holder that owns this controller
+     * @param definition    multiblock definition that supplies pattern and settings
+     * @param args          optional subclass-specific creation arguments
+     */
     public MBDMultiblockMachine(IMachineBlockEntity machineHolder, MultiblockMachineDefinition definition, Object... args) {
         super(machineHolder, definition, args);
     }
@@ -115,6 +139,14 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         }
     }
 
+    /**
+     * Server tick for the controller.
+     * <p>
+     * Performs a small batch of formed-structure validation before running the
+     * base machine tick. If validation discovers that a cached predicate no
+     * longer matches, the controller keeps its error state and waits for normal
+     * invalidation/recheck flow.
+     */
     @Override
     public void serverTick() {
         long start = System.nanoTime();
@@ -270,8 +302,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     }
 
     /**
-     * Get structure pattern.
-     * You can override it to create dynamic patterns.
+     * Resolves the structure pattern used by this controller.
+     * <p>
+     * The definition may return a static pattern, a controller-specific dynamic pattern, a combined pattern, or
+     * {@code null} when no pattern is configured. Structure checking calls this on the logical server or in fake preview
+     * scenes while holding the pattern lock as appropriate.
+     *
+     * @return pattern used for structure matching, or {@code null} when this controller has no structure definition
      */
     @Override
     public BlockPattern getPattern() {
@@ -279,8 +316,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     }
 
     /**
-     * Get MultiblockState. It records all structure-related information.
-     * if it's null, we will create a new one.
+     * Returns the mutable state object that records structure-matching information.
+     * <p>
+     * Side effect: lazily creates the state when it does not exist. The state stores match caches, pattern facings,
+     * errors, and context data such as part IO/slot mappings. Callers mutating the state during structure checks should
+     * coordinate with {@link #getPatternLock()}.
+     *
+     * @return non-null multiblock state for this controller
      */
     @Override
     @Nonnull
@@ -292,7 +334,14 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     }
 
     /**
-     * Used for the client side notification, it will be called when parts in the sever side are updated.
+     * Rebuilds the client-side part cache after synced part positions change.
+     * <p>
+     * This is invoked by LowDragLib sync through {@code partPositions}. Side effects: clears the cached part list and
+     * resolves every new position to a live {@link IMultiPart} if the chunk is loaded. Missing parts are skipped and can
+     * be resolved again by {@link #getParts()} when chunks reload.
+     *
+     * @param newValue synced part positions from the server
+     * @param oldValue previous synced part positions; supplied by the sync system for listener compatibility
      */
     @SuppressWarnings("unused")
     protected void onPartsUpdated(BlockPos[] newValue, BlockPos[] oldValue) {
@@ -302,12 +351,24 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         }
     }
 
+    /**
+     * Updates the synced position array from the current live part list.
+     * <p>
+     * Side effect: replaces {@link #partPositions}. Call on the server after parts are formed, invalidated, or sorted so
+     * clients can reconstruct their part cache.
+     */
     protected void updatePartPositions() {
         this.partPositions = this.parts.isEmpty() ? new BlockPos[0] : this.parts.stream().map(IMachine::getPos).toArray(BlockPos[]::new);
     }
 
     /**
-     * Get all parts
+     * Returns the live multiblock parts currently associated with this controller.
+     * <p>
+     * On the client, if the cached part list no longer matches the synced position array, the method attempts to rebuild
+     * the cache from loaded chunks. The returned list is the internal mutable list; callers should not mutate it unless
+     * they own the controller structure lifecycle.
+     *
+     * @return internal part list in controller-defined order
      */
     @Override
     public List<IMultiPart> getParts() {
@@ -321,6 +382,16 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         return this.parts;
     }
 
+    /**
+     * Updates the formed flag and switches the visible machine state.
+     * <p>
+     * This method only changes local state. Use
+     * {@link #onStructureFormed()} or {@link #onStructureInvalid(boolean)} when
+     * part membership, proxy blocks, recipe handlers, and events must also be
+     * updated.
+     *
+     * @param formed whether the structure should be considered formed
+     */
     public void setFormed(boolean formed) {
         this.isFormed = formed;
         setMachineState(isFormed ? "formed" : getDefinition().stateMachine().getRootState().name());
@@ -546,6 +617,19 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         return super.onUse(state, world, pos, player, hand, hit);
     }
 
+    /**
+     * Applies catalyst consumption after the pattern has matched.
+     * <p>
+     * The method posts {@link MachineUseCatalystEvent}; canceling the event
+     * rejects formation. Creative players do not consume the catalyst. Survival
+     * players either lose items or durability according to the multiblock
+     * catalyst settings.
+     *
+     * @param player player using the catalyst
+     * @param hand   hand containing the catalyst
+     * @param held   catalyst stack currently held by the player
+     * @return {@code true} when formation may proceed
+     */
     public boolean onCatalystUsed(Player player, InteractionHand hand, ItemStack held) {
         var catalyst = getDefinition().multiblockSettings().catalyst();
         var event = new MachineUseCatalystEvent(this, held, player, hand);
@@ -572,6 +656,12 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         };
     }
 
+    /**
+     * Returns the block/item dropped when the controller is broken.
+     * <p>
+     * Controllers that replaced an original block during structure formation
+     * drop the original block instead of the machine definition item.
+     */
     @Override
     public ItemStack getDropItem() {
         if (originalBlock != null) {

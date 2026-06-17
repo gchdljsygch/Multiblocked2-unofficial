@@ -22,6 +22,9 @@ import net.minecraft.util.GsonHelper;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 
+/**
+ * Recipe condition that restricts PneumaticCraft recipes by pressure or stored air.
+ */
 @Getter
 @NoArgsConstructor
 public class PNCPressureCondition extends RecipeCondition {

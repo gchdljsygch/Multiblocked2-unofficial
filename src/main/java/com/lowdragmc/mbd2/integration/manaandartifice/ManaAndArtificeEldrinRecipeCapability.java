@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Recipe capability for Mana and Artifice Eldrin power requirements and outputs.
+ */
 public class ManaAndArtificeEldrinRecipeCapability extends RecipeCapability<EldrinPower> {
     public static final ManaAndArtificeEldrinRecipeCapability CAP = new ManaAndArtificeEldrinRecipeCapability();
 

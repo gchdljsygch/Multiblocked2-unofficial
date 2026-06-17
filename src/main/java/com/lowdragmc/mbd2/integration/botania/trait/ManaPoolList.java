@@ -9,6 +9,9 @@ import vazkii.botania.api.mana.ManaReceiver;
 import java.util.Arrays;
 import java.util.Optional;
 
+/**
+ * Aggregates multiple Botania mana pools behind one {@link ManaPool} view.
+ */
 public record ManaPoolList(ManaPool[] manaPools) implements ManaPool {
 
     @Override

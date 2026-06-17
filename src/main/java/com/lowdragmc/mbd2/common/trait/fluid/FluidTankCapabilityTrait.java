@@ -31,10 +31,29 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Runtime trait that gives a machine fluid storage, fluid recipe handling, Forge
+ * fluid-handler capability access, and optional automatic fluid transfer.
+ *
+ * <p>The business goal is to use one configured fluid tank definition for editor
+ * tanks, recipe input/output matching, side-aware Forge fluid IO, neighboring
+ * block transfer, and world source-fluid pickup or placement. The trait owns
+ * mutable tank state and is not thread-safe; all mutation should run on the
+ * owning machine's logical server thread, while preview initialization runs on
+ * the editor/client thread.</p>
+ */
 public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(FluidTankCapabilityTrait.class);
+
+    /**
+     * Returns the sync-data field holder for fluid tank traits.
+     *
+     * @return static managed field holder used by LowDragLib sync/persistence
+     */
     @Override
-    public ManagedFieldHolder getFieldHolder() { return MANAGED_FIELD_HOLDER; }
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
+    }
 
     @Persisted
     @DescSynced
@@ -45,16 +64,38 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
     private final FluidRecipeHandler recipeHandler = new FluidRecipeHandler();
     private final FluidHandlerCap fluidHandlerCap = new FluidHandlerCap();
 
+    /**
+     * Creates fluid storages and binds them to a machine.
+     *
+     * <p>Side effects: allocates configured tanks, applies optional fluid
+     * validators, and registers content-change callbacks that invalidate the
+     * empty cache and notify recipe listeners.</p>
+     *
+     * @param machine    owning machine
+     * @param definition fluid tank definition controlling size, capacity, filters,
+     *                   UI, and auto IO
+     */
     public FluidTankCapabilityTrait(MBDMachine machine, FluidTankCapabilityTraitDefinition definition) {
         super(machine, definition);
         storages = createStorages();
     }
 
+    /**
+     * Returns this trait's concrete definition type.
+     *
+     * @return fluid tank capability definition
+     */
     @Override
     public FluidTankCapabilityTraitDefinition getDefinition() {
         return (FluidTankCapabilityTraitDefinition) super.getDefinition();
     }
 
+    /**
+     * Seeds preview storage with representative water.
+     *
+     * <p>Editor-only side effect: fills the first tank with half capacity or one
+     * unit so the preview UI and renderer have visible content.</p>
+     */
     @Override
     public void onLoadingTraitInPreview() {
         if (storages.length > 0) {
@@ -62,6 +103,14 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         }
     }
 
+    /**
+     * Creates backing fluid storages for this trait.
+     *
+     * <p>Side effects: applies the configured capacity, change callback, and
+     * optional fluid filter to every tank.</p>
+     *
+     * @return new array of empty fluid storages
+     */
     protected FluidStorage[] createStorages() {
         var storages = new FluidStorage[getDefinition().getTankSize()];
         for (int i = 0; i < storages.length; i++) {
@@ -74,11 +123,25 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         return storages;
     }
 
+    /**
+     * Handles tank mutations.
+     *
+     * <p>Side effects: invalidates the cached empty-state value and notifies
+     * recipe listeners so active recipe logic can re-check fluid availability.</p>
+     */
     public void onContentsChanged() {
         isEmpty = null;
         notifyListeners();
     }
 
+    /**
+     * Returns whether all tanks are empty.
+     *
+     * <p>Side effects: lazily computes and caches the answer until
+     * {@link #onContentsChanged()} invalidates it.</p>
+     *
+     * @return {@code true} when every tank contains an empty fluid stack
+     */
     public boolean isEmpty() {
         if (isEmpty == null) {
             isEmpty = true;
@@ -92,6 +155,15 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         return isEmpty;
     }
 
+    /**
+     * Performs side auto IO and world source-fluid pickup/placement automation.
+     *
+     * <p>Server-side side effects include moving fluids through neighboring fluid
+     * handlers, removing source liquid blocks when fully accepted, destroying
+     * replaceable blocks before placing fluid outputs, and draining tanks by one
+     * bucket per placed block. Work is throttled by configured intervals and the
+     * machine offset timer.</p>
+     */
     @Override
     public void serverTick() {
         IAutoIOTrait.super.serverTick();
@@ -134,7 +206,7 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
                 if (leftBlocks <= 0 || isEmpty()) break;
                 for (int y = (int) Math.round(range.minY); y < (int) Math.round(range.maxY); y++) {
                     if (leftBlocks <= 0 || isEmpty()) break;
-                    for (int z = (int) Math.round(range.minZ); z < (int) Math.round(range.maxZ) ; z++) {
+                    for (int z = (int) Math.round(range.minZ); z < (int) Math.round(range.maxZ); z++) {
                         if (leftBlocks <= 0 || isEmpty()) break;
                         var pos = new BlockPos(x, y, z);
                         var state = level.getBlockState(pos);
@@ -158,21 +230,48 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         }
     }
 
+    /**
+     * Returns recipe handlers contributed by this fluid storage.
+     *
+     * @return fluid recipe handler
+     */
     @Override
     public List<IRecipeHandlerTrait<?>> getRecipeHandlerTraits() {
         return List.of(recipeHandler);
     }
 
+    /**
+     * Returns Forge capabilities contributed by this fluid storage.
+     *
+     * @return fluid handler capability provider
+     */
     @Override
     public List<ICapabilityProviderTrait<?>> getCapabilityProviderTraits() {
         return List.of(fluidHandlerCap);
     }
 
+    /**
+     * Returns enabled side-based automatic fluid IO configuration.
+     *
+     * @return auto IO configuration, or {@code null} when side auto IO is
+     * disabled
+     */
     @Override
     public @Nullable AutoIO getAutoIO() {
         return getDefinition().getAutoIO().isEnable() ? getDefinition().getAutoIO() : null;
     }
 
+    /**
+     * Performs one neighboring block fluid transfer pass.
+     *
+     * <p>Side effects: for input IO, imports fluids from the neighbor into this
+     * storage using the configured fluid filter; for output IO, exports from this
+     * storage to the neighbor. Calls are expected on the logical server thread.</p>
+     *
+     * @param port position whose neighbor is accessed
+     * @param side side of {@code port} used for transfer
+     * @param io   transfer direction to perform
+     */
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
         if (io.support(IO.IN)) {
@@ -180,17 +279,45 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
                     getDefinition().getFluidFilterSettings().isEnable() ? getDefinition().getFluidFilterSettings() : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
-        if (io.support(IO.OUT)){
+        if (io.support(IO.OUT)) {
             FluidTransferHelper.exportToTarget(new FluidTransferList(storages), Integer.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
     }
 
+    /**
+     * Recipe handler that consumes or produces fluid ingredients.
+     *
+     * <p>Business goal: match fluid recipe content against this trait's tanks.
+     * Simulation uses copied tanks; commit mode mutates the real tanks and records
+     * consumed input fluids through {@link RecipeConsumptionTracker}.</p>
+     */
     public class FluidRecipeHandler extends RecipeHandlerTrait<FluidIngredient> {
+        /**
+         * Creates the fluid recipe handler bound to the outer trait.
+         */
         protected FluidRecipeHandler() {
             super(FluidTankCapabilityTrait.this, FluidRecipeCapability.CAP);
         }
 
+        /**
+         * Matches or commits fluid recipe content.
+         *
+         * <p>For {@link IO#IN}, matching drains accepted fluids from tanks. For
+         * {@link IO#OUT}, matching fills tanks with the first concrete stack
+         * exposed by the ingredient. Returning {@code null} marks all content
+         * satisfied.</p>
+         *
+         * @param io       recipe IO direction
+         * @param recipe   recipe being matched or committed
+         * @param left     mutable fluid ingredient list still unsatisfied
+         * @param slotName optional recipe slot name, passed to consumption
+         *                 tracking
+         * @param simulate {@code true} to check using copied tanks; {@code false}
+         *                 to mutate real tanks
+         * @return remaining unsatisfied ingredients, or {@code null} when
+         * complete
+         */
         @Override
         public List<FluidIngredient> handleRecipeInner(IO io, MBDRecipe recipe, List<FluidIngredient> left, @Nullable String slotName, boolean simulate) {
             if (!compatibleWith(io)) return left;
@@ -253,22 +380,48 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         }
     }
 
+    /**
+     * Forge capability provider for this trait's fluid storage.
+     */
     public class FluidHandlerCap implements ICapabilityProviderTrait<IFluidHandler> {
+        /**
+         * Resolves fluid capability IO for a queried side.
+         *
+         * @param side queried side, or {@code null} for internal access
+         * @return effective fluid handler IO
+         */
         @Override
         public IO getCapabilityIO(@Nullable Direction side) {
             return FluidTankCapabilityTrait.this.getCapabilityIO(side);
         }
 
+        /**
+         * Returns the Forge fluid handler capability token.
+         *
+         * @return fluid handler capability
+         */
         @Override
         public Capability<IFluidHandler> getCapability() {
             return ForgeCapabilities.FLUID_HANDLER;
         }
 
+        /**
+         * Creates a side-filtered fluid handler wrapper.
+         *
+         * @param capbilityIO effective IO for the queried side
+         * @return wrapper over this trait's tanks
+         */
         @Override
         public IFluidHandler getCapContent(IO capbilityIO) {
             return new FluidHandlerWrapper(storages, capbilityIO, getDefinition().isAllowSameFluids());
         }
 
+        /**
+         * Merges multiple fluid handler providers into one flattened handler.
+         *
+         * @param contents fluid handlers collected from compatible traits
+         * @return concatenated fluid handler list
+         */
         @Override
         public IFluidHandler mergeContents(List<IFluidHandler> contents) {
             return new FluidHandlerList(contents.toArray(new IFluidHandler[0]));

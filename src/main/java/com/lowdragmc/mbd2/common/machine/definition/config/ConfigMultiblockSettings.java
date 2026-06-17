@@ -8,6 +8,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
+/**
+ * Persisted multiblock-only settings for a controller definition.
+ * <p>
+ * These options control catalyst-gated structure formation and whether UI
+ * access is available before the controller is formed. They are read by
+ * {@link com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine} during player
+ * interaction and UI opening.
+ */
 @Getter
 @Builder
 @Accessors(fluent = true)
