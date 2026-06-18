@@ -179,7 +179,7 @@ public interface MBDServerEvents {
             var machineId = event.machine.getDefinition().id();
             var result = handler.post(eventJSFactory.apply((E) event), machineId);
             if (event instanceof MachineStructureFormedEvent) {
-                MBD2.LOGGER.info("[MBD2/Fusion] KubeJS onStructureFormed posted machine={}, pos={}, result={}",
+                MBD2.LOGGER.trace("[MBD2/Fusion] KubeJS onStructureFormed posted machine={}, pos={}, result={}",
                         machineId, event.machine.getPos(), result);
             }
             return result;
@@ -198,7 +198,7 @@ public interface MBDServerEvents {
     static EventResult postMachineEvent(MachineEvent machineEvent) {
         var handler = machineEventHandlers.get(machineEvent.getClass());
         if (machineEvent instanceof MachineStructureFormedEvent) {
-            MBD2.LOGGER.info("[MBD2/Fusion] KubeJS postMachineEvent event={}, machine={}, pos={}, handler={}",
+            MBD2.LOGGER.trace("[MBD2/Fusion] KubeJS postMachineEvent event={}, machine={}, pos={}, handler={}",
                     machineEvent.getClass().getSimpleName(), machineEvent.machine.getDefinition().id(),
                     machineEvent.machine.getPos(), handler != null);
         }

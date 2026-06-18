@@ -356,7 +356,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     private void applyMachineBlockModel(ResourceLocation modelPath) {
         dynamicBlockModel = modelPath.toString();
-        MBD2.LOGGER.info("[MBD2/Fusion] setMachineBlockModel machine={}, pos={}, model={}, remote={}",
+        MBD2.LOGGER.trace("[MBD2/Fusion] setMachineBlockModel machine={}, pos={}, model={}, remote={}",
                 definition, getPos(), dynamicBlockModel, isRemote());
         notifyDynamicRendererChanged();
         updateDynamicRenderer(dynamicBlockModel, "");
@@ -393,7 +393,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     private void applyMachineFrontModel(ResourceLocation modelPath) {
         dynamicFrontModel = modelPath.toString();
-        MBD2.LOGGER.info("[MBD2/Fusion] setMachineFrontModel machine={}, pos={}, model={}, remote={}",
+        MBD2.LOGGER.trace("[MBD2/Fusion] setMachineFrontModel machine={}, pos={}, model={}, remote={}",
                 definition, getPos(), dynamicFrontModel, isRemote());
         notifyDynamicRendererChanged();
         updateDynamicRenderer(dynamicFrontModel, "");
@@ -447,7 +447,7 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     public void setDynamicRenderer(String blockModel, String frontModel) {
         dynamicBlockModel = blockModel == null ? "" : blockModel;
         dynamicFrontModel = frontModel == null ? "" : frontModel;
-        MBD2.LOGGER.info("[MBD2/Fusion] synced dynamic renderer machine={}, pos={}, blockModel={}, frontModel={}, remote={}",
+        MBD2.LOGGER.trace("[MBD2/Fusion] synced dynamic renderer machine={}, pos={}, blockModel={}, frontModel={}, remote={}",
                 definition, getPos(), dynamicBlockModel, dynamicFrontModel, isRemote());
         updateDynamicRenderer(dynamicBlockModel, dynamicFrontModel);
     }

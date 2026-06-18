@@ -47,6 +47,9 @@ public class MachineEditor extends Editor implements ILDLRegisterClient {
      * Builds and attaches the editor's panel widgets.
      */
     public void initEditorViews() {
+        // LDLib menu tab constructors read Editor.INSTANCE while MenuPanel initializes tabs.
+        Editor.INSTANCE = this;
+
         this.toolPanel = new ToolPanel(this);
         this.toolPanel.setSizeWidth(150);
         this.configPanel = new ConfigPanel(this, List.of(BASIC, SECOND, RESOURCE));

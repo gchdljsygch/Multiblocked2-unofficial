@@ -253,15 +253,18 @@ public class FusionModelDataHelper {
     }
 
     /**
-     * Logs a Fusion debug message at most once for a stable key.
+     * Logs a Fusion trace message at most once for a stable key.
      *
      * @param key     unique message key; repeated calls with the same key are ignored
      * @param message SLF4J-style message pattern
      * @param args    message arguments
      */
     public static void debugOnce(String key, String message, Object... args) {
+        if (!MBD2.LOGGER.isTraceEnabled()) {
+            return;
+        }
         if (DEBUGGED_MESSAGES.add(key)) {
-            MBD2.LOGGER.info("[MBD2/Fusion] " + message, args);
+            MBD2.LOGGER.trace("[MBD2/Fusion] " + message, args);
         }
     }
 
