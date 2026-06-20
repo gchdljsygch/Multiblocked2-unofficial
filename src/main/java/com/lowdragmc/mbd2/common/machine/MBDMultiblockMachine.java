@@ -180,7 +180,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                     return;
                 }
             }
-            if (!validateFormedStructureBatch()) {
+            if (!validateFormedStructureBatch(serverLevel)) {
                 return;
             }
             if (formedValidationIndex < formedValidationPositions.length) {
@@ -194,7 +194,12 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         }
     }
 
-    private boolean validateFormedStructureBatch() {
+    /**
+     * Re-checks one slice of the cached formed structure against the predicates saved during formation.
+     *
+     * @return {@code false} if a cached position no longer matches and the structure was invalidated
+     */
+    private boolean validateFormedStructureBatch(ServerLevel serverLevel) {
         var state = getMultiblockState();
         Map<BlockPos, TraceabilityPredicate> predicateMap = state.getMatchContext().get("predicates");
         Direction patternFacing = state.getPatternFacing();
@@ -213,12 +218,16 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                 state.setError(checkState.error == null ? MultiblockState.UNINIT_ERROR : checkState.error);
                 formedValidationPositions = new BlockPos[0];
                 formedValidationIndex = 0;
+                invalidateFormedStructure(serverLevel);
                 return false;
             }
         }
         return true;
     }
 
+    /**
+     * Rebuilds world-saved-data mappings after the cached formed structure still matches the world.
+     */
     private void refreshFormedStructure(ServerLevel serverLevel) {
         if (checkPatternWithTryLock()) {
             onStructureFormed();
@@ -226,6 +235,16 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
             mwsd.addMapping(getMultiblockState());
             mwsd.removeAsyncLogic(this);
         }
+    }
+
+    /**
+     * Runs the full invalidation path and queues async pattern checking so a later valid structure can form again.
+     */
+    private void invalidateFormedStructure(ServerLevel serverLevel) {
+        onStructureInvalid();
+        var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
+        mwsd.removeMapping(getMultiblockState());
+        mwsd.addAsyncLogic(this);
     }
 
     @Override
@@ -537,19 +556,15 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     }
 
     /**
-     * mark multiblockState as unload error first.
-     * if it's actually cuz by block breaking.
-     * {@link #onStructureInvalid()} will be called from {@link MultiblockState#onBlockStateChanged(BlockPos, BlockState)}
+     * Invalidates the formed structure when a tracked part unloads before normal block updates can report the change.
      */
     @Override
     public void onPartUnload() {
         resetFormedValidation();
-        parts.removeIf(IMachine::isInValid);
         getMultiblockState().setError(MultiblockState.UNLOAD_ERROR);
         if (getLevel() instanceof ServerLevel serverLevel) {
-            MultiblockWorldSavedData.getOrCreate(serverLevel).addAsyncLogic(this);
+            invalidateFormedStructure(serverLevel);
         }
-        updatePartPositions();
     }
 
     /**
@@ -561,10 +576,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     public void onRotated(Direction oldFacing, Direction newFacing) {
         if (oldFacing != newFacing && getLevel() instanceof ServerLevel serverLevel) {
             // invalid structure
-            this.onStructureInvalid();
-            var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
-            mwsd.removeMapping(getMultiblockState());
-            mwsd.addAsyncLogic(this);
+            invalidateFormedStructure(serverLevel);
         }
     }
 

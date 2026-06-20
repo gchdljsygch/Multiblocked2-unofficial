@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.api.pattern;
 
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
+import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.api.machine.IMultiPart;
@@ -19,6 +20,7 @@ import com.lowdragmc.mbd2.utils.MultiFluidHandler;
 import com.lowdragmc.mbd2.utils.MultiItemHandler;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -237,6 +239,10 @@ public class BlockPattern {
             //Checking repeatable slices
             loop:
             for (r = 0; (findFirstAisle ? r < aisleRepetitions[c][1] : z <= -centerOffset[3]); r++) {
+                Set<IMultiPart> parts = matchContext.getOrCreate("parts", HashSet::new);
+                Set<IMultiPart> addedParts = new HashSet<>();
+                List<BlockPos> touchedPositions = new ArrayList<>();
+                Map<SimplePredicate, Integer> globalCountSnapshot = new HashMap<>(globalCount);
                 //Checking single slice
                 layerCount.clear();
 
@@ -245,24 +251,21 @@ public class BlockPattern {
                         worldState.setError(null);
                         TraceabilityPredicate predicate = this.blockMatches[c][b][a];
                         BlockPos pos = setActualRelativeOffset(x, y, z, facing).offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
+                        BlockPos immutablePos = pos.immutable();
+                        touchedPositions.add(immutablePos);
                         if (!worldState.update(pos, predicate)) {
                             return false;
                         }
-                        if (predicate.addCache()) {
-                            worldState.addPosCache(pos);
-                            if (savePredicate) {
-                                matchContext.getOrCreate("predicates", HashMap::new).put(pos, predicate);
-                            }
-                        }
                         boolean canPartShared = true;
                         var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
-                        if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part) { // add detected parts
+                        IMultiPart matchedPart = null;
+                        if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part) {
                             if (!predicate.isAny()) {
                                 if (part.isFormed() && !part.canShared() && !part.hasController(worldState.controllerPos)) { // check part can be shared
                                     canPartShared = false;
                                     worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
                                 } else {
-                                    matchContext.getOrCreate("parts", HashSet::new).add(part);
+                                    matchedPart = part;
                                 }
                             }
                         }
@@ -275,13 +278,27 @@ public class BlockPattern {
                                 if (r < aisleRepetitions[c][0]) {//retreat to see if the first aisle can start later
                                     r = c = 0;
                                     z = minZ++;
-                                    matchContext.reset();
+                                    resetPatternAttempt(worldState, matchContext, globalCount, layerCount);
                                     findFirstAisle = false;
+                                } else {
+                                    rollbackRepeatAttempt(worldState, matchContext, globalCount, globalCountSnapshot, layerCount, touchedPositions, parts, addedParts);
                                 }
                             } else {
                                 z++;//continue searching for the first aisle
+                                resetPatternAttempt(worldState, matchContext, globalCount, layerCount);
                             }
                             continue loop;
+                        }
+                        if (matchedPart != null) {
+                            if (parts.add(matchedPart)) {
+                                addedParts.add(matchedPart);
+                            }
+                        }
+                        if (predicate.addCache()) {
+                            worldState.addPosCache(immutablePos);
+                            if (savePredicate) {
+                                matchContext.getOrCreate("predicates", HashMap::new).put(immutablePos, predicate);
+                            }
                         }
                         matchContext.getOrCreate("ioMap", Long2ObjectOpenHashMap::new).put(worldState.getPos().asLong(), worldState.io);
                     }
@@ -317,6 +334,77 @@ public class BlockPattern {
         worldState.setError(null);
         worldState.setMatchedPattern(this);
         return true;
+    }
+
+    /**
+     * Restores all mutable match state that may have been written while testing one optional repeated aisle.
+     *
+     * <p>Optional repetitions are allowed to fail after the minimum repeat count is satisfied. Any cache,
+     * predicate, IO, slot, render mask, UI mask, count, or part state created by that failed attempt must be
+     * removed so the already-accepted structure stays authoritative.</p>
+     */
+    private static void rollbackRepeatAttempt(MultiblockState worldState, PatternMatchContext matchContext,
+                                              Map<SimplePredicate, Integer> globalCount,
+                                              Map<SimplePredicate, Integer> globalCountSnapshot,
+                                              Map<SimplePredicate, Integer> layerCount,
+                                              List<BlockPos> touchedPositions,
+                                              Set<IMultiPart> parts,
+                                              Set<IMultiPart> addedParts) {
+        globalCount.clear();
+        globalCount.putAll(globalCountSnapshot);
+        layerCount.clear();
+        parts.removeAll(addedParts);
+        removePositionsFromContext(worldState, matchContext, touchedPositions);
+    }
+
+    /**
+     * Clears all accumulated state before retrying the whole pattern search from a later first aisle.
+     */
+    private static void resetPatternAttempt(MultiblockState worldState, PatternMatchContext matchContext,
+                                            Map<SimplePredicate, Integer> globalCount,
+                                            Map<SimplePredicate, Integer> layerCount) {
+        if (worldState.cache != null) {
+            worldState.cache.clear();
+        }
+        globalCount.clear();
+        layerCount.clear();
+        matchContext.reset();
+    }
+
+    /**
+     * Removes per-position match context entries created while testing positions that no longer belong to a match.
+     */
+    private static void removePositionsFromContext(MultiblockState worldState, PatternMatchContext matchContext,
+                                                   List<BlockPos> positions) {
+        if (positions.isEmpty()) {
+            return;
+        }
+        Map<BlockPos, TraceabilityPredicate> predicates = matchContext.get("predicates");
+        Map<Long, IO> ioMap = matchContext.get("ioMap");
+        Map<Long, Set<String>> slots = matchContext.get("slots");
+        LongSet renderMask = matchContext.get("renderMask");
+        LongSet openUIMask = matchContext.get("openUIMask");
+        for (BlockPos pos : positions) {
+            long posKey = pos.asLong();
+            if (worldState.cache != null) {
+                worldState.cache.remove(posKey);
+            }
+            if (predicates != null) {
+                predicates.remove(pos);
+            }
+            if (ioMap != null) {
+                ioMap.remove(posKey);
+            }
+            if (slots != null) {
+                slots.remove(posKey);
+            }
+            if (renderMask != null) {
+                renderMask.remove(posKey);
+            }
+            if (openUIMask != null) {
+                openUIMask.remove(posKey);
+            }
+        }
     }
 
     /**

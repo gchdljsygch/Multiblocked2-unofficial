@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * JEI category that shows preview pages for registered multiblock machine structures.
  */
-public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockInfoCategory.MultiblockInfoWrapper> {
+public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockMachineDefinition> {
 
     /**
      * JEI wrapper for a single multiblock machine definition preview.
@@ -34,12 +34,16 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
         }
     }
 
-    public final static RecipeType<MultiblockInfoWrapper> RECIPE_TYPE = new RecipeType<>(MBD2.id("multiblock_info"),
-            MultiblockInfoWrapper.class);
+    /**
+     * JEI-facing multiblock info entries are raw machine definitions; wrappers are created by the category UI adapter.
+     */
+    public final static RecipeType<MultiblockMachineDefinition> RECIPE_TYPE = new RecipeType<>(MBD2.id("multiblock_info"),
+            MultiblockMachineDefinition.class);
     private final IDrawable background;
     private final IDrawable icon;
 
     public MultiblockInfoCategory(IJeiHelpers helpers) {
+        super(MultiblockInfoWrapper::new);
         IGuiHelper guiHelper = helpers.getGuiHelper();
         this.background = guiHelper.createBlankDrawable(160, 160);
         this.icon = helpers.getGuiHelper().drawableBuilder(MBD2.id("textures/gui/multiblock_info_page.png"), 0, 0, 16, 16).setTextureSize(16, 16).build();
@@ -49,7 +53,6 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
         registry.addRecipes(RECIPE_TYPE, MBDRegistries.MACHINE_DEFINITIONS.values().stream()
                 .filter(MultiblockMachineDefinition.class::isInstance)
                 .map(MultiblockMachineDefinition.class::cast)
-                .map(MultiblockInfoWrapper::new)
                 .toList());
     }
 
@@ -63,7 +66,7 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
 
     @Override
     @NotNull
-    public RecipeType<MultiblockInfoWrapper> getRecipeType() {
+    public RecipeType<MultiblockMachineDefinition> getRecipeType() {
         return RECIPE_TYPE;
     }
 

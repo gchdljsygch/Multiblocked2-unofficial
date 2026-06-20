@@ -4,12 +4,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
+import com.lowdragmc.mbd2.api.blockentity.ProxyPartBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.RecipeCondition;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import lombok.Getter;
 import lombok.Setter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -18,8 +20,10 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -112,12 +116,32 @@ public class BlockCondition extends RecipeCondition {
         if (recipeLogic.machine instanceof IMultiController controller) {
             var level = controller.getLevel();
             for (var pos : controller.getMultiblockState().getCache()) {
-                if (ArrayUtils.contains(blocks, level.getBlockState(pos).getBlock())) {
+                if (ArrayUtils.contains(blocks, getRepresentedBlockState(level, pos).getBlock())) {
                     amount++;
                 }
             }
         }
         return amount >= minCount && amount <= maxCount;
+    }
+
+    /**
+     * Returns the block state represented by a matched structure position.
+     *
+     * <p>Formed structures may replace blocks accepted by pattern predicates,
+     * including tag predicates, with proxy blocks for rendering. Recipe block
+     * conditions should count the concrete block that formed the structure, not
+     * the proxy container.</p>
+     *
+     * @param level level that contains the matched multiblock position
+     * @param pos matched position from the multiblock cache
+     * @return original formed block state when the position is proxied; otherwise the live block state
+     */
+    private static BlockState getRepresentedBlockState(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof ProxyPartBlockEntity proxyPartBlockEntity &&
+                proxyPartBlockEntity.getOriginalState() != null) {
+            return proxyPartBlockEntity.getOriginalState();
+        }
+        return level.getBlockState(pos);
     }
 
     /**

@@ -23,14 +23,13 @@ import net.minecraft.resources.ResourceLocation;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * JEI category for fuel recipes used by an MBD recipe type.
  */
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
-public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipeTypeFuelCategory.RecipeWrapper> {
+public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe> {
 
     /**
      * JEI wrapper that exposes an MBD modular fuel UI.
@@ -45,7 +44,10 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
         }
     }
 
-    public static final Function<MBDRecipeType, RecipeType<RecipeWrapper>> TYPES = Util.memoize(recipeMap -> new RecipeType<>(recipeMap.getFuelRegistryName(), RecipeWrapper.class));
+    /**
+     * JEI-facing fuel recipe types use the raw {@link MBDRecipe}; the category supplies wrappers internally for rendering.
+     */
+    public static final Function<MBDRecipeType, RecipeType<MBDRecipe>> TYPES = Util.memoize(recipeMap -> new RecipeType<>(recipeMap.getFuelRegistryName(), MBDRecipe.class));
 
     private final MBDRecipeType recipeType;
     @Getter
@@ -54,6 +56,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
     private final IDrawable icon;
 
     public MBDRecipeTypeFuelCategory(IJeiHelpers helpers, MBDRecipeType recipeType) {
+        super(RecipeWrapper::new);
         this.recipeType = recipeType;
         IGuiHelper guiHelper = helpers.getGuiHelper();
         var size = recipeType.getFuelUISize();
@@ -62,7 +65,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
     }
 
     @Override
-    public RecipeType<RecipeWrapper> getRecipeType() {
+    public RecipeType<MBDRecipe> getRecipeType() {
         return TYPES.apply(recipeType);
     }
 
@@ -78,8 +81,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
                         Minecraft.getInstance().getConnection().getRecipeManager().getAllRecipesFor(recipeType)
                                 .stream()
                                 .filter(recipe -> recipe.isFuel && !recipe.isXEIHidden)
-                                .map(RecipeWrapper::new)
-                                .collect(Collectors.toList()));
+                                .toList());
             }
         }
     }
@@ -98,7 +100,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
     }
 
     @Override
-    public @Nullable ResourceLocation getRegistryName(RecipeWrapper wrapper) {
-        return wrapper.recipe.id;
+    public @Nullable ResourceLocation getRegistryName(MBDRecipe recipe) {
+        return recipe.id;
     }
 }
