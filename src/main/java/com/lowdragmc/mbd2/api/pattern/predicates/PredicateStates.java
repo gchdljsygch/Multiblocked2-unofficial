@@ -70,7 +70,7 @@ public class PredicateStates extends SimplePredicate {
     public SimplePredicate buildPredicate() {
         states = Arrays.stream(states).filter(Objects::nonNull).toArray(BlockState[]::new);
         if (states.length == 0) states = new BlockState[]{Blocks.BARRIER.defaultBlockState()};
-        predicate = state -> ArrayUtils.contains(states, state.getBlockState());
+        predicate = state -> ArrayUtils.contains(states, state.getRepresentedBlockState());
         Predicate<MultiblockState> basePredicate = predicate;
         if (controllerFront == null || !controllerFront.isEnable()) {
             predicate = state -> {
@@ -79,7 +79,7 @@ public class PredicateStates extends SimplePredicate {
                 Direction baseFacing = state.getPatternBaseFacing();
                 Rotation rotation = PatternStateRotation.horizontalRotation(baseFacing, currentFacing);
                 if (rotation == Rotation.NONE) return basePredicate.test(state);
-                BlockState actual = state.getBlockState();
+                BlockState actual = state.getRepresentedBlockState();
                 if (actual == null || states == null) return false;
                 for (BlockState expected : states) {
                     if (expected == null) continue;

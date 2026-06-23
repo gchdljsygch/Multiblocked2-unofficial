@@ -22,6 +22,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import me.shedaniel.rei.impl.client.gui.screen.AbstractDisplayViewingScreen;
+import mezz.jei.gui.recipes.RecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
@@ -67,7 +68,7 @@ public class PatternPreviewWidget extends WidgetGroup {
     private int index;
     public int layer;
     private final XEIIngredientScrollableWidgetGroup predicatesGroup;
-    private final DraggableScrollableWidgetGroup candidatesGroup;
+    private final XEIIngredientScrollableWidgetGroup candidatesGroup;
     private ButtonWidget pageButton;
 
     /**
@@ -85,7 +86,7 @@ public class PatternPreviewWidget extends WidgetGroup {
 
         // predicates
         addWidget(predicatesGroup = new XEIIngredientScrollableWidgetGroup(4, 9, 22, 90, 1, 5,
-                IngredientIO.INPUT, false));
+                IngredientIO.INPUT, true));
         predicatesGroup.setYScrollBarWidth(4)
                 .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
 
@@ -131,15 +132,15 @@ public class PatternPreviewWidget extends WidgetGroup {
                 buttonTexture,
                 new ResourceTexture("mbd2:textures/gui/multiblock_info_page_layer.png"),
                 new TextTexture("", ColorPattern.BLACK.color).setSupplier(() -> layer == -1 ? "" : Integer.toString(layer)).scale(0.8f)
-        ), cd -> updateLayer())
-                .setHoverBorderTexture(-1, -1)
+        ), cd -> updateLayer());
+        layerButton.setHoverBorderTexture(-1, -1)
                 .setHoverTooltips("pattern_preview.layer");
         var formedButton = new SwitchWidget(136, 57, 18, 18, (cd, pressed) -> onFormedSwitch(pressed))
                 .setSupplier(() -> patterns.length > 0 && patterns[index].controllerBase.isFormed())
                 .setTexture(new GuiTextureGroup(buttonTexture, new ResourceTexture("mbd2:textures/gui/multiblock_info_page_unformed.png")),
                         new GuiTextureGroup(buttonTexture, new ResourceTexture("mbd2:textures/gui/multiblock_info_page.png")))
-                .setHoverBorderTexture(-1, -1)
-                .setHoverTooltips("pattern_preview.formed");
+                .setHoverBorderTexture(-1, -1);
+        formedButton.setHoverTooltips("pattern_preview.formed");
         updatePageButtonVisibility();
         addWidget(pageButton);
         addWidget(layerButton);
@@ -217,9 +218,7 @@ public class PatternPreviewWidget extends WidgetGroup {
             layer = -1;
             sceneWidget.setRenderedCore(Collections.emptyList(), null);
             predicatesGroup.setStacks(Collections.emptyList());
-            if (candidatesGroup instanceof XEIIngredientScrollableWidgetGroup xeiGroup) {
-                xeiGroup.setStacks(Collections.emptyList());
-            }
+            candidatesGroup.setStacks(Collections.emptyList());
             descriptionWidget.setImage(IGuiTexture.EMPTY);
             descriptionWidget.setHoverTooltips(Collections.emptyList());
         }
@@ -309,10 +308,25 @@ public class PatternPreviewWidget extends WidgetGroup {
         setupDescription(pattern);
     }
 
-    private void setupPatternCandidates(MBPattern pattern) {
-        if (candidatesGroup instanceof XEIIngredientScrollableWidgetGroup xeiGroup) {
-            xeiGroup.setStacks(pattern.parts);
+    /**
+     * Returns the full required part list for the currently selected preview shape.
+     * <p>
+     * Recipe viewers use this for integrations that need every multiblock part, not just the visible scroller slots.
+     *
+     * @return copied candidate stack groups, one group per logical required part
+     */
+    public List<List<ItemStack>> getCurrentPatternParts() {
+        ensurePatternsFresh();
+        if (patterns.length == 0 || index >= patterns.length || index < 0) {
+            return Collections.emptyList();
         }
+        return patterns[index].parts.stream()
+                .map(group -> group.stream().map(ItemStack::copy).toList())
+                .toList();
+    }
+
+    private void setupPatternCandidates(MBPattern pattern) {
+        candidatesGroup.setStacks(pattern.parts);
     }
 
     private void setupPredicateCandidates(List<List<ItemStack>> candidateStacks, List<SimplePredicate> simplePredicates,
@@ -397,6 +411,9 @@ public class PatternPreviewWidget extends WidgetGroup {
             setPage(getPreferredPageIndex());
             isLoaded = true;
         } else if (!isLoaded && LDLib.isReiLoaded() && Minecraft.getInstance().screen instanceof AbstractDisplayViewingScreen) {
+            setPage(getPreferredPageIndex());
+            isLoaded = true;
+        } else if (!isLoaded && LDLib.isJeiLoaded() && Minecraft.getInstance().screen instanceof RecipesGui) {
             setPage(getPreferredPageIndex());
             isLoaded = true;
         }
@@ -674,13 +691,15 @@ public class PatternPreviewWidget extends WidgetGroup {
                         stack -> getToolTips(displaySlotIndex, stack))
                         .setIngredientIO(ingredientIO));
                 if (exposeXEISlots) {
-                    xeiSlots.add(new PredicateSlotWidget(displayHandler, i,
+                    var proxySlot = new PredicateSlotWidget(displayHandler, i,
                             x + (i % this.columns) * SLOT_SIZE, y + (i / this.columns) * SLOT_SIZE,
                             stack -> getToolTips(displaySlotIndex, stack))
-                            .setIngredientIO(ingredientIO)
+                            .markAsScrollerProxy(this);
+                    proxySlot.setIngredientIO(ingredientIO)
                             .setDrawHoverOverlay(false)
                             .setDrawHoverTips(false)
-                            .setBackgroundTexture(null));
+                            .setBackgroundTexture(null);
+                    xeiSlots.add(proxySlot);
                 }
             }
         }
@@ -796,6 +815,11 @@ public class PatternPreviewWidget extends WidgetGroup {
                             Function<ItemStack, List<Component>> tooltipProvider) {
             super(itemHandler, slotIndex, xPosition, yPosition, false, false);
             this.tooltipProvider = tooltipProvider;
+        }
+
+        private PredicateSlotWidget markAsScrollerProxy(WidgetGroup parent) {
+            setParent(parent);
+            return this;
         }
 
         @Override

@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.utils;
 
+import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.item.MBDGadgetsItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -12,6 +13,7 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,10 +30,13 @@ import java.util.Objects;
  * level. The helper itself keeps no shared mutable state.</p>
  */
 public final class BuilderMaterialBindings {
+    private static final String AE2_ITEM_HANDLER_BRIDGE = "com.lowdragmc.mbd2.integration.ae2.MEStorageItemHandlers";
     private static final String KEY_ITEM_DIM = "mbd2_bind_item_dim";
     private static final String KEY_ITEM_POS = "mbd2_bind_item_pos";
+    private static final String KEY_ITEM_SOURCE_TYPE = "mbd2_bind_item_source_type";
     private static final String KEY_FLUID_DIM = "mbd2_bind_fluid_dim";
     private static final String KEY_FLUID_POS = "mbd2_bind_fluid_pos";
+    private static final String ITEM_SOURCE_TYPE_ME = "me";
     /**
      * NBT key used to store whether the builder should schedule placements over
      * multiple server ticks instead of placing everything in one pass.
@@ -71,8 +76,8 @@ public final class BuilderMaterialBindings {
      * multiblock builder
      */
     public static boolean isBuilder(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return false;
-        if (!(stack.getItem() instanceof MBDGadgetsItem gadgets)) return false;
+        if (!isGadget(stack)) return false;
+        var gadgets = (MBDGadgetsItem) stack.getItem();
         return gadgets.isMultiblockBuilder(stack);
     }
 
@@ -81,14 +86,16 @@ public final class BuilderMaterialBindings {
      * scheduled auto-build placement.
      *
      * <p>Invalid or empty stacks are treated as disabled. Side effects: none;
-     * the stack tag is read but not created.</p>
+     * the stack tag is read but not created. The saved builder option is readable
+     * from every MBD gadget mode so the mode wheel keeps the same state while a
+     * debugger mode is selected.</p>
      *
      * @param builder stack expected to be a multiblock builder
      * @return {@code true} when the builder stores the slow-build flag,
      * otherwise {@code false}
      */
     public static boolean isSlowBuild(ItemStack builder) {
-        if (!isBuilder(builder)) return false;
+        if (!isGadget(builder)) return false;
         var tag = builder.getTag();
         return tag != null && tag.getBoolean(KEY_SLOW_BUILD);
     }
@@ -97,7 +104,7 @@ public final class BuilderMaterialBindings {
      * Stores whether a builder should place matched pattern entries gradually.
      *
      * <p>Preconditions: the stack must be a live builder stack owned by the
-     * calling game thread. Non-builder stacks are ignored. Side effects: creates
+     * calling game thread. Non-gadget stacks are ignored. Side effects: creates
      * or updates the builder NBT tag.</p>
      *
      * @param builder   builder stack whose mode is updated
@@ -105,7 +112,7 @@ public final class BuilderMaterialBindings {
      *                  {@code false} to place the full plan immediately
      */
     public static void setSlowBuild(ItemStack builder, boolean slowBuild) {
-        if (!isBuilder(builder)) return;
+        if (!isGadget(builder)) return;
         builder.getOrCreateTag().putBoolean(KEY_SLOW_BUILD, slowBuild);
     }
 
@@ -117,10 +124,10 @@ public final class BuilderMaterialBindings {
      *
      * @param builder stack expected to carry builder configuration
      * @return selected pattern index in the range {@code [0, Integer.MAX_VALUE]},
-     * or {@code 0} when the stack is not a builder or has no saved index
+     * or {@code 0} when the stack is not an MBD gadget or has no saved index
      */
     public static int getPatternIndex(ItemStack builder) {
-        if (!isBuilder(builder)) return 0;
+        if (!isGadget(builder)) return 0;
         var tag = builder.getTag();
         if (tag == null || !tag.contains(KEY_PATTERN_INDEX)) return 0;
         return Math.max(0, tag.getInt(KEY_PATTERN_INDEX));
@@ -129,8 +136,8 @@ public final class BuilderMaterialBindings {
     /**
      * Saves the selected multiblock pattern index on a builder stack.
      *
-     * <p>Preconditions: the stack must be the builder item being configured.
-     * Non-builder stacks are ignored. Side effects: creates or updates the
+     * <p>Preconditions: the stack must be the MBD gadget being configured.
+     * Non-gadget stacks are ignored. Side effects: creates or updates the
      * builder NBT tag on the calling game thread.</p>
      *
      * @param builder      builder stack whose selected pattern is updated
@@ -138,8 +145,12 @@ public final class BuilderMaterialBindings {
      *                     to {@code 0}
      */
     public static void setPatternIndex(ItemStack builder, int patternIndex) {
-        if (!isBuilder(builder)) return;
+        if (!isGadget(builder)) return;
         builder.getOrCreateTag().putInt(KEY_PATTERN_INDEX, Math.max(0, patternIndex));
+    }
+
+    private static boolean isGadget(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.getItem() instanceof MBDGadgetsItem;
     }
 
     /**
@@ -161,6 +172,35 @@ public final class BuilderMaterialBindings {
         var tag = builder.getOrCreateTag();
         tag.putString(KEY_ITEM_DIM, Objects.requireNonNull(level.dimension().location()).toString());
         tag.putLong(KEY_ITEM_POS, Objects.requireNonNull(pos).asLong());
+        tag.remove(KEY_ITEM_SOURCE_TYPE);
+    }
+
+    /**
+     * Records an AE2 ME network item-source block position.
+     *
+     * <p>The stored coordinates are still item-source coordinates, but the
+     * source type lets UI text identify the target as an ME network instead of
+     * a plain inventory.</p>
+     *
+     * @param builder stack that stores the binding
+     * @param level   level containing the selected material source
+     * @param pos     block position in that level
+     */
+    public static void bindMEItemPos(ItemStack builder, Level level, BlockPos pos) {
+        bindItemPos(builder, level, pos);
+        builder.getOrCreateTag().putString(KEY_ITEM_SOURCE_TYPE, ITEM_SOURCE_TYPE_ME);
+    }
+
+    /**
+     * Checks whether the saved item binding came from an AE2 ME network.
+     *
+     * @param builder stack carrying builder NBT
+     * @return {@code true} when the item binding was recorded as an ME source
+     */
+    public static boolean isBoundItemSourceME(ItemStack builder) {
+        if (!isGadget(builder)) return false;
+        var tag = builder.getTag();
+        return tag != null && ITEM_SOURCE_TYPE_ME.equals(tag.getString(KEY_ITEM_SOURCE_TYPE));
     }
 
     /**
@@ -314,7 +354,26 @@ public final class BuilderMaterialBindings {
         for (Direction dir : Direction.values()) {
             if (be.getCapability(ForgeCapabilities.ITEM_HANDLER, dir).isPresent()) return true;
         }
-        return be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).isPresent();
+        if (be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).isPresent()) return true;
+        return hasMEItemStorage(be);
+    }
+
+    /**
+     * Checks whether a block entity exposes AE2 ME storage as an item source.
+     *
+     * @param be block entity to probe
+     * @return {@code true} when AE2 is loaded and the target exposes ME storage
+     */
+    public static boolean hasMEItemStorage(BlockEntity be) {
+        if (be == null || !MBD2.isAE2Loaded()) return false;
+        try {
+            Class<?> bridgeClass = Class.forName(AE2_ITEM_HANDLER_BRIDGE);
+            var method = bridgeClass.getMethod("hasItemStorage", BlockEntity.class);
+            return Boolean.TRUE.equals(method.invoke(null, be));
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException |
+                 LinkageError ignored) {
+            return false;
+        }
     }
 
     /**
@@ -334,13 +393,26 @@ public final class BuilderMaterialBindings {
         return be.getCapability(ForgeCapabilities.FLUID_HANDLER, null).isPresent();
     }
 
-    private static List<IItemHandler> collectItemHandlers(BlockEntity be) {
+    public static List<IItemHandler> collectItemHandlers(BlockEntity be) {
         List<IItemHandler> handlers = new ArrayList<>();
         for (Direction dir : Direction.values()) {
             be.getCapability(ForgeCapabilities.ITEM_HANDLER, dir).resolve().ifPresent(handlers::add);
         }
         be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).resolve().ifPresent(handlers::add);
+        collectAE2ItemHandlers(be, handlers);
         return handlers;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectAE2ItemHandlers(BlockEntity be, List<IItemHandler> handlers) {
+        if (!MBD2.isAE2Loaded()) return;
+        try {
+            Class<?> bridgeClass = Class.forName(AE2_ITEM_HANDLER_BRIDGE);
+            var method = bridgeClass.getMethod("collectItemHandlers", BlockEntity.class, List.class);
+            method.invoke(null, be, handlers);
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException |
+                 LinkageError ignored) {
+        }
     }
 
     private static List<IFluidHandler> collectFluidHandlers(BlockEntity be) {

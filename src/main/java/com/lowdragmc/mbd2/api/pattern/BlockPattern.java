@@ -20,6 +20,7 @@ import com.lowdragmc.mbd2.utils.MultiFluidHandler;
 import com.lowdragmc.mbd2.utils.MultiItemHandler;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
@@ -47,6 +48,7 @@ import net.minecraftforge.items.IItemHandler;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.*;
+import java.util.function.BiPredicate;
 
 /**
  * Compiled multiblock structure pattern used for validation, preview rendering,
@@ -189,6 +191,17 @@ public class BlockPattern {
      * @return {@code true} when any allowed facing matches
      */
     public boolean checkPatternAt(MultiblockState worldState, boolean savePredicate) {
+        return checkPatternAt(worldState, savePredicate, (state, predicate) -> predicate.test(state));
+    }
+
+    /**
+     * Checks this pattern using a caller supplied predicate evaluator.
+     *
+     * <p>This is used by tools that need a different interpretation of the same
+     * pattern positions without changing normal multiblock formation semantics.</p>
+     */
+    public boolean checkPatternAt(MultiblockState worldState, boolean savePredicate,
+                                  BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
         worldState.setMatchedPattern(null);
         IMultiController controller = worldState.getController();
         if (controller == null) {
@@ -200,7 +213,7 @@ public class BlockPattern {
                 new Direction[]{controller.getFrontFacing().orElseThrow()} :
                 FACINGS_H;
         for (Direction facing : facings) {
-            if (checkPatternAt(worldState, centerPos, facing, savePredicate)) {
+            if (checkPatternAt(worldState, centerPos, facing, savePredicate, predicateMatcher)) {
                 return true;
             }
         }
@@ -226,6 +239,15 @@ public class BlockPattern {
      * match
      */
     public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate) {
+        return checkPatternAt(worldState, centerPos, facing, savePredicate, (state, predicate) -> predicate.test(state));
+    }
+
+    /**
+     * Checks this pattern at an explicit center and facing using a caller
+     * supplied predicate evaluator.
+     */
+    public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate,
+                                  BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
         boolean findFirstAisle = false;
         int minZ = -centerOffset[4];
         worldState.clean();
@@ -259,9 +281,10 @@ public class BlockPattern {
                         boolean canPartShared = true;
                         var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
                         IMultiPart matchedPart = null;
-                        if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part) {
+                        if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part &&
+                                part.isPartEnabled() && !immutablePos.equals(worldState.controllerPos)) {
                             if (!predicate.isAny()) {
-                                if (part.isFormed() && !part.canShared() && !part.hasController(worldState.controllerPos)) { // check part can be shared
+                                if (part.isAttachedToController() && !part.canShared() && !part.hasController(worldState.controllerPos)) { // check part can be shared
                                     canPartShared = false;
                                     worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
                                 } else {
@@ -273,7 +296,7 @@ public class BlockPattern {
 //                        if (worldState.getBlockState().getBlock() instanceof ActiveBlock) {
 //                            matchContext.getOrCreate("vaBlocks", LongOpenHashSet::new).add(worldState.getPos().asLong());
 //                        }
-                        if (!predicate.test(worldState) || !canPartShared) { // matching failed
+                        if (!predicateMatcher.test(worldState, predicate) || !canPartShared) { // matching failed
                             if (findFirstAisle) {
                                 if (r < aisleRepetitions[c][0]) {//retreat to see if the first aisle can start later
                                     r = c = 0;
@@ -293,6 +316,7 @@ public class BlockPattern {
                             if (parts.add(matchedPart)) {
                                 addedParts.add(matchedPart);
                             }
+                            matchContext.getOrCreate("partPositions", LongOpenHashSet::new).add(immutablePos.asLong());
                         }
                         if (predicate.addCache()) {
                             worldState.addPosCache(immutablePos);
@@ -333,6 +357,9 @@ public class BlockPattern {
 
         worldState.setError(null);
         worldState.setMatchedPattern(this);
+        if (worldState.shouldCommitSuccessfulMatches()) {
+            worldState.commitCache();
+        }
         return true;
     }
 
@@ -384,6 +411,7 @@ public class BlockPattern {
         Map<Long, Set<String>> slots = matchContext.get("slots");
         LongSet renderMask = matchContext.get("renderMask");
         LongSet openUIMask = matchContext.get("openUIMask");
+        LongSet partPositions = matchContext.get("partPositions");
         for (BlockPos pos : positions) {
             long posKey = pos.asLong();
             if (worldState.cache != null) {
@@ -403,6 +431,9 @@ public class BlockPattern {
             }
             if (openUIMask != null) {
                 openUIMask.remove(posKey);
+            }
+            if (partPositions != null) {
+                partPositions.remove(posKey);
             }
         }
     }

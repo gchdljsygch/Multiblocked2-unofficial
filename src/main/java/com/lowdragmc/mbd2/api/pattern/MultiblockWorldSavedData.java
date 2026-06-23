@@ -99,6 +99,7 @@ public class MultiblockWorldSavedData extends SavedData {
      * @param state formed multiblock state with a populated position cache
      */
     public void addMapping(MultiblockState state) {
+        removeMapping(state.controllerPos);
         this.mapping.put(state.controllerPos, state);
         for (var blockPos : state.getCache()) {
             structureCachePosMapping.computeIfAbsent(blockPos.asLong(), c -> new HashSet<>()).add(state);
@@ -113,12 +114,16 @@ public class MultiblockWorldSavedData extends SavedData {
      * @param state state to remove
      */
     public void removeMapping(MultiblockState state) {
-        this.mapping.remove(state.controllerPos);
+        removeMapping(state.controllerPos);
+    }
+
+    private void removeMapping(BlockPos controllerPos) {
+        this.mapping.remove(controllerPos);
         var iterator = structureCachePosMapping.long2ObjectEntrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
             var stateSet = entry.getValue();
-            stateSet.remove(state);
+            stateSet.removeIf(state -> state.controllerPos.equals(controllerPos));
             if (stateSet.isEmpty()) {
                 iterator.remove();
             }

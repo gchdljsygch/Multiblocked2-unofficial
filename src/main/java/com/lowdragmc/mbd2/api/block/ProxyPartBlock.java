@@ -94,10 +94,12 @@ public class ProxyPartBlock extends Block implements EntityBlock, IBlockRenderer
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
         if (pState.hasBlockEntity()) {
             if (!pState.is(pNewState.getBlock())) { // new block
+                ProxyPartBlockEntity blockEntity = pLevel.getBlockEntity(pPos) instanceof ProxyPartBlockEntity proxyPartBlockEntity ?
+                        proxyPartBlockEntity : null;
                 pLevel.updateNeighbourForOutputSignal(pPos, this);
                 pLevel.removeBlockEntity(pPos);
-                // restore original block
-                if (!pLevel.isClientSide && pLevel.getBlockEntity(pPos) instanceof ProxyPartBlockEntity blockEntity) {
+                if (!pLevel.isClientSide && blockEntity != null && blockEntity.getOriginalState() != null &&
+                        !pNewState.is(blockEntity.getOriginalState().getBlock())) {
                     blockEntity.restoreOriginalBlock();
                 }
             }

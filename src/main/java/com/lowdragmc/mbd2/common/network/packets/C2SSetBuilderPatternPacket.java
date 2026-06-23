@@ -13,8 +13,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Client-to-server request to change the multiblock builder's selected pattern.
  *
- * <p>The request is produced by the gadget UI. The server validates that the chosen hand still holds a builder gadget;
- * the stored index is normalized by {@link BuilderMaterialBindings#setPatternIndex(ItemStack, int)}.</p>
+ * <p>The request is produced by the gadget UI. The server validates that the chosen hand still holds an MBD gadget,
+ * switches it back to builder mode, and normalizes the stored index by
+ * {@link BuilderMaterialBindings#setPatternIndex(ItemStack, int)}.</p>
  */
 @NoArgsConstructor
 public class C2SSetBuilderPatternPacket implements IPacket {
@@ -57,8 +58,8 @@ public class C2SSetBuilderPatternPacket implements IPacket {
     /**
      * Stores the selected pattern on the sender's held builder stack.
      *
-     * <p>Side effects on the logical server: mutates builder stack NBT and marks the inventory changed. Missing players,
-     * non-gadget stacks, and non-builder gadget modes are ignored.</p>
+     * <p>Side effects on the logical server: switches the gadget to builder mode, mutates builder stack NBT, and marks
+     * the inventory changed. Missing players and non-gadget stacks are ignored.</p>
      *
      * @param handler LowDragLib packet context
      */
@@ -70,8 +71,8 @@ public class C2SSetBuilderPatternPacket implements IPacket {
         InteractionHand hand = handOrdinal == 1 ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
         ItemStack stack = player.getItemInHand(hand);
         if (!(stack.getItem() instanceof MBDGadgetsItem)) return;
-        if (!BuilderMaterialBindings.isBuilder(stack)) return;
 
+        stack.setDamageValue(0);
         BuilderMaterialBindings.setPatternIndex(stack, patternIndex);
         player.getInventory().setChanged();
     }

@@ -15,7 +15,6 @@ import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
 import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.syncdata.IAutoPersistedSerializable;
-import com.lowdragmc.mbd2.api.block.ProxyPartBlock;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
 import com.lowdragmc.mbd2.api.pattern.TraceabilityPredicate;
@@ -311,24 +310,18 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
         return getToolTips(predicates);
     }
 
-    private boolean isProxyBlock(MultiblockState blockWorldState) {
-        return blockWorldState.getBlockState().getBlock() == ProxyPartBlock.BLOCK;
-    }
-
     /**
      * Tests this predicate without global/layer count enforcement.
      *
-     * <p>Proxy part blocks are accepted so already formed proxy structures can
-     * remain traceable. Side effects: when the base predicate matches, writes IO,
+     * <p>Side effects: when the base predicate matches, writes IO,
      * slot, render mask, open-UI mask, and possible error state through
      * {@link #checkInnerConditions(MultiblockState)}.</p>
      *
      * @param blockWorldState current pattern-test state
-     * @return {@code true} when the base predicate or proxy block matches and
-     * inner conditions pass
+     * @return {@code true} when the base predicate matches and inner conditions pass
      */
     public boolean test(MultiblockState blockWorldState) {
-        if (isProxyBlock(blockWorldState) || predicate.test(blockWorldState)) {
+        if (predicate.test(blockWorldState)) {
             return checkInnerConditions(blockWorldState);
         }
         return false;
@@ -345,7 +338,7 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
      * @return {@code true} when count checks and inner conditions pass
      */
     public boolean testLimited(MultiblockState blockWorldState) {
-        if (isProxyBlock(blockWorldState) || testGlobal(blockWorldState) && testLayer(blockWorldState)) {
+        if (testGlobal(blockWorldState) && testLayer(blockWorldState)) {
             return checkInnerConditions(blockWorldState);
         }
         return false;

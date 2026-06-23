@@ -1,14 +1,18 @@
 package com.lowdragmc.mbd2.api.pattern;
 
 import com.lowdragmc.mbd2.api.block.ProxyPartBlock;
+import com.lowdragmc.mbd2.api.blockentity.ProxyPartBlockEntity;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
+import com.lowdragmc.mbd2.api.machine.IMultiPart;
 import com.lowdragmc.mbd2.api.pattern.error.PatternError;
 import com.lowdragmc.mbd2.api.pattern.error.PatternStringError;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
 import com.lowdragmc.mbd2.api.pattern.util.PatternMatchContext;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,7 +24,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -69,6 +75,10 @@ public class MultiblockState {
 
     // persist
     public LongOpenHashSet cache;
+    private LongOpenHashSet formedCache = new LongOpenHashSet();
+    private PatternMatchContext formedMatchContext = new PatternMatchContext();
+    private boolean hasCommittedMatch;
+    private boolean commitSuccessfulMatches = true;
 
     /**
      * Creates pattern state for a controller position in a level.
@@ -87,8 +97,9 @@ public class MultiblockState {
      * Clears transient match data before a new pattern check.
      *
      * <p>Side effects: resets the match context, global/layer predicate counts,
-     * and cached matched positions. Persistent controller/world references are
-     * preserved.</p>
+     * and working matched-position cache. The committed formed cache used by
+     * world-change invalidation is preserved until a new match succeeds or the
+     * structure invalidates.</p>
      */
     protected void clean() {
         this.matchContext.reset();
@@ -208,6 +219,26 @@ public class MultiblockState {
     }
 
     /**
+     * Returns the stable match context for formed-structure consumers.
+     * <p>
+     * Pattern checks reuse and clear {@link #matchContext}; formed controllers must read the last successful match
+     * snapshot so later failed checks do not drop part membership, IO maps, masks, or predicate caches.
+     *
+     * @return committed match context when available, otherwise the live check context
+     */
+    public PatternMatchContext getFormedMatchContext() {
+        return hasCommittedMatch ? formedMatchContext : matchContext;
+    }
+
+    public boolean shouldCommitSuccessfulMatches() {
+        return commitSuccessfulMatches;
+    }
+
+    public void setCommitSuccessfulMatches(boolean commitSuccessfulMatches) {
+        this.commitSuccessfulMatches = commitSuccessfulMatches;
+    }
+
+    /**
      * Stores the current pattern error and back-links it to this state.
      *
      * @param error error to store, or {@code null} to clear the current error
@@ -234,6 +265,24 @@ public class MultiblockState {
             System.out.printf("error");
         }
         return this.blockState;
+    }
+
+    /**
+     * Returns the block state represented by the current cursor position.
+     *
+     * <p>Formed structures may replace matched blocks with proxy blocks for rendering. Predicates should still test
+     * the original captured state, otherwise every proxy position would either fail immediately or match without
+     * checking the actual block/tag/state requirement.</p>
+     *
+     * @return captured original state for proxy positions, otherwise the live block state
+     */
+    public BlockState getRepresentedBlockState() {
+        BlockState state = getBlockState();
+        if (state.getBlock() == ProxyPartBlock.BLOCK && getTileEntity() instanceof ProxyPartBlockEntity proxyPartBlockEntity &&
+                proxyPartBlockEntity.getOriginalState() != null) {
+            return proxyPartBlockEntity.getOriginalState();
+        }
+        return state;
     }
 
     /**
@@ -298,13 +347,84 @@ public class MultiblockState {
     }
 
     /**
+     * Commits the current successful match data as the formed-structure snapshot.
+     * <p>
+     * Failed pattern checks may leave {@link #cache} and {@link #matchContext} containing only the positions visited
+     * before failure. Keeping a separate committed snapshot prevents those temporary attempts from shrinking the
+     * invalidation area or dropping matched parts of an already formed structure.
+     */
+    public void commitCache() {
+        formedCache = cache == null ? new LongOpenHashSet() : new LongOpenHashSet(cache);
+        formedMatchContext = copyMatchContext(matchContext);
+        LongSet partPositions = formedMatchContext.getOrCreate("partPositions", LongOpenHashSet::new);
+        if (cache != null) {
+            for (long cachedPos : cache) {
+                addPartPosition(partPositions, cachedPos);
+            }
+        }
+        Map<Long, IO> ioMap = formedMatchContext.get("ioMap");
+        if (ioMap != null) {
+            for (long matchedPos : ioMap.keySet()) {
+                addPartPosition(partPositions, matchedPos);
+            }
+        }
+        for (long partPos : partPositions) {
+            formedCache.add(partPos);
+        }
+        hasCommittedMatch = true;
+    }
+
+    private void addPartPosition(LongSet partPositions, long pos) {
+        BlockPos blockPos = BlockPos.of(pos);
+        if (!blockPos.equals(controllerPos)) {
+            IMultiPart.ofPart(world, blockPos).ifPresent(part -> partPositions.add(pos));
+        }
+    }
+
+    /**
+     * Clears the committed formed-structure snapshot after invalidation.
+     */
+    public void clearCommittedCache() {
+        formedCache.clear();
+        formedMatchContext.reset();
+        hasCommittedMatch = false;
+        commitSuccessfulMatches = true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private PatternMatchContext copyMatchContext(PatternMatchContext source) {
+        var result = new PatternMatchContext();
+        for (var entry : source.entrySet()) {
+            Object value = entry.getValue();
+            result.set(entry.getKey(), switch (entry.getKey()) {
+                case "parts" -> new HashSet<>((Set<IMultiPart>) value);
+                case "predicates" -> new HashMap<>((Map<BlockPos, TraceabilityPredicate>) value);
+                case "ioMap" -> new Long2ObjectOpenHashMap<>((Map<Long, IO>) value);
+                case "slots" -> copySlots((Map<Long, Set<String>>) value);
+                case "renderMask", "openUIMask", "partPositions" -> new LongOpenHashSet((LongSet) value);
+                default -> value;
+            });
+        }
+        return result;
+    }
+
+    private Map<Long, Set<String>> copySlots(Map<Long, Set<String>> source) {
+        var result = new Long2ObjectOpenHashMap<Set<String>>();
+        for (var entry : source.entrySet()) {
+            result.put(entry.getKey().longValue(), new HashSet<>(entry.getValue()));
+        }
+        return result;
+    }
+
+    /**
      * Checks whether a position is in this state's structure cache.
      *
      * @param pos position to query
      * @return {@code true} when cached
      */
     public boolean isPosInCache(BlockPos pos) {
-        return cache != null && cache.contains(pos.asLong());
+        LongOpenHashSet source = getStableCache();
+        return source != null && source.contains(pos.asLong());
     }
 
     /**
@@ -314,10 +434,16 @@ public class MultiblockState {
      * when no cache exists
      */
     public Collection<BlockPos> getCache() {
-        if (cache == null) {
+        LongOpenHashSet source = getStableCache();
+        if (source == null) {
             return java.util.Collections.emptyList();
         }
-        return cache.stream().map(BlockPos::of).collect(Collectors.toList());
+        return source.stream().map(BlockPos::of).collect(Collectors.toList());
+    }
+
+    @Nullable
+    private LongOpenHashSet getStableCache() {
+        return formedCache != null && !formedCache.isEmpty() ? formedCache : cache;
     }
 
     /**
@@ -355,6 +481,18 @@ public class MultiblockState {
                 }
                 IMultiController controller = getController();
                 if (controller != null) {
+                    if (!controller.isFormed()) {
+                        return;
+                    }
+                    if (shouldInvalidateRenderedPosition(pos, state)) {
+                        var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
+                        mwsd.removeMapping(this);
+                        isInternalStructureInvaliding = true;
+                        controller.onStructureInvalid();
+                        isInternalStructureInvaliding = false;
+                        mwsd.addAsyncLogic(controller);
+                        return;
+                    }
                     // TODO vaBlocks
 //                    if (controller.isFormed() && state.getBlock() instanceof ActiveBlock) {
 //                        LongSet activeBlocks = getMatchContext().getOrDefault("vaBlocks", LongSets.emptySet());
@@ -369,18 +507,26 @@ public class MultiblockState {
                         isInternalStructureForming = true;
                         controller.onStructureFormed();
                         isInternalStructureForming = false;
+                        var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
+                        mwsd.addMapping(this);
+                        mwsd.removeAsyncLogic(controller);
                     } else {
+                        var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
+                        mwsd.removeMapping(this);
                         isInternalStructureInvaliding = true;
                         // invalid structure
                         controller.onStructureInvalid();
                         isInternalStructureInvaliding = false;
-                        var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
-                        mwsd.removeMapping(this);
                         mwsd.addAsyncLogic(controller);
                     }
                 }
             }
         }
+    }
+
+    private boolean shouldInvalidateRenderedPosition(BlockPos pos, BlockState state) {
+        LongSet renderMask = getFormedMatchContext().get("renderMask");
+        return renderMask != null && renderMask.contains(pos.asLong()) && state.getBlock() != ProxyPartBlock.BLOCK;
     }
 
 }

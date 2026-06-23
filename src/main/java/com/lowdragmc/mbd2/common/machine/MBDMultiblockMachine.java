@@ -10,6 +10,7 @@ import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.blockentity.ProxyPartBlockEntity;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeCapabilityHolder;
+import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeHandlerSlotsProxy;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
@@ -24,6 +25,7 @@ import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
 import com.lowdragmc.mbd2.client.renderer.MultiblockInWorldPreviewRenderer;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
+import com.lowdragmc.mbd2.common.machine.definition.config.ConfigPartSettings;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
@@ -66,7 +68,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * large structures in one tick. Mutations of multiblock state should happen on
  * the logical server main thread or while holding {@link #getPatternLock()}.
  */
-public class MBDMultiblockMachine extends MBDMachine implements IMultiController {
+public class MBDMultiblockMachine extends MBDMachine implements IMultiController, IMultiPart {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMultiblockMachine.class, MBDMachine.MANAGED_FIELD_HOLDER);
     private static final int FORMED_VALIDATION_BATCH_SIZE = 64;
     private static final int FORMED_VALIDATION_FULL_CHECK_DELAY = 20;
@@ -89,6 +91,14 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     protected boolean isFormed;
     @Getter
     protected Set<BlockPos> renderingDisabledPositions = new HashSet<>();
+    @DescSynced
+    @Persisted
+    @RequireRerender
+    protected final Set<BlockPos> outerControllerPositions = new HashSet<>();
+    @Getter
+    @DescSynced
+    @RequireRerender
+    protected boolean outerDisableRendering = false;
     @Getter
     private final Lock patternLock = new ReentrantLock();
     @Getter
@@ -136,7 +146,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         super.onUnload();
         if (getLevel() instanceof ServerLevel serverLevel) {
             MultiblockWorldSavedData.getOrCreate(serverLevel).removeAsyncLogic(this);
+            for (BlockPos pos : List.copyOf(outerControllerPositions)) {
+                if (serverLevel.isLoaded(pos)) {
+                    IMultiController.ofController(getLevel(), pos).ifPresent(IMultiController::onPartUnload);
+                }
+            }
         }
+        outerControllerPositions.clear();
     }
 
     /**
@@ -201,7 +217,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     private boolean validateFormedStructureBatch(ServerLevel serverLevel) {
         var state = getMultiblockState();
-        Map<BlockPos, TraceabilityPredicate> predicateMap = state.getMatchContext().get("predicates");
+        Map<BlockPos, TraceabilityPredicate> predicateMap = state.getFormedMatchContext().get("predicates");
         Direction patternFacing = state.getPatternFacing();
         Direction patternBaseFacing = state.getPatternBaseFacing();
         int end = Math.min(formedValidationPositions.length, formedValidationIndex + FORMED_VALIDATION_BATCH_SIZE);
@@ -241,9 +257,9 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      * Runs the full invalidation path and queues async pattern checking so a later valid structure can form again.
      */
     private void invalidateFormedStructure(ServerLevel serverLevel) {
-        onStructureInvalid();
         var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
         mwsd.removeMapping(getMultiblockState());
+        onStructureInvalid();
         mwsd.addAsyncLogic(this);
     }
 
@@ -270,7 +286,7 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                 case SUSPEND -> setMachineState("suspend");
             }
         } else {
-            setMachineState("base");
+            setMachineState(isAttachedToController() ? "formed" : getDefinition().stateMachine().getRootState().name());
         }
         MinecraftForge.EVENT_BUS.post(new MachineRecipeStatusChangedEvent(this, oldStatus, newStatus).postCustomEvent());
     }
@@ -364,6 +380,9 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     @SuppressWarnings("unused")
     protected void onPartsUpdated(BlockPos[] newValue, BlockPos[] oldValue) {
+        if (!isRemote()) {
+            return;
+        }
         parts.clear();
         for (var pos : newValue) {
             IMultiPart.ofPart(getLevel(), pos).ifPresent(parts::add);
@@ -392,13 +411,136 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
     @Override
     public List<IMultiPart> getParts() {
         // for the client side, when the chunk unloaded
-        if (parts.size() != this.partPositions.length) {
+        if (isRemote() && parts.size() != this.partPositions.length) {
             parts.clear();
             for (var pos : this.partPositions) {
                 IMultiPart.ofPart(getLevel(), pos).ifPresent(parts::add);
             }
         }
         return this.parts;
+    }
+
+    @Override
+    public boolean isPartEnabled() {
+        return Optional.ofNullable(getDefinition().partSettings()).map(ConfigPartSettings::isEnable).orElse(false);
+    }
+
+    @Override
+    public boolean isAttachedToController() {
+        return !outerControllerPositions.isEmpty();
+    }
+
+    @Override
+    public boolean hasController(BlockPos controllerPos) {
+        return outerControllerPositions.contains(controllerPos);
+    }
+
+    @Override
+    public List<IMultiController> getControllers() {
+        var result = new ArrayList<IMultiController>();
+        for (var blockPos : outerControllerPositions) {
+            IMultiController.ofController(getLevel(), blockPos).ifPresent(result::add);
+        }
+        return result;
+    }
+
+    @Override
+    public List<IRecipeHandlerTrait<?>> getRecipeHandlers() {
+        var handlers = new ArrayList<IRecipeHandlerTrait<?>>();
+        for (var additionalTrait : getAdditionalTraits()) {
+            handlers.addAll(additionalTrait.getRecipeHandlerTraits());
+        }
+        return handlers;
+    }
+
+    @Override
+    public void removedFromController(IMultiController controller) {
+        var changed = outerControllerPositions.remove(controller.getPos());
+        checkOuterDisabledRendering();
+        if (!isFormed() && !isAttachedToController()) {
+            setMachineState(getDefinition().stateMachine().getRootState().name());
+        }
+        if (changed) {
+            markDirty();
+        }
+        notifyBlockUpdate();
+    }
+
+    @Override
+    public void addedToController(IMultiController controller) {
+        var changed = outerControllerPositions.add(controller.getPos());
+        checkOuterDisabledRendering();
+        if (!isFormed() && isAttachedToController()) {
+            setMachineState("formed");
+        }
+        if (changed) {
+            markDirty();
+        }
+        notifyBlockUpdate();
+    }
+
+    private void checkOuterDisabledRendering() {
+        var result = false;
+        for (var controller : getControllers()) {
+            if (controller instanceof MBDMultiblockMachine machine &&
+                    machine.getRenderingDisabledPositions().contains(getPos())) {
+                result = true;
+                break;
+            }
+        }
+        outerDisableRendering = result;
+    }
+
+    @Override
+    public boolean canShared() {
+        return Optional.ofNullable(getDefinition().partSettings()).filter(ConfigPartSettings::isEnable).map(ConfigPartSettings::canShare).orElse(false);
+    }
+
+    @Override
+    public void notifyControllerRecipeStatusChanged(IMultiController controller, RecipeLogic.Status oldStatus, RecipeLogic.Status newStatus) {
+        if (isFormed()) {
+            return;
+        }
+        if (isAttachedToController()) {
+            switch (newStatus) {
+                case WORKING -> setMachineState("working");
+                case IDLE -> {
+                    if (getDefinition().stateMachine().hasState("formed")) {
+                        setMachineState("formed");
+                    } else {
+                        setMachineState(getDefinition().stateMachine().getRootState().name());
+                    }
+                }
+                case WAITING -> setMachineState("waiting");
+                case SUSPEND -> setMachineState("suspend");
+            }
+        } else {
+            setMachineState(getDefinition().stateMachine().getRootState().name());
+        }
+    }
+
+    @Override
+    public MBDRecipe modifyControllerRecipe(@Nonnull MBDRecipe recipe, RecipeLogic controllerRecipeLogic) {
+        if (getDefinition().partSettings() != null) {
+            return getDefinition().partSettings().recipeModifiers().applyModifiers(controllerRecipeLogic, recipe);
+        }
+        return recipe;
+    }
+
+    @Override
+    public ContentModifier getMaxControllerParallel(@Nonnull MBDRecipe recipe, RecipeLogic controllerRecipeLogic) {
+        if (getDefinition().partSettings() != null) {
+            return getDefinition().partSettings().recipeModifiers().getMaxParallel(controllerRecipeLogic, recipe);
+        }
+        return ContentModifier.IDENTITY;
+    }
+
+    @Override
+    public boolean alwaysTryModifyControllerRecipe() {
+        if (getDefinition().partSettings() != null) {
+            return !getDefinition().partSettings().recipeModifiers().recipeModifiers.isEmpty();
+        }
+        return false;
     }
 
     /**
@@ -413,7 +555,12 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     public void setFormed(boolean formed) {
         this.isFormed = formed;
-        setMachineState(isFormed ? "formed" : getDefinition().stateMachine().getRootState().name());
+        setMachineState(isFormed || isAttachedToController() ? "formed" : getDefinition().stateMachine().getRootState().name());
+    }
+
+    @Override
+    public boolean isDisableRendering() {
+        return outerDisableRendering;
     }
 
     /**
@@ -438,8 +585,8 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         super.initCapabilitiesProxy();
         if (isFormed()) {
             var capabilitiesProxy = getRecipeCapabilitiesProxy();
-            Map<Long, IO> ioMap = getMultiblockState().getMatchContext().getOrCreate("ioMap", Long2ObjectMaps::emptyMap);
-            Map<Long, Set<String>> slots = getMultiblockState().getMatchContext().getOrDefault("slots", Long2ObjectMaps.emptyMap());
+            Map<Long, IO> ioMap = getMultiblockState().getFormedMatchContext().getOrDefault("ioMap", Long2ObjectMaps.emptyMap());
+            Map<Long, Set<String>> slots = getMultiblockState().getFormedMatchContext().getOrDefault("slots", Long2ObjectMaps.emptyMap());
             for (IMultiPart part : getParts()) {
                 IO io = ioMap.getOrDefault(part.getPos().asLong(), IO.BOTH);
                 Set<String> slotNames = slots.getOrDefault(part.getPos().asLong(), Collections.emptySet());
@@ -478,10 +625,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         resetFormedValidation();
         setFormed(true);
         this.isFormedValid = true;
+        var previousParts = new LinkedHashSet<>(this.parts);
         this.parts.clear();
         this.renderingDisabledPositions.clear();
+        collectMatchedParts();
+        getDefinition().sortParts(this.parts);
         // disable rendering for formed parts
-        LongSet disabled = getMultiblockState().getMatchContext().getOrDefault("renderMask", LongSets.EMPTY_SET);
+        LongSet disabled = getMultiblockState().getFormedMatchContext().getOrDefault("renderMask", LongSets.EMPTY_SET);
         for (var pos : disabled) {
             var blockPos = BlockPos.of(pos);
             renderingDisabledPositions.add(blockPos);
@@ -496,23 +646,47 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
                 }
             }
         }
-        Set<IMultiPart> set = getMultiblockState().getMatchContext().getOrCreate("parts", Collections::emptySet);
-        for (IMultiPart part : set) {
-            if (shouldAddPartToController(part)) {
-                this.parts.add(part);
+        for (var part : previousParts) {
+            if (!this.parts.contains(part)) {
+                part.removedFromController(this);
             }
         }
-        getDefinition().sortParts(this.parts);
-        for (var part : parts) {
+        updatePartPositions();
+        for (var part : List.copyOf(parts)) {
             part.addedToController(this);
         }
-        updatePartPositions();
         // refresh traits
         initCapabilitiesProxy();
         // post event
         MinecraftForge.EVENT_BUS.post(new MachineStructureFormedEvent(this).postCustomEvent());
         // notify recipe logic
         notifyRecipeStatusChanged(getRecipeLogic().getStatus(), getRecipeLogic().getStatus());
+    }
+
+    private void collectMatchedParts() {
+        var collectedParts = new LinkedHashSet<IMultiPart>();
+        LongSet partPositions = getMultiblockState().getFormedMatchContext().getOrDefault("partPositions", LongSets.EMPTY_SET);
+        for (long pos : partPositions) {
+            IMultiPart.ofPart(getLevel(), BlockPos.of(pos)).ifPresent(part -> addMatchedPart(collectedParts, part));
+        }
+        Set<IMultiPart> set = getMultiblockState().getFormedMatchContext().getOrDefault("parts", Collections.emptySet());
+        for (IMultiPart part : set) {
+            addMatchedPart(collectedParts, part);
+        }
+        Map<Long, IO> ioMap = getMultiblockState().getFormedMatchContext().getOrDefault("ioMap", Long2ObjectMaps.emptyMap());
+        for (long pos : ioMap.keySet()) {
+            IMultiPart.ofPart(getLevel(), BlockPos.of(pos)).ifPresent(part -> addMatchedPart(collectedParts, part));
+        }
+        for (var pos : getMultiblockState().getCache()) {
+            IMultiPart.ofPart(getLevel(), pos).ifPresent(part -> addMatchedPart(collectedParts, part));
+        }
+        this.parts.addAll(collectedParts);
+    }
+
+    private void addMatchedPart(Set<IMultiPart> collectedParts, IMultiPart part) {
+        if (!part.getPos().equals(getPos()) && shouldAddPartToController(part)) {
+            collectedParts.add(part);
+        }
     }
 
     /**
@@ -529,11 +703,12 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         resetFormedValidation();
         setFormed(false);
         this.isFormedValid = false;
+        getMultiblockState().clearCommittedCache();
         // reset recipe Logic
         getRecipeLogic().resetRecipeLogic();
         var invalidParts = List.copyOf(parts);
         // clear parts
-        for (IMultiPart part : parts) {
+        for (IMultiPart part : invalidParts) {
             part.removedFromController(this);
         }
         this.parts.clear();

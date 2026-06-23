@@ -37,7 +37,8 @@ public interface IMultiPart extends IMachine {
     static Optional<IMultiPart> ofPart(@Nullable BlockEntity blockEntity) {
         return blockEntity == null ? Optional.empty() : blockEntity.getCapability(MBDCapabilities.CAPABILITY_MACHINE).resolve()
                 .filter(IMultiPart.class::isInstance)
-                .map(IMultiPart.class::cast);
+                .map(IMultiPart.class::cast)
+                .filter(IMultiPart::isPartEnabled);
     }
 
     /**
@@ -49,6 +50,18 @@ public interface IMultiPart extends IMachine {
      */
     static Optional<IMultiPart> ofPart(@Nonnull BlockGetter level, @Nonnull BlockPos pos) {
         return ofPart(level.getBlockEntity(pos));
+    }
+
+    /**
+     * Returns whether this machine should currently participate as a multiblock part.
+     *
+     * <p>Custom part implementations are enabled by default. Config-backed parts should return the state of their part
+     * settings toggle so merely having optional part settings does not make every machine a formed-structure part.</p>
+     *
+     * @return {@code true} when controllers may attach this part
+     */
+    default boolean isPartEnabled() {
+        return true;
     }
 
     /**
@@ -74,6 +87,19 @@ public interface IMultiPart extends IMachine {
      * @return {@code true} when attached to a formed controller
      */
     boolean isFormed();
+
+    /**
+     * Returns whether this machine is currently attached to at least one outer controller as a part.
+     * <p>
+     * This is normally the same as {@link #isFormed()} for simple part machines. Controllers that can also act as
+     * parts should override this because their own multiblock formed state is a different concept from outer-controller
+     * membership.
+     *
+     * @return {@code true} when this machine belongs to a formed outer controller
+     */
+    default boolean isAttachedToController() {
+        return isFormed();
+    }
 
     /**
      * Returns attached controllers.

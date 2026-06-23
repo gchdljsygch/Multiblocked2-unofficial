@@ -8,6 +8,7 @@ import net.minecraft.world.entity.player.Player;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -85,6 +86,12 @@ public class CombinedBlockPattern extends BlockPattern {
         return checkPatterns(worldState, pattern -> pattern.checkPatternAt(worldState, savePredicate));
     }
 
+    @Override
+    public boolean checkPatternAt(MultiblockState worldState, boolean savePredicate,
+                                  BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
+        return checkPatterns(worldState, pattern -> pattern.checkPatternAt(worldState, savePredicate, predicateMatcher));
+    }
+
     /**
      * Checks all alternatives at an explicit center and facing.
      *
@@ -97,6 +104,12 @@ public class CombinedBlockPattern extends BlockPattern {
     @Override
     public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate) {
         return checkPatterns(worldState, pattern -> pattern.checkPatternAt(worldState, centerPos, facing, savePredicate));
+    }
+
+    @Override
+    public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate,
+                                  BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
+        return checkPatterns(worldState, pattern -> pattern.checkPatternAt(worldState, centerPos, facing, savePredicate, predicateMatcher));
     }
 
     /**
@@ -164,21 +177,33 @@ public class CombinedBlockPattern extends BlockPattern {
      * @return {@code true} when a candidate matches
      */
     private boolean checkPatterns(MultiblockState worldState, Predicate<BlockPattern> checker) {
-        int matchedIndex = findPatternIndex(worldState.getMatchedPattern());
-        if (matchedIndex >= 0 && checker.test(patterns[matchedIndex])) {
-            worldState.setMatchedPattern(patterns[matchedIndex], matchedIndex);
-            return true;
-        }
-        for (int i = 0; i < patterns.length; i++) {
-            if (i == matchedIndex) continue;
-            BlockPattern pattern = patterns[i];
-            if (checker.test(pattern)) {
-                worldState.setMatchedPattern(pattern, i);
+        boolean commitSuccessfulMatches = worldState.shouldCommitSuccessfulMatches();
+        worldState.setCommitSuccessfulMatches(false);
+        try {
+            int matchedIndex = findPatternIndex(worldState.getMatchedPattern());
+            if (matchedIndex >= 0 && checker.test(patterns[matchedIndex])) {
+                worldState.setMatchedPattern(patterns[matchedIndex], matchedIndex);
+                if (commitSuccessfulMatches) {
+                    worldState.commitCache();
+                }
                 return true;
             }
+            for (int i = 0; i < patterns.length; i++) {
+                if (i == matchedIndex) continue;
+                BlockPattern pattern = patterns[i];
+                if (checker.test(pattern)) {
+                    worldState.setMatchedPattern(pattern, i);
+                    if (commitSuccessfulMatches) {
+                        worldState.commitCache();
+                    }
+                    return true;
+                }
+            }
+            worldState.setMatchedPattern(null);
+            return false;
+        } finally {
+            worldState.setCommitSuccessfulMatches(commitSuccessfulMatches);
         }
-        worldState.setMatchedPattern(null);
-        return false;
     }
 
     /**

@@ -538,8 +538,9 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
     /**
      * Creates the runtime machine object stored by a machine block entity.
      * <p>
-     * Definitions with part settings create {@link MBDPartMachine}; other definitions create {@link MBDMachine}. The
-     * factory is called from block entity construction/loading and should not perform registration.
+     * Definitions with part settings create {@link MBDPartMachine}; other definitions create {@link MBDMachine}. Disabled
+     * part settings are filtered by {@link MBDPartMachine#isPartEnabled()} so existing block entities can become valid
+     * parts after project reloads without recreating the block entity.
      *
      * @param blockEntity owning block entity wrapper
      * @return runtime machine instance for the owner

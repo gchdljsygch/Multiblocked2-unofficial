@@ -93,20 +93,32 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
                                        @Nullable ConfigMachineSettingsFactory machineSettingsFactory,
                                        @Nullable ConfigRecipeLogicSettings recipeLogicSettings,
                                        @Nullable ConfigMultiblockSettingsFactory multiblockSettingsFactory) {
-        super(id, rootState, blockProperties, itemProperties, machineSettingsFactory, recipeLogicSettings, null);
+        this(id, rootState, blockProperties, itemProperties, machineSettingsFactory, recipeLogicSettings, null, multiblockSettingsFactory);
+    }
+
+    public MultiblockMachineDefinition(ResourceLocation id,
+                                       @Nullable MachineState rootState,
+                                       @Nullable ConfigBlockProperties blockProperties,
+                                       @Nullable ConfigItemProperties itemProperties,
+                                       @Nullable ConfigMachineSettingsFactory machineSettingsFactory,
+                                       @Nullable ConfigRecipeLogicSettings recipeLogicSettings,
+                                       @Nullable ConfigPartSettingsFactory partSettingsFactory,
+                                       @Nullable ConfigMultiblockSettingsFactory multiblockSettingsFactory) {
+        super(id, rootState, blockProperties, itemProperties, machineSettingsFactory, recipeLogicSettings, partSettingsFactory);
         this.multiblockSettingsFactory = multiblockSettingsFactory == null ? () -> ConfigMultiblockSettings.builder().build() : multiblockSettingsFactory;
     }
 
     /**
-     * Disables proxy-part settings on multiblock controller definitions.
+     * Enables proxy-part settings on multiblock controller definitions.
      * <p>
-     * Controllers manage parts through multiblock pattern matching rather than acting as proxy parts themselves.
+     * A multiblock controller can also be matched as a part by an outer multiblock when the project enables part
+     * settings for this definition.
      *
-     * @return always {@code false}
+     * @return always {@code true}
      */
     @Override
     public boolean allowPartSettings() {
-        return false;
+        return true;
     }
 
     /**
@@ -523,7 +535,7 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
          * @return new multiblock definition instance
          */
         public MultiblockMachineDefinition build() {
-            return new MultiblockMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, multiblockSettings);
+            return new MultiblockMachineDefinition(id, rootState, blockProperties, itemProperties, machineSettings, recipeLogicSettings, partSettings, multiblockSettings);
         }
     }
 }

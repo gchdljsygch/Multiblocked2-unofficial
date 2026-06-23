@@ -45,6 +45,9 @@ public class MBDMixinPlugin implements IMixinConfigPlugin, MixinPluginShared {
         if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.fusion")) {
             return LoadingModList.get().getModFileById("fusion") != null;
         }
+        if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.jei")) {
+            return LoadingModList.get().getModFileById("jei") != null;
+        }
 //        if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.kjs") || mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.rhino")) {
 //            return MixinPluginShared.isClassFound("dev.latvian.mods.kubejs.KubeJSPlugin");
 //        } else if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.create")) {

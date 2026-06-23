@@ -74,7 +74,7 @@ public class ForgeCommonEventListener {
                     !(event.getEntity().getItemInHand(event.getHand()).getItem() instanceof MBDGadgetsItem)) {
                 // on multiblock ui click
                 for (var state : MultiblockWorldSavedData.getOrCreate(serverLevel).getControllerInPos(pos)) {
-                    LongSet openUIMask = state.getMatchContext().getOrDefault("openUIMask", LongSets.EMPTY_SET);
+                    LongSet openUIMask = state.getFormedMatchContext().getOrDefault("openUIMask", LongSets.EMPTY_SET);
                     if (state.getController() instanceof MBDMultiblockMachine machine) {
                         if (machine.getDefinition().machineSettings().hasUI() &&
                                 machine.getDefinition().multiblockSettings().showUIWhenClickStructure() &&

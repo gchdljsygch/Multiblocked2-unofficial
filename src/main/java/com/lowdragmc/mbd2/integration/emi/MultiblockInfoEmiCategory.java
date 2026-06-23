@@ -10,10 +10,15 @@ import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import dev.emi.emi.api.EmiRegistry;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.render.EmiTexture;
+import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * EMI category that shows preview pages for registered multiblock machine structures.
@@ -28,8 +33,16 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
         public final MultiblockMachineDefinition definition;
 
         public MultiblockInfoEmiRecipe(MultiblockMachineDefinition definition) {
-            super(() -> PatternPreviewWidget.getPatternWidget(definition));
+            this(definition, new PatternWidgetSupplier(definition));
+        }
+
+        private MultiblockInfoEmiRecipe(MultiblockMachineDefinition definition, PatternWidgetSupplier widgetSupplier) {
+            super(widgetSupplier);
             this.definition = definition;
+            inputs.clear();
+            inputs.addAll(createPatternInputs(widgetSupplier.initialWidget));
+            outputs.clear();
+            outputs.add(EmiStack.of(definition.asStack()));
         }
 
         @Override
@@ -45,6 +58,46 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
         @Override
         public void clearSlotWidgetHandler(SlotWidget slotW, int slotIndex) {
             super.clearSlotWidgetHandler(slotW, slotIndex);
+        }
+
+        private static List<EmiIngredient> createPatternInputs(PatternPreviewWidget widget) {
+            return widget.getCurrentPatternParts().stream()
+                    .map(MultiblockInfoEmiRecipe::createInput)
+                    .filter(input -> !input.isEmpty())
+                    .toList();
+        }
+
+        private static EmiIngredient createInput(List<ItemStack> candidates) {
+            var stacks = candidates.stream()
+                    .filter(stack -> stack != null && !stack.isEmpty())
+                    .map(stack -> EmiStack.of(stack.copy(), stack.getCount()))
+                    .toList();
+            if (stacks.isEmpty()) {
+                return EmiStack.EMPTY;
+            }
+            if (stacks.size() == 1) {
+                return stacks.get(0);
+            }
+            return EmiIngredient.of(stacks);
+        }
+
+        private static final class PatternWidgetSupplier implements Supplier<WidgetGroup> {
+
+            private final MultiblockMachineDefinition definition;
+            private PatternPreviewWidget initialWidget;
+
+            private PatternWidgetSupplier(MultiblockMachineDefinition definition) {
+                this.definition = definition;
+            }
+
+            @Override
+            public WidgetGroup get() {
+                var widget = PatternPreviewWidget.getPatternWidget(definition);
+                if (initialWidget == null) {
+                    initialWidget = widget;
+                }
+                return widget;
+            }
         }
     }
 

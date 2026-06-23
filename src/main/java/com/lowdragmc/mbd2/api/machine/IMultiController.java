@@ -246,7 +246,7 @@ public interface IMultiController extends IMachine {
         if ((getMultiblockState().hasError() || !isFormed())
                 && periodOffset % BASE_ASYNC_CHECK_INTERVAL == 0
                 && periodOffset % getAsyncCheckPatternInterval() == 0
-                && checkPatternWithTryLock()) {
+                && asyncPreviewPatternMatch()) {
             if (getLevel() instanceof ServerLevel serverLevel) {
                 serverLevel.getServer().execute(() -> {
                     var lock = getPatternLock();
@@ -263,6 +263,21 @@ public interface IMultiController extends IMachine {
                     }
                 });
             }
+        }
+    }
+
+    private boolean asyncPreviewPatternMatch() {
+        var lock = getPatternLock();
+        if (!lock.tryLock()) {
+            return false;
+        }
+        var state = getMultiblockState();
+        try {
+            state.setCommitSuccessfulMatches(false);
+            return checkPattern();
+        } finally {
+            state.setCommitSuccessfulMatches(true);
+            lock.unlock();
         }
     }
 

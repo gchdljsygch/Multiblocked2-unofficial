@@ -67,7 +67,7 @@ public class PredicateTags extends SimplePredicate {
         tags = Arrays.stream(tags).filter(Objects::nonNull).toArray(ResourceLocation[]::new);
         if (tags.length == 0) tags = new ResourceLocation[]{BlockTags.SAND.location()};
         var tagKeys = (TagKey<Block>[]) Arrays.stream(tags).map(BlockTags::create).toArray(TagKey[]::new);
-        predicate = state -> Arrays.stream(tagKeys).anyMatch(tagKey -> state.getBlockState().getBlock().builtInRegistryHolder().is(tagKey));
+        predicate = state -> Arrays.stream(tagKeys).anyMatch(tagKey -> state.getRepresentedBlockState().getBlock().builtInRegistryHolder().is(tagKey));
         candidates = Suppliers.memoize(() -> Arrays.stream(tagKeys).flatMap(tag -> {
             var opt = BuiltInRegistries.BLOCK.getTag(tag);
             if (opt.isPresent()) {

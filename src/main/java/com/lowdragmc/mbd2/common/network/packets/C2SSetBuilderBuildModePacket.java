@@ -13,8 +13,8 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Client-to-server request to toggle builder slow-build mode.
  *
- * <p>The server accepts the request only when the chosen hand still contains an {@link MBDGadgetsItem} configured as a
- * multiblock builder. This prevents a stale client UI from changing arbitrary stacks.</p>
+ * <p>The server accepts the request only when the chosen hand still contains an {@link MBDGadgetsItem}. Builder controls
+ * from the mode wheel also switch the gadget back to builder mode before storing the requested option.</p>
  */
 @NoArgsConstructor
 public class C2SSetBuilderBuildModePacket implements IPacket {
@@ -57,8 +57,8 @@ public class C2SSetBuilderBuildModePacket implements IPacket {
     /**
      * Stores the slow-build flag on the sender's held builder stack.
      *
-     * <p>Side effects on the logical server: mutates builder stack NBT and marks the inventory changed. Missing players,
-     * non-gadget stacks, and non-builder gadget modes are ignored.</p>
+     * <p>Side effects on the logical server: switches the gadget to builder mode, mutates builder stack NBT, and marks
+     * the inventory changed. Missing players and non-gadget stacks are ignored.</p>
      *
      * @param handler LowDragLib packet context
      */
@@ -70,8 +70,8 @@ public class C2SSetBuilderBuildModePacket implements IPacket {
         InteractionHand hand = handOrdinal == 1 ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
         ItemStack stack = player.getItemInHand(hand);
         if (!(stack.getItem() instanceof MBDGadgetsItem)) return;
-        if (!BuilderMaterialBindings.isBuilder(stack)) return;
 
+        stack.setDamageValue(0);
         BuilderMaterialBindings.setSlowBuild(stack, slowBuild);
         player.getInventory().setChanged();
     }

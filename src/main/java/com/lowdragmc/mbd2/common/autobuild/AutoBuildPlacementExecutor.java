@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.common.autobuild;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import com.lowdragmc.mbd2.api.pattern.util.PatternStateRotation;
+import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
@@ -185,12 +186,7 @@ public final class AutoBuildPlacementExecutor {
      * the unsided handler; empty when none are present
      */
     public static List<IItemHandler> collectItemHandlers(BlockEntity be) {
-        List<IItemHandler> handlers = new ArrayList<>();
-        for (Direction dir : Direction.values()) {
-            be.getCapability(ForgeCapabilities.ITEM_HANDLER, dir).resolve().ifPresent(handlers::add);
-        }
-        be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).resolve().ifPresent(handlers::add);
-        return handlers;
+        return BuilderMaterialBindings.collectItemHandlers(be);
     }
 
     /**

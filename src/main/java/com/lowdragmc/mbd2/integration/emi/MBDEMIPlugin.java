@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.integration.emi;
 
+import appeng.menu.me.items.PatternEncodingTermMenu;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import dev.emi.emi.api.EmiEntrypoint;
@@ -34,5 +35,9 @@ public class MBDEMIPlugin implements EmiPlugin {
         MultiblockInfoEmiCategory.registerWorkStations(registry);
         MBDRecipeTypeEmiCategory.registerWorkStations(registry);
         MBDRecipeTypeFuelEmiCategory.registerWorkStations(registry);
+        // recipe handlers
+        if (MBD2.isAE2Loaded()) {
+            registry.addRecipeHandler(PatternEncodingTermMenu.TYPE, new AE2PatternEncodingEmiHandler());
+        }
     }
 }

@@ -298,6 +298,7 @@ public class CommonProxy {
         event.register(ForgeRegistries.ITEMS.getRegistryKey(), helper -> {
             helper.register(MBD2.id("mbd_gadgets"), MBDRegistries.GADGETS_ITEM());
             helper.register(MBD2.id("mbd_selection_export_tool"), MBDRegistries.SELECTION_EXPORT_TOOL_ITEM());
+            helper.register(MBD2.id("mbd_disassembly_tool"), MBDRegistries.DISASSEMBLY_TOOL_ITEM());
         });
     }
 
@@ -323,6 +324,7 @@ public class CommonProxy {
         if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
             event.accept(MBDRegistries.GADGETS_ITEM());
             event.accept(MBDRegistries.SELECTION_EXPORT_TOOL_ITEM());
+            event.accept(MBDRegistries.DISASSEMBLY_TOOL_ITEM());
         }
     }
 }

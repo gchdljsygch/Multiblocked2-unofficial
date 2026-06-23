@@ -4,10 +4,8 @@ import com.google.common.base.Suppliers;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.ConfigSetter;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
-import com.lowdragmc.lowdraglib.gui.texture.ItemStackTexture;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import lombok.NoArgsConstructor;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.apache.commons.lang3.ArrayUtils;
@@ -68,7 +66,7 @@ public class PredicateBlocks extends SimplePredicate {
     public SimplePredicate buildPredicate() {
         blocks = Arrays.stream(blocks).filter(Objects::nonNull).toArray(Block[]::new);
         if (blocks.length == 0) blocks = new Block[]{Blocks.BARRIER};
-        predicate = state -> ArrayUtils.contains(blocks, state.getBlockState().getBlock());
+        predicate = state -> ArrayUtils.contains(blocks, state.getRepresentedBlockState().getBlock());
         candidates = Suppliers.memoize(() -> Arrays.stream(blocks).map(BlockInfo::fromBlock).toArray(BlockInfo[]::new));
         return super.buildPredicate();
     }

@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.common.machine;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.annotation.RequireRerender;
 import com.lowdragmc.lowdraglib.syncdata.annotation.RPCMethod;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
@@ -57,6 +58,7 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
     }
 
     @DescSynced
+    @Persisted
     @RequireRerender
     protected final Set<BlockPos> controllerPositions = new HashSet<>();
     @Getter
@@ -75,6 +77,11 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
      */
     public MBDPartMachine(IMachineBlockEntity machineHolder, MBDMachineDefinition definition, Object... args) {
         super(machineHolder, definition, args);
+    }
+
+    @Override
+    public boolean isPartEnabled() {
+        return Optional.ofNullable(getDefinition().partSettings()).map(ConfigPartSettings::isEnable).orElse(false);
     }
 
     /**
@@ -128,7 +135,7 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
     public void onUnload() {
         super.onUnload();
         var level = getLevel();
-        for (BlockPos pos : controllerPositions) {
+        for (BlockPos pos : List.copyOf(controllerPositions)) {
             if (level instanceof ServerLevel && level.isLoaded(pos)) {
                 IMultiController.ofController(getLevel(), pos).ifPresent(IMultiController::onPartUnload);
             }
@@ -143,22 +150,28 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
      */
     @Override
     public void removedFromController(IMultiController controller) {
-        controllerPositions.remove(controller.getPos());
+        var changed = controllerPositions.remove(controller.getPos());
         checkDisabledRendering();
         if (!isFormed()) {
-            setMachineState("base");
+            setMachineState(getDefinition().stateMachine().getRootState().name());
             proxiedTraitRenderItems.clear();
             syncProxiedTraitRenderItems();
+        }
+        if (changed) {
+            markDirty();
         }
         notifyBlockUpdate();
     }
 
     @Override
     public void addedToController(IMultiController controller) {
-        controllerPositions.add(controller.getPos());
+        var changed = controllerPositions.add(controller.getPos());
         checkDisabledRendering();
         if (isFormed()) {
             setMachineState("formed");
+        }
+        if (changed) {
+            markDirty();
         }
         notifyBlockUpdate();
     }
@@ -184,7 +197,7 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
      */
     @Override
     public boolean canShared() {
-        return Optional.ofNullable(getDefinition().partSettings()).map(ConfigPartSettings::canShare).orElse(true);
+        return Optional.ofNullable(getDefinition().partSettings()).filter(ConfigPartSettings::isEnable).map(ConfigPartSettings::canShare).orElse(false);
     }
 
     /**
@@ -200,14 +213,14 @@ public class MBDPartMachine extends MBDMachine implements IMultiPart {
                     if (getDefinition().stateMachine().hasState("formed")) {
                         setMachineState("formed");
                     } else {
-                        setMachineState("base");
+                        setMachineState(getDefinition().stateMachine().getRootState().name());
                     }
                 }
                 case WAITING -> setMachineState("waiting");
                 case SUSPEND -> setMachineState("suspend");
             }
         } else {
-            setMachineState("base");
+            setMachineState(getDefinition().stateMachine().getRootState().name());
         }
     }
 

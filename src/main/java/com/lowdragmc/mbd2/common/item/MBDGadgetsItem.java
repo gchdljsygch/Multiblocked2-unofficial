@@ -179,7 +179,9 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             var item = BuilderMaterialBindings.readBoundItemPos(stack);
             if (item != null) {
                 var p = item.pos();
-                components.add(Component.translatable("mbd2.builder.bind.item.tooltip", p.getX(), p.getY(), p.getZ()));
+                String tooltipKey = BuilderMaterialBindings.isBoundItemSourceME(stack) ?
+                        "mbd2.builder.bind.me.tooltip" : "mbd2.builder.bind.item.tooltip";
+                components.add(Component.translatable(tooltipKey, p.getX(), p.getY(), p.getZ()));
             }
 
             var fluid = BuilderMaterialBindings.readBoundFluidPos(stack);
@@ -242,6 +244,12 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
             BlockEntity be = level.getBlockEntity(pos);
             if (be == null) {
                 serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.failure.no_capability"), true);
+                return InteractionResult.SUCCESS;
+            }
+
+            if (BuilderMaterialBindings.hasMEItemStorage(be)) {
+                BuilderMaterialBindings.bindMEItemPos(stack, level, pos);
+                serverPlayer.displayClientMessage(Component.translatable("mbd2.builder.bind.me.success", pos.getX(), pos.getY(), pos.getZ()), true);
                 return InteractionResult.SUCCESS;
             }
 

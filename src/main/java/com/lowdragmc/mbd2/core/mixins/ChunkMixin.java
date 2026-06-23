@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.core.mixins;
 
 import com.lowdragmc.mbd2.api.pattern.MultiblockWorldSavedData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -41,17 +42,14 @@ public class ChunkMixin {
      * @param cir      mixin callback info for the original return value
      */
     // We want to be as quick as possible here
-    @Inject(method = "setBlockState", at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/world/level/block/state/BlockState;hasBlockEntity()Z",
-            ordinal = 2))
+    @Inject(method = "setBlockState", at = @At("RETURN"))
     private void onAddingBlock(BlockPos pos, BlockState state, boolean isMoving, CallbackInfoReturnable<BlockState> cir) {
         MinecraftServer server = level.getServer();
         if (server != null) {
             if (level instanceof ServerLevel serverLevel) {
                 for (var structure : MultiblockWorldSavedData.getOrCreate(serverLevel).getControllerInPos(pos)) {
                     if (structure.isPosInCache(pos)) {
-                        server.executeBlocking(() -> structure.onBlockStateChanged(pos, state));
+                        server.tell(new TickTask(0, () -> structure.onBlockStateChanged(pos, state)));
                     }
                 }
             }
