@@ -161,6 +161,86 @@ public class BlockPattern {
     }
 
     /**
+     * Builds concrete predicate-position maps for possible repeat counts.
+     *
+     * <p>Business goal: tools such as partial disassembly can reason about a
+     * pattern's geometry without requiring the whole structure to match first.
+     * Side effects: none.</p>
+     *
+     * @param centerPos   absolute controller position
+     * @param facing      controller/front facing used to resolve relative axes
+     * @param maxVariants upper bound for generated repeat combinations
+     * @return predicate maps keyed by absolute block position
+     */
+    public List<Map<BlockPos, TraceabilityPredicate>> getPredicatePositionVariants(BlockPos centerPos, Direction facing, int maxVariants) {
+        List<Map<BlockPos, TraceabilityPredicate>> variants = new ArrayList<>();
+        if (fingerLength <= 0 || thumbLength <= 0 || palmLength <= 0 || maxVariants <= 0) {
+            return variants;
+        }
+        int[] maxRepetitions = new int[fingerLength];
+        for (int layer = 0; layer < fingerLength; layer++) {
+            maxRepetitions[layer] = getMaxRepetition(layer);
+        }
+        variants.add(buildPredicatePositionVariant(centerPos, facing, maxRepetitions));
+        collectPredicatePositionVariants(centerPos, facing, maxVariants, variants, new int[fingerLength], 0);
+        return variants;
+    }
+
+    private void collectPredicatePositionVariants(BlockPos centerPos, Direction facing, int maxVariants,
+                                                  List<Map<BlockPos, TraceabilityPredicate>> variants,
+                                                  int[] repetitions, int layer) {
+        if (variants.size() >= maxVariants) {
+            return;
+        }
+        if (layer >= fingerLength) {
+            variants.add(buildPredicatePositionVariant(centerPos, facing, repetitions));
+            return;
+        }
+        int min = 1;
+        int max = 1;
+        if (layer < aisleRepetitions.length && aisleRepetitions[layer].length > 1) {
+            min = Math.max(0, aisleRepetitions[layer][0]);
+            max = Math.max(min, aisleRepetitions[layer][1]);
+        }
+        for (int repeat = min; repeat <= max && variants.size() < maxVariants; repeat++) {
+            repetitions[layer] = repeat;
+            collectPredicatePositionVariants(centerPos, facing, maxVariants, variants, repetitions, layer + 1);
+        }
+    }
+
+    private int getMaxRepetition(int layer) {
+        if (layer < aisleRepetitions.length && aisleRepetitions[layer].length > 1) {
+            return Math.max(0, Math.max(aisleRepetitions[layer][0], aisleRepetitions[layer][1]));
+        }
+        return 1;
+    }
+
+    private Map<BlockPos, TraceabilityPredicate> buildPredicatePositionVariant(BlockPos centerPos, Direction facing, int[] repetitions) {
+        Map<BlockPos, TraceabilityPredicate> predicates = new LinkedHashMap<>();
+        int z = 0;
+        for (int c = 0; c < centerOffset[2] && c < repetitions.length; c++) {
+            z -= repetitions[c];
+        }
+        for (int c = 0; c < fingerLength; c++) {
+            int repeatCount = c < repetitions.length ? repetitions[c] : 1;
+            for (int r = 0; r < repeatCount; r++) {
+                for (int b = 0, y = -centerOffset[1]; b < thumbLength; b++, y++) {
+                    for (int a = 0, x = -centerOffset[0]; a < palmLength; a++, x++) {
+                        TraceabilityPredicate predicate = blockMatches[c][b][a];
+                        if (predicate.addCache()) {
+                            BlockPos pos = setActualRelativeOffset(x, y, z, facing)
+                                    .offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
+                            predicates.put(pos.immutable(), predicate);
+                        }
+                    }
+                }
+                z++;
+            }
+        }
+        return predicates;
+    }
+
+    /**
      * Checks this pattern at the state's controller position without requiring a
      * controller capability.
      *

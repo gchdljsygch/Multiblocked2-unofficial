@@ -403,6 +403,12 @@ public final class BuilderMaterialBindings {
         return handlers;
     }
 
+    public static List<IItemHandler> collectMEItemHandlers(BlockEntity be) {
+        List<IItemHandler> handlers = new ArrayList<>();
+        collectAE2ItemHandlers(be, handlers);
+        return handlers;
+    }
+
     @SuppressWarnings("unchecked")
     private static void collectAE2ItemHandlers(BlockEntity be, List<IItemHandler> handlers) {
         if (!MBD2.isAE2Loaded()) return;

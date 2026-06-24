@@ -114,7 +114,7 @@ public final class MEStorageItemHandlers {
 
         @Override
         public int getSlots() {
-            return Math.max(1, snapshot().size());
+            return snapshot().size() + 1;
         }
 
         @Override

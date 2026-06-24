@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.common.item;
 
 import com.lowdragmc.mbd2.api.machine.IMultiController;
+import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.pattern.BlockPattern;
 import com.lowdragmc.mbd2.api.pattern.CombinedBlockPattern;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
@@ -63,7 +64,11 @@ import java.util.Objects;
 public class MultiblockDisassemblyToolItem extends Item {
     private static final String TAG_BOUND_DIM = "mbd2_disassembly_bound_dim";
     private static final String TAG_BOUND_POS = "mbd2_disassembly_bound_pos";
+    private static final String TAG_BOUND_SOURCE_TYPE = "mbd2_disassembly_bound_source_type";
     private static final String TAG_SLOW = "mbd2_disassembly_slow";
+    private static final String SOURCE_TYPE_ME = "me";
+    private static final Direction[] HORIZONTAL_FACINGS = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST};
+    private static final int MAX_PARTIAL_PATTERN_VARIANTS = 64;
 
     private boolean handledBlockUse;
 
@@ -89,7 +94,10 @@ public class MultiblockDisassemblyToolItem extends Item {
         BoundPos bound = readBoundPos(stack);
         if (bound != null) {
             BlockPos pos = bound.pos();
-            components.add(Component.translatable("item.mbd2.mbd_disassembly_tool.tooltip.bound",
+            String tooltipKey = isBoundSourceME(stack)
+                    ? "item.mbd2.mbd_disassembly_tool.tooltip.bound.me"
+                    : "item.mbd2.mbd_disassembly_tool.tooltip.bound";
+            components.add(Component.translatable(tooltipKey,
                     pos.getX(), pos.getY(), pos.getZ()).withStyle(ChatFormatting.DARK_AQUA));
         }
     }
@@ -144,11 +152,25 @@ public class MultiblockDisassemblyToolItem extends Item {
         Level level = context.getLevel();
         BlockPos pos = context.getClickedPos();
         BlockEntity be = level.getBlockEntity(pos);
-        if (be == null || (!BuilderMaterialBindings.hasItemHandler(be) && !BuilderMaterialBindings.hasFluidHandler(be))) {
+        if (be == null) {
             player.displayClientMessage(Component.translatable("item.mbd2.mbd_disassembly_tool.bind.failure"), true);
             return InteractionResult.SUCCESS;
         }
-        writeBoundPos(stack, level, pos);
+
+        if (BuilderMaterialBindings.hasMEItemStorage(be)) {
+            writeBoundPos(stack, level, pos, true);
+            player.displayClientMessage(Component.translatable("item.mbd2.mbd_disassembly_tool.bind.me.success",
+                    pos.getX(), pos.getY(), pos.getZ()), true);
+            player.getInventory().setChanged();
+            return InteractionResult.SUCCESS;
+        }
+
+        if (!BuilderMaterialBindings.hasItemHandler(be) && !BuilderMaterialBindings.hasFluidHandler(be)) {
+            player.displayClientMessage(Component.translatable("item.mbd2.mbd_disassembly_tool.bind.failure"), true);
+            return InteractionResult.SUCCESS;
+        }
+
+        writeBoundPos(stack, level, pos, false);
         player.displayClientMessage(Component.translatable("item.mbd2.mbd_disassembly_tool.bind.success",
                 pos.getX(), pos.getY(), pos.getZ()), true);
         player.getInventory().setChanged();
@@ -187,37 +209,43 @@ public class MultiblockDisassemblyToolItem extends Item {
 
     @Nullable
     private static MatchPlan findMatchingPlan(Level level, IMultiController controller) {
-        List<BlockPattern> patterns = getDisassemblyPatterns(controller);
-        if (patterns.isEmpty()) {
-            return null;
-        }
         var lock = controller.getPatternLock();
         lock.lock();
         try {
+            MatchPlan formedPlan = tryCreateFormedMatchingPlan(level, controller);
+            if (formedPlan != null && !formedPlan.entries().isEmpty()) {
+                return formedPlan;
+            }
+            List<BlockPattern> patterns = getDisassemblyPatterns(controller);
+            if (patterns.isEmpty()) {
+                return null;
+            }
             for (BlockPattern pattern : patterns) {
-                MatchPlan plan = tryCreateMatchingPlan(level, controller, pattern);
+                MatchPlan plan = tryCreateStrictMatchingPlan(level, controller, pattern);
                 if (plan != null && !plan.entries().isEmpty()) {
                     return plan;
                 }
             }
+            MatchPlan bestPartialPlan = null;
+            for (BlockPattern pattern : patterns) {
+                bestPartialPlan = betterPlan(bestPartialPlan, tryCreateDisassemblyMatchingPlan(level, controller, pattern));
+                bestPartialPlan = betterPlan(bestPartialPlan, tryCreateGeometryMatchingPlan(level, controller, pattern));
+            }
+            return bestPartialPlan;
         } finally {
             lock.unlock();
         }
-        return null;
     }
 
     private static List<BlockPattern> getDisassemblyPatterns(IMultiController controller) {
         List<BlockPattern> patterns = new ArrayList<>();
         addPattern(patterns, controller.getMultiblockState().getMatchedPattern());
-        boolean addedDefinitionPattern = false;
         if (controller instanceof MBDMultiblockMachine multiblock) {
             for (BlockPattern pattern : multiblock.getDefinition().getPatterns(multiblock)) {
-                addedDefinitionPattern |= addPattern(patterns, pattern);
+                addPattern(patterns, pattern);
             }
         }
-        if (!addedDefinitionPattern) {
-            addPattern(patterns, controller.getPattern());
-        }
+        addPattern(patterns, controller.getPattern());
         return patterns;
     }
 
@@ -237,23 +265,97 @@ public class MultiblockDisassemblyToolItem extends Item {
     }
 
     @Nullable
-    private static MatchPlan tryCreateMatchingPlan(Level level, IMultiController controller, BlockPattern pattern) {
-        MultiblockState state = new MultiblockState(level, controller.getPos());
-        if (!pattern.checkPatternAt(state, true, MultiblockDisassemblyToolItem::matchesPredicateForDisassembly)) {
+    private static MatchPlan tryCreateFormedMatchingPlan(Level level, IMultiController controller) {
+        if (!controller.isFormed()) {
             return null;
         }
+        MultiblockState state = controller.getMultiblockState();
+        Map<BlockPos, TraceabilityPredicate> predicates = state.getFormedMatchContext().get("predicates");
+        if (predicates == null || predicates.isEmpty()) {
+            return null;
+        }
+        return createMatchingPlan(level, controller, predicates, state.getPatternFacing(), state.getPatternBaseFacing(), true);
+    }
+
+    @Nullable
+    private static MatchPlan tryCreateStrictMatchingPlan(Level level, IMultiController controller, BlockPattern pattern) {
+        MultiblockState normalState = new MultiblockState(level, controller.getPos());
+        if (pattern.checkPatternAt(normalState, true)) {
+            return createMatchingPlan(level, controller, normalState, true);
+        }
+        return null;
+    }
+
+    @Nullable
+    private static MatchPlan tryCreateDisassemblyMatchingPlan(Level level, IMultiController controller, BlockPattern pattern) {
+        MultiblockState disassemblyState = new MultiblockState(level, controller.getPos());
+        if (pattern.checkPatternAt(disassemblyState, true, MultiblockDisassemblyToolItem::matchesPredicateForDisassembly)) {
+            return createMatchingPlan(level, controller, disassemblyState, true);
+        }
+        return null;
+    }
+
+    @Nullable
+    private static MatchPlan tryCreateGeometryMatchingPlan(Level level, IMultiController controller, BlockPattern pattern) {
+        MatchPlan bestPlan = null;
+        for (Direction facing : getCandidateFacings(controller)) {
+            for (Map<BlockPos, TraceabilityPredicate> predicates : pattern.getPredicatePositionVariants(controller.getPos(), facing, MAX_PARTIAL_PATTERN_VARIANTS)) {
+                if (predicates.isEmpty()) {
+                    continue;
+                }
+                bestPlan = betterPlan(bestPlan, createMatchingPlan(level, controller, predicates, facing, pattern.mbd2$getBaseFacing(), true));
+            }
+        }
+        return bestPlan;
+    }
+
+    private static Direction[] getCandidateFacings(IMultiController controller) {
+        return controller.hasFrontFacing()
+                ? new Direction[]{controller.getFrontFacing().orElse(Direction.NORTH)}
+                : HORIZONTAL_FACINGS;
+    }
+
+    @Nullable
+    private static MatchPlan betterPlan(@Nullable MatchPlan current, @Nullable MatchPlan candidate) {
+        if (candidate == null || candidate.entries().isEmpty()) {
+            return current;
+        }
+        if (current == null || candidate.entries().size() > current.entries().size()) {
+            return candidate;
+        }
+        return current;
+    }
+
+    @Nullable
+    private static MatchPlan createMatchingPlan(Level level, IMultiController controller, MultiblockState state, boolean verifyEntries) {
         Map<BlockPos, TraceabilityPredicate> predicates = state.getMatchContext().get("predicates");
         if (predicates == null || predicates.isEmpty()) {
+            return null;
+        }
+        return createMatchingPlan(level, controller, predicates, state.getPatternFacing(), state.getPatternBaseFacing(), verifyEntries);
+    }
+
+    @Nullable
+    private static MatchPlan createMatchingPlan(Level level, IMultiController controller, Map<BlockPos, TraceabilityPredicate> predicates,
+                                                Direction patternFacing, Direction patternBaseFacing, boolean verifyEntries) {
+        if (predicates.isEmpty()) {
             return null;
         }
         List<DisassemblyEntry> entries = new ArrayList<>();
         for (var entry : predicates.entrySet()) {
             TraceabilityPredicate predicate = entry.getValue();
-            if (predicate == null || containsAnyPredicate(predicate) || predicate.isAir()) {
+            if (predicate == null || predicate.isAny() || predicate.isAir()) {
                 continue;
             }
-            entries.add(new DisassemblyEntry(entry.getKey().immutable(), controller.getPos().immutable(), predicate,
-                    state.getPatternFacing(), state.getPatternBaseFacing()));
+            BlockState blockState = level.getBlockState(entry.getKey());
+            if (blockState.isAir()) {
+                continue;
+            }
+            DisassemblyEntry disassemblyEntry = new DisassemblyEntry(entry.getKey().immutable(), controller.getPos().immutable(), predicate,
+                    patternFacing, patternBaseFacing);
+            if (!verifyEntries || matchesEntryPredicate(level, disassemblyEntry, blockState)) {
+                entries.add(disassemblyEntry);
+            }
         }
         entries.sort(Comparator.comparing((DisassemblyEntry entry) -> entry.pos().equals(controller.getPos())));
         return new MatchPlan(entries);
@@ -291,7 +393,7 @@ public class MultiblockDisassemblyToolItem extends Item {
     }
 
     private static boolean matchesEntryPredicate(Level level, DisassemblyEntry entry, BlockState state) {
-        if (containsAnyPredicate(entry.predicate()) || entry.predicate().isAir()) {
+        if (entry.predicate().isAny() || entry.predicate().isAir()) {
             return false;
         }
         CheckState checkState = new CheckState(level, entry.controllerPos());
@@ -303,12 +405,12 @@ public class MultiblockDisassemblyToolItem extends Item {
             represented = state;
         }
         for (SimplePredicate simplePredicate : entry.predicate().limited) {
-            if (limitedMatchesForDisassembly(simplePredicate, checkState, represented)) {
+            if (limitedMatchesForDisassembly(simplePredicate, checkState, represented, false)) {
                 return true;
             }
         }
         for (SimplePredicate simplePredicate : entry.predicate().common) {
-            if (commonMatchesForDisassembly(simplePredicate, checkState, represented)) {
+            if (commonMatchesForDisassembly(simplePredicate, checkState, represented, false)) {
                 return true;
             }
         }
@@ -319,38 +421,50 @@ public class MultiblockDisassemblyToolItem extends Item {
         if (predicate == null) {
             return false;
         }
-        if (containsAnyPredicate(predicate)) {
-            return true;
-        }
-        if (predicate.isAir()) {
-            return predicate.test(state);
-        }
+        state.io = IO.BOTH;
+        boolean hasAny = containsAnyPredicate(predicate);
         BlockState represented = state.getRepresentedBlockState();
+        boolean matched = false;
         for (SimplePredicate simplePredicate : predicate.limited) {
-            if (limitedMatchesForDisassembly(simplePredicate, state, represented)) {
-                return true;
+            if (limitedMatchesForDisassembly(simplePredicate, state, represented, true)) {
+                matched = true;
             }
         }
-        for (SimplePredicate simplePredicate : predicate.common) {
-            if (commonMatchesForDisassembly(simplePredicate, state, represented)) {
-                return true;
+        if (!matched) {
+            for (SimplePredicate simplePredicate : predicate.common) {
+                if (commonMatchesForDisassembly(simplePredicate, state, represented, true)) {
+                    matched = true;
+                    break;
+                }
             }
         }
-        return false;
+        matched |= hasAny;
+        if (matched) {
+            state.setError(null);
+        }
+        return matched;
     }
 
-    private static boolean commonMatchesForDisassembly(SimplePredicate predicate, MultiblockState checkState, BlockState represented) {
-        if (predicate == SimplePredicate.ANY || predicate == SimplePredicate.AIR) {
+    private static boolean commonMatchesForDisassembly(SimplePredicate predicate, MultiblockState checkState, BlockState represented, boolean allowAir) {
+        if (predicate == SimplePredicate.ANY) {
             return false;
+        }
+        if (predicate == SimplePredicate.AIR) {
+            return allowAir && predicate.predicate.test(checkState) && simpleInnerConditionsMatch(predicate, checkState);
         }
         return baseMatchesForDisassembly(predicate, checkState, represented) && simpleInnerConditionsMatch(predicate, checkState);
     }
 
-    private static boolean limitedMatchesForDisassembly(SimplePredicate predicate, MultiblockState checkState, BlockState represented) {
-        if (predicate == SimplePredicate.ANY || predicate == SimplePredicate.AIR) {
+    private static boolean limitedMatchesForDisassembly(SimplePredicate predicate, MultiblockState checkState, BlockState represented, boolean allowAir) {
+        if (predicate == SimplePredicate.ANY) {
             return false;
         }
-        boolean base = baseMatchesForDisassembly(predicate, checkState, represented);
+        if (predicate == SimplePredicate.AIR && !allowAir) {
+            return false;
+        }
+        boolean base = predicate == SimplePredicate.AIR
+                ? predicate.predicate.test(checkState)
+                : baseMatchesForDisassembly(predicate, checkState, represented);
         return testGlobalForDisassembly(predicate, checkState, base)
                 && testLayerForDisassembly(predicate, checkState, base)
                 && simpleInnerConditionsMatch(predicate, checkState);
@@ -688,7 +802,9 @@ public class MultiblockDisassemblyToolItem extends Item {
             return BoundHandlers.EMPTY;
         }
         IItemHandler itemHandler = null;
-        List<IItemHandler> itemHandlers = BuilderMaterialBindings.collectItemHandlers(be);
+        List<IItemHandler> itemHandlers = isBoundSourceME(stack)
+                ? BuilderMaterialBindings.collectMEItemHandlers(be)
+                : BuilderMaterialBindings.collectItemHandlers(be);
         if (itemHandlers.size() == 1) {
             itemHandler = itemHandlers.get(0);
         } else if (itemHandlers.size() > 1) {
@@ -723,10 +839,20 @@ public class MultiblockDisassemblyToolItem extends Item {
         stack.getOrCreateTag().putBoolean(TAG_SLOW, slow);
     }
 
-    private static void writeBoundPos(ItemStack stack, Level level, BlockPos pos) {
+    private static void writeBoundPos(ItemStack stack, Level level, BlockPos pos, boolean meSource) {
         CompoundTag tag = stack.getOrCreateTag();
         tag.putString(TAG_BOUND_DIM, level.dimension().location().toString());
         tag.putLong(TAG_BOUND_POS, pos.asLong());
+        if (meSource) {
+            tag.putString(TAG_BOUND_SOURCE_TYPE, SOURCE_TYPE_ME);
+        } else {
+            tag.remove(TAG_BOUND_SOURCE_TYPE);
+        }
+    }
+
+    private static boolean isBoundSourceME(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        return tag != null && SOURCE_TYPE_ME.equals(tag.getString(TAG_BOUND_SOURCE_TYPE));
     }
 
     @Nullable
