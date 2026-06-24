@@ -14,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -37,6 +38,9 @@ public class MbdGadgetModeWheelScreen extends Screen {
     private static final int PATTERN_CONTROL_GAP = 3;
     private static final int PATTERN_CONTROL_MARGIN = 8;
     private static final int PATTERN_INPUT_MAX_LENGTH = 10;
+    private static final ResourceLocation WHEEL_BUILDER_ICON = MBD2.id("textures/item/mbd_multiblock_builder.png");
+    private static final ResourceLocation WHEEL_RECIPE_DEBUGGER_ICON = MBD2.id("textures/item/mbd_recipe_debugger.png");
+    private static final ResourceLocation WHEEL_MULTIBLOCK_DEBUGGER_ICON = MBD2.id("textures/item/mbd_multiblock_debugger.png");
 
     private final List<Entry> entries = new ArrayList<>();
     @Nullable
@@ -69,23 +73,23 @@ public class MbdGadgetModeWheelScreen extends Screen {
         ItemStack held = getHeld(targetHand);
         entries.add(Entry.mode(0,
                 Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.mode.builder"),
-                held.copyWithCount(1)));
+                WHEEL_BUILDER_ICON));
         entries.add(Entry.mode(1,
                 Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.mode.recipe_debugger"),
-                held.copyWithCount(1)));
+                WHEEL_RECIPE_DEBUGGER_ICON));
         entries.add(Entry.mode(2,
                 Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.mode.multiblock_debugger"),
-                held.copyWithCount(1)));
+                WHEEL_MULTIBLOCK_DEBUGGER_ICON));
 
         boolean slowBuild = BuilderMaterialBindings.isSlowBuild(held);
         selectedPatternIndex = BuilderMaterialBindings.getPatternIndex(held);
         entries.add(Entry.builderToggle(
                 Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_mode"),
                 slowBuild,
-                held.copyWithCount(1)));
+                WHEEL_BUILDER_ICON));
         entries.add(Entry.builderPattern(
                 Component.translatable("screen." + MBD2.MOD_ID + ".gadget_wheel.builder_pattern"),
-                held.copyWithCount(1)));
+                WHEEL_BUILDER_ICON));
         createPatternInput();
     }
 
@@ -119,9 +123,7 @@ public class MbdGadgetModeWheelScreen extends Screen {
             graphics.fill(x0, y0, x1, y1, bg);
             graphics.renderOutline(x0, y0, ENTRY_BOX, ENTRY_BOX, i == selected ? 0xFFFFD080 : 0xFF404040);
 
-            if (!e.icon.isEmpty()) {
-                graphics.renderItem(e.icon, ex - 8, y0 + 3);
-            }
+            graphics.blit(e.icon, ex - 8, y0 + 3, 0, 0, 16, 16, 16, 16);
             if (e.type == EntryType.BUILDER_TOGGLE || e.type == EntryType.BUILDER_PATTERN) {
                 graphics.pose().pushPose();
                 graphics.pose().translate(ex, y0 + 22, 0);
@@ -452,30 +454,27 @@ public class MbdGadgetModeWheelScreen extends Screen {
      * @param modeDamage   gadget damage value for mode entries
      * @param builderSlow  current builder build mode for toggle entries
      * @param label        text drawn under the icon
-     * @param icon         single-item icon stack used for rendering
+     * @param icon         texture used for rendering this wheel entry
      */
-    private record Entry(EntryType type, int modeDamage, boolean builderSlow, Component label, ItemStack icon) {
+    private record Entry(EntryType type, int modeDamage, boolean builderSlow, Component label, ResourceLocation icon) {
         /**
-         * Creates a base gadget-mode entry and stamps the icon with the target damage value.
+         * Creates a base gadget-mode entry.
          */
-        private static Entry mode(int modeDamage, Component label, ItemStack icon) {
-            icon.setDamageValue(modeDamage);
+        private static Entry mode(int modeDamage, Component label, ResourceLocation icon) {
             return new Entry(EntryType.MODE, modeDamage, false, label, icon);
         }
 
         /**
          * Creates a builder-mode toggle entry.
          */
-        private static Entry builderToggle(Component label, boolean slow, ItemStack icon) {
-            icon.setDamageValue(0);
+        private static Entry builderToggle(Component label, boolean slow, ResourceLocation icon) {
             return new Entry(EntryType.BUILDER_TOGGLE, -1, slow, label, icon);
         }
 
         /**
          * Creates a builder-pattern selection entry.
          */
-        private static Entry builderPattern(Component label, ItemStack icon) {
-            icon.setDamageValue(0);
+        private static Entry builderPattern(Component label, ResourceLocation icon) {
             return new Entry(EntryType.BUILDER_PATTERN, -1, false, label, icon);
         }
     }

@@ -1,10 +1,16 @@
 package com.lowdragmc.mbd2.client;
 
 import com.lowdragmc.mbd2.MBD2;
+import com.lowdragmc.mbd2.api.registry.MBDRegistries;
 import com.lowdragmc.mbd2.client.screen.MbdGadgetModeWheelScreen;
+import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterItemDecorationsEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -42,6 +48,23 @@ public final class MBDClientEvents {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(OPEN_GADGET_WHEEL);
+    }
+
+    @SubscribeEvent
+    public static void onRegisterItemDecorations(RegisterItemDecorationsEvent event) {
+        event.register(MBDRegistries.GADGETS_ITEM(), MBDClientEvents::renderBuilderPatternIndex);
+    }
+
+    private static boolean renderBuilderPatternIndex(GuiGraphics graphics, Font font, ItemStack stack, int xOffset, int yOffset) {
+        if (!BuilderMaterialBindings.isBuilder(stack)) return false;
+
+        String patternIndex = String.valueOf(BuilderMaterialBindings.getPatternIndex(stack) + 1);
+        graphics.pose().pushPose();
+        graphics.pose().translate(xOffset, yOffset, 200.0F);
+        graphics.pose().scale(0.75F, 0.75F, 1.0F);
+        graphics.drawString(font, patternIndex, 1, 1, 0xFFFFFF, true);
+        graphics.pose().popPose();
+        return true;
     }
 
     /**
