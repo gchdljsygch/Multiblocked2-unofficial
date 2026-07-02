@@ -245,8 +245,11 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      * Rebuilds world-saved-data mappings after the cached formed structure still matches the world.
      */
     private void refreshFormedStructure(ServerLevel serverLevel) {
+        var previousSnapshot = getMultiblockState().createFormedSnapshot();
         if (checkPatternWithTryLock()) {
-            onStructureFormed();
+            if (!getMultiblockState().matchesFormedSnapshot(previousSnapshot)) {
+                onStructureFormed();
+            }
             var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
             mwsd.addMapping(getMultiblockState());
             mwsd.removeAsyncLogic(this);

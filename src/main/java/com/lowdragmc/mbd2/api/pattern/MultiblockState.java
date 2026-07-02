@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -374,6 +375,55 @@ public class MultiblockState {
         hasCommittedMatch = true;
     }
 
+    /**
+     * Captures the currently formed match data before a validating pattern check
+     * overwrites it.
+     */
+    public FormedSnapshot createFormedSnapshot() {
+        return new FormedSnapshot(
+                hasCommittedMatch,
+                matchedPattern,
+                matchedPatternIndex,
+                formedCache == null ? new LongOpenHashSet() : new LongOpenHashSet(formedCache),
+                copyMatchContext(formedMatchContext));
+    }
+
+    /**
+     * Checks whether the last successful pattern check committed the same
+     * structure topology as a previously captured formed snapshot.
+     */
+    public boolean matchesFormedSnapshot(FormedSnapshot snapshot) {
+        if (snapshot == null || snapshot.hasCommittedMatch() != hasCommittedMatch) {
+            return false;
+        }
+        if (!hasCommittedMatch) {
+            return false;
+        }
+        return snapshot.matchedPattern() == matchedPattern &&
+                snapshot.matchedPatternIndex() == matchedPatternIndex &&
+                Objects.equals(snapshot.formedCache(), formedCache) &&
+                matchContextEquals(snapshot.formedMatchContext(), formedMatchContext);
+    }
+
+    private boolean matchContextEquals(PatternMatchContext left, PatternMatchContext right) {
+        if (left.entrySet().size() != right.entrySet().size()) {
+            return false;
+        }
+        for (var entry : left.entrySet()) {
+            if (!right.containsKey(entry.getKey()) || !Objects.equals(entry.getValue(), right.get(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public record FormedSnapshot(boolean hasCommittedMatch,
+                                 @Nullable BlockPattern matchedPattern,
+                                 int matchedPatternIndex,
+                                 LongOpenHashSet formedCache,
+                                 PatternMatchContext formedMatchContext) {
+    }
+
     private void addPartPosition(LongSet partPositions, long pos) {
         BlockPos blockPos = BlockPos.of(pos);
         if (!blockPos.equals(controllerPos)) {
@@ -502,11 +552,17 @@ public class MultiblockState {
 //                            return;
 //                        }
 //                    }
+                    var previousSnapshot = createFormedSnapshot();
                     if (controller.checkPatternWithLock()) {
-                        // refresh structure
-                        isInternalStructureForming = true;
-                        controller.onStructureFormed();
-                        isInternalStructureForming = false;
+                        // Refresh only when the successful match changed the formed topology.
+                        if (!matchesFormedSnapshot(previousSnapshot)) {
+                            isInternalStructureForming = true;
+                            try {
+                                controller.onStructureFormed();
+                            } finally {
+                                isInternalStructureForming = false;
+                            }
+                        }
                         var mwsd = MultiblockWorldSavedData.getOrCreate(serverLevel);
                         mwsd.addMapping(this);
                         mwsd.removeAsyncLogic(controller);
