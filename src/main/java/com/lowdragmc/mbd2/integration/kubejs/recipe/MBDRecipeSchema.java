@@ -47,10 +47,12 @@ import dev.latvian.mods.kubejs.util.ListJS;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
 
@@ -794,6 +796,8 @@ public interface MBDRecipeSchema {
             } else if (o instanceof FluidStackJS fluidStackJS) {
                 return new FluidIngredientJS(FluidIngredient.of(
                         FluidStack.create(fluidStackJS.getFluid(), fluidStackJS.getAmount(), fluidStackJS.getNbt())));
+            } else if (o instanceof CharSequence chars && chars.toString().trim().startsWith("#")) {
+                return new FluidIngredientJS(parseFluidTagIngredient(chars.toString()));
             }
 
             var list = ListJS.of(o);
@@ -809,6 +813,29 @@ public interface MBDRecipeSchema {
                 return new FluidIngredientJS(FluidIngredient
                         .of(FluidStack.create(stackJS.getFluid(), stackJS.getAmount(), stackJS.getNbt())));
             }
+        }
+
+        private static FluidIngredient parseFluidTagIngredient(String input) {
+            String[] parts = input.trim().split("\\s+");
+            if (parts.length > 2) {
+                throw new IllegalStateException("Invalid fluid tag input: " + input);
+            }
+            var tagId = ResourceLocation.tryParse(parts[0].substring(1));
+            if (tagId == null) {
+                throw new IllegalStateException("Invalid fluid tag input: " + input);
+            }
+            long amount = 1000;
+            if (parts.length == 2) {
+                try {
+                    amount = Long.parseLong(parts[1]);
+                } catch (NumberFormatException ignored) {
+                    throw new IllegalStateException("Invalid fluid tag amount: " + input);
+                }
+            }
+            if (amount <= 0) {
+                throw new IllegalStateException("Invalid fluid tag amount: " + input);
+            }
+            return FluidIngredient.of(TagKey.create(Registries.FLUID, tagId), amount);
         }
     }
 
