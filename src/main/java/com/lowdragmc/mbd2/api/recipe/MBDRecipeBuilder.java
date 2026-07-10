@@ -2,7 +2,6 @@ package com.lowdragmc.mbd2.api.recipe;
 
 import com.google.gson.JsonObject;
 import com.lowdragmc.lowdraglib.LDLib;
-import com.lowdragmc.lowdraglib.Platform;
 import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
@@ -14,11 +13,9 @@ import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignal;
 import com.lowdragmc.mbd2.common.capability.recipe.RedstoneSignalRecipeCapability;
 import com.lowdragmc.mbd2.common.recipe.*;
-import com.lowdragmc.mbd2.utils.TagUtil;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import net.minecraft.MethodsReturnNonnullByDefault;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.recipes.FinishedRecipe;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -29,7 +26,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.ItemLike;
-import net.minecraft.world.level.material.Fluids;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -501,21 +497,16 @@ public class MBDRecipeBuilder {
     /**
      * Adds fluid stacks as inputs.
      *
-     * <p>Business goal: normalize concrete fluids into tag-based ingredients on
-     * Forge while preserving Fabric water behavior. Amounts are interpreted in
-     * the units used by {@link FluidStack#getAmount()}.</p>
+     * <p>Business goal: normalize concrete fluid stacks into MBD fluid
+     * ingredients while preserving their exact fluid ids and amounts. Callers
+     * that need tag matching should pass {@link FluidIngredient} values
+     * explicitly.</p>
      *
      * @param inputs fluid stacks accepted by the recipe
      * @return this builder for chaining
      */
     public MBDRecipeBuilder inputFluids(FluidStack... inputs) {
-        return input(FluidRecipeCapability.CAP, Arrays.stream(inputs).map(fluid -> {
-            if (!Platform.isForge() && fluid.getFluid() == Fluids.WATER) { // Special case for fabric, because there all fluids have to be tagged as water to function as water when placed.
-                return FluidIngredient.of(fluid);
-            } else {
-                return FluidIngredient.of(TagUtil.createFluidTag(BuiltInRegistries.FLUID.getKey(fluid.getFluid()).getPath()), fluid.getAmount());
-            }
-        }).toArray(FluidIngredient[]::new));
+        return input(FluidRecipeCapability.CAP, Arrays.stream(inputs).map(FluidIngredient::of).toArray(FluidIngredient[]::new));
     }
 
     /**
@@ -526,6 +517,19 @@ public class MBDRecipeBuilder {
      */
     public MBDRecipeBuilder inputFluids(FluidIngredient... inputs) {
         return input(FluidRecipeCapability.CAP, inputs);
+    }
+
+    /**
+     * Adds fluid ingredient-like objects from a collection as inputs.
+     *
+     * <p>Supported entries include MBD ingredients, LowDragLib fluid stacks,
+     * Forge fluid stacks, and Create fluid ingredients when Create is loaded.</p>
+     *
+     * @param inputs fluid ingredient-like objects accepted by the recipe
+     * @return this builder for chaining
+     */
+    public MBDRecipeBuilder inputFluids(Collection<?> inputs) {
+        return input(FluidRecipeCapability.CAP, inputs.stream().map(FluidIngredient::fromObject).toArray(FluidIngredient[]::new));
     }
 
     /**
@@ -546,6 +550,19 @@ public class MBDRecipeBuilder {
      */
     public MBDRecipeBuilder outputFluids(FluidIngredient... outputs) {
         return output(FluidRecipeCapability.CAP, outputs);
+    }
+
+    /**
+     * Adds fluid ingredient-like objects from a collection as outputs.
+     *
+     * <p>Supported entries include MBD ingredients, LowDragLib fluid stacks,
+     * Forge fluid stacks, and Create fluid ingredients when Create is loaded.</p>
+     *
+     * @param outputs fluid ingredient-like objects produced by the recipe
+     * @return this builder for chaining
+     */
+    public MBDRecipeBuilder outputFluids(Collection<?> outputs) {
+        return output(FluidRecipeCapability.CAP, outputs.stream().map(FluidIngredient::fromObject).toArray(FluidIngredient[]::new));
     }
 
     /**
@@ -862,7 +879,7 @@ public class MBDRecipeBuilder {
 
             @Override
             public ResourceLocation getId() {
-                return new ResourceLocation(id.getNamespace(), recipeType.getRegistryName().getPath() + "/" + id.getPath());
+                return ResourceLocation.fromNamespaceAndPath(id.getNamespace(), recipeType.getRegistryName().getPath() + "/" + id.getPath());
             }
 
             @Override

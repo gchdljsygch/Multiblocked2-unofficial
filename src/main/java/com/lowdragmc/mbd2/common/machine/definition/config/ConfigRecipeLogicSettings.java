@@ -2,9 +2,10 @@ package com.lowdragmc.mbd2.common.machine.definition.config;
 
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.NumberRange;
+import com.lowdragmc.lowdraglib.gui.editor.configurator.ArrayConfiguratorGroup;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.ConfiguratorGroup;
 import com.lowdragmc.lowdraglib.gui.editor.configurator.IToggleConfigurable;
-import com.lowdragmc.lowdraglib.gui.editor.configurator.SelectorConfigurator;
+import com.lowdragmc.lowdraglib.gui.editor.configurator.SearchComponentConfigurator;
 import com.lowdragmc.lowdraglib.syncdata.IPersistedSerializable;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.MBD2;
@@ -20,7 +21,11 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Persisted recipe-logic settings for a machine definition.
@@ -43,6 +48,9 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     @Builder.Default
     @Persisted
     private ResourceLocation recipeType = MBDRecipeType.DUMMY.getRegistryName();
+    @Builder.Default
+    @Persisted
+    private ResourceLocation[] recipeTypes = new ResourceLocation[]{MBDRecipeType.DUMMY.getRegistryName()};
     @Builder.Default
     @Getter
     protected final RecipeModifier.RecipeModifiers recipeModifiers = new RecipeModifier.RecipeModifiers();
@@ -74,17 +82,42 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     protected boolean alwaysModifyRecipe = false;
 
     /**
-     * Resolves the configured recipe type from the MBD registry.
+     * Resolves the primary configured recipe type from the MBD registry.
      *
-     * @return configured recipe type, or {@link MBDRecipeType#DUMMY} when the id
-     * is missing or unregistered
+     * @return first configured recipe type, or {@link MBDRecipeType#DUMMY} when no id is configured or registered
      */
     public MBDRecipeType getRecipeType() {
-        return MBDRegistries.RECIPE_TYPES.getOrDefault(recipeType, MBDRecipeType.DUMMY);
+        syncRecipeTypes();
+        return Arrays.stream(recipeTypes)
+                .filter(Objects::nonNull)
+                .map(id -> MBDRegistries.RECIPE_TYPES.getOrDefault(id, MBDRecipeType.DUMMY))
+                .filter(type -> type != MBDRecipeType.DUMMY)
+                .findFirst()
+                .orElse(MBDRecipeType.DUMMY);
+    }
+
+    /**
+     * Resolves all configured recipe types from the MBD registry.
+     *
+     * @return configured recipe types in UI order, excluding missing and dummy entries
+     */
+    public List<MBDRecipeType> getRecipeTypes() {
+        syncRecipeTypes();
+        return Arrays.stream(recipeTypes)
+                .filter(Objects::nonNull)
+                .map(id -> MBDRegistries.RECIPE_TYPES.getOrDefault(id, MBDRecipeType.DUMMY))
+                .filter(type -> type != MBDRecipeType.DUMMY)
+                .distinct()
+                .toList();
+    }
+
+    public boolean isRecipeTypeAllowed(MBDRecipeType type) {
+        return type != null && getRecipeTypes().contains(type);
     }
 
     @Override
     public CompoundTag serializeNBT() {
+        syncRecipeTypes();
         var tag = IPersistedSerializable.super.serializeNBT();
         tag.put("recipeModifiers", recipeModifiers.serializeNBT());
         return tag;
@@ -93,6 +126,7 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     @Override
     public void deserializeNBT(CompoundTag tag) {
         IPersistedSerializable.super.deserializeNBT(tag);
+        syncRecipeTypes();
         recipeModifiers.deserializeNBT(tag.getList("recipeModifiers", Tag.TAG_COMPOUND));
     }
 
@@ -113,14 +147,71 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
             }
         });
 
-        father.addConfigurators(new SelectorConfigurator<>("editor.machine.recipe_type",
-                () -> recipeType,
-                (type) -> recipeType = type,
-                MBDRecipeType.DUMMY.getRegistryName(),
-                true,
-                candidates.stream().toList(),
-                ResourceLocation::toString));
+        syncRecipeTypes();
+        var recipeTypeGroup = new ArrayConfiguratorGroup<>("editor.machine.recipe_type", false,
+                () -> Arrays.stream(recipeTypes).filter(Objects::nonNull).toList(),
+                (getter, setter) -> new SearchComponentConfigurator<>("", getter, setter,
+                        MBDRecipeType.DUMMY.getRegistryName(), true, (word, find) -> {
+                    var lowerCase = word.toLowerCase();
+                    for (var candidate : candidates) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (candidate.toString().contains(lowerCase)) {
+                            find.accept(candidate);
+                        }
+                    }
+                }, ResourceLocation::toString), false);
+        recipeTypeGroup.setAddDefault(() -> MBDRecipeType.DUMMY.getRegistryName());
+        recipeTypeGroup.setOnAdd(type -> {
+            var updated = new ArrayList<>(Arrays.stream(recipeTypes)
+                    .filter(Objects::nonNull)
+                    .filter(existing -> !existing.equals(type))
+                    .filter(existing -> type.equals(MBDRecipeType.DUMMY.getRegistryName()) || !existing.equals(MBDRecipeType.DUMMY.getRegistryName()))
+                    .toList());
+            updated.add(type);
+            setRecipeTypes(updated);
+        });
+        recipeTypeGroup.setOnUpdate(this::setRecipeTypes);
+        recipeTypeGroup.setOnRemove(type -> setRecipeTypes(Arrays.stream(recipeTypes)
+                .filter(Objects::nonNull)
+                .filter(existing -> !existing.equals(type))
+                .toList()));
+        father.addConfigurators(recipeTypeGroup);
 
         recipeModifiers.buildConfigurator(father);
+    }
+
+    private void setRecipeTypes(List<ResourceLocation> types) {
+        recipeTypes = types.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toArray(ResourceLocation[]::new);
+        if (recipeTypes.length > 1) {
+            recipeTypes = Arrays.stream(recipeTypes)
+                    .filter(type -> !type.equals(MBDRecipeType.DUMMY.getRegistryName()))
+                    .toArray(ResourceLocation[]::new);
+        }
+        if (recipeTypes.length == 0) {
+            recipeTypes = new ResourceLocation[]{MBDRecipeType.DUMMY.getRegistryName()};
+        }
+        recipeType = recipeTypes[0];
+    }
+
+    private void syncRecipeTypes() {
+        if (recipeTypes == null || recipeTypes.length == 0 || Arrays.stream(recipeTypes).allMatch(Objects::isNull)) {
+            recipeTypes = new ResourceLocation[]{recipeType == null ? MBDRecipeType.DUMMY.getRegistryName() : recipeType};
+        }
+        recipeTypes = Arrays.stream(recipeTypes)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toArray(ResourceLocation[]::new);
+        if (recipeTypes.length > 1) {
+            recipeTypes = Arrays.stream(recipeTypes)
+                    .filter(type -> !type.equals(MBDRecipeType.DUMMY.getRegistryName()))
+                    .toArray(ResourceLocation[]::new);
+        }
+        if (recipeTypes.length == 0) {
+            recipeTypes = new ResourceLocation[]{MBDRecipeType.DUMMY.getRegistryName()};
+        }
+        recipeType = recipeTypes[0];
     }
 }

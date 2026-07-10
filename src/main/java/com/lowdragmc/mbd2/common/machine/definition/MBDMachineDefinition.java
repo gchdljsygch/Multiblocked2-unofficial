@@ -37,6 +37,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import me.shedaniel.rei.api.client.view.ViewSearchBuilder;
+import mezz.jei.api.recipe.RecipeType;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -421,14 +422,21 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
         WidgetUtils.widgetByIdForEach(ui, "^ui:xei_lookup$", ButtonWidget.class,
                 buttonWidget -> buttonWidget.setOnPressCallback(cd -> {
                     if (cd.isRemote && (LDLib.isReiLoaded() || LDLib.isJeiLoaded() || LDLib.isEmiLoaded()) && Editor.INSTANCE == null) {
-                        var recipeType = machine.getRecipeType();
-                        if (recipeType != MBDRecipeType.DUMMY && recipeType.isXEIVisible()) {
+                        var recipeTypes = machine.getRecipeTypes().stream()
+                                .filter(recipeType -> recipeType != MBDRecipeType.DUMMY && recipeType.isXEIVisible())
+                                .toList();
+                        if (!recipeTypes.isEmpty()) {
                             if (LDLib.isReiLoaded()) {
-                                ViewSearchBuilder.builder().addCategory(MBDRecipeTypeDisplayCategory.CATEGORIES.apply(recipeType)).open();
+                                var builder = ViewSearchBuilder.builder();
+                                recipeTypes.forEach(recipeType -> builder.addCategory(MBDRecipeTypeDisplayCategory.CATEGORIES.apply(recipeType)));
+                                builder.open();
                             } else if (LDLib.isJeiLoaded()) {
-                                JEIPlugin.jeiRuntime.getRecipesGui().showTypes(List.of(MBDRecipeTypeCategory.TYPES.apply(recipeType)));
+                                JEIPlugin.jeiRuntime.getRecipesGui().showTypes(recipeTypes.stream()
+                                        .map(MBDRecipeTypeCategory.TYPES)
+                                        .<RecipeType<?>>map(recipeType -> recipeType)
+                                        .toList());
                             } else if (LDLib.isEmiLoaded()) {
-                                EmiApi.displayRecipeCategory(MBDRecipeTypeEmiCategory.CATEGORIES.apply(recipeType));
+                                recipeTypes.forEach(recipeType -> EmiApi.displayRecipeCategory(MBDRecipeTypeEmiCategory.CATEGORIES.apply(recipeType)));
                             }
                         }
                     }

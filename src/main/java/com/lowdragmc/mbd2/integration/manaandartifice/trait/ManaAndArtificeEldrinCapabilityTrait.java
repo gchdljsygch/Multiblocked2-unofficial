@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.integration.manaandartifice.trait;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -41,18 +42,23 @@ public class ManaAndArtificeEldrinCapabilityTrait extends SimpleCapabilityTrait 
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final CopiableEldrinPowerStorage storage;
+    @DropSaved
     @Persisted
     @DescSynced
     private boolean isPublic;
+    @DropSaved
     @Persisted
     @DescSynced
     private boolean shareWithTeam;
+    @DropSaved
     @Persisted
     @DescSynced
     private boolean shareWithFaction;
+    @DropSaved
     @Persisted
     @DescSynced
     private net.minecraft.nbt.CompoundTag ownerTag;

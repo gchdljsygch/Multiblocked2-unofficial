@@ -256,8 +256,27 @@ public interface MBDRecipeSchema {
             return inputs(FluidRecipeCapability.CAP, Arrays.stream(fluids).map(FluidIngredientJS::ingredient).toArray());
         }
 
+        public MBDRecipeJS inputFluids(Object fluids) {
+            return inputs(FluidRecipeCapability.CAP, fluidIngredientsFromObject(fluids));
+        }
+
         public MBDRecipeJS outputFluids(FluidIngredientJS... fluids) {
             return outputs(FluidRecipeCapability.CAP, Arrays.stream(fluids).map(FluidIngredientJS::ingredient).toArray());
+        }
+
+        public MBDRecipeJS outputFluids(Object fluids) {
+            return outputs(FluidRecipeCapability.CAP, fluidIngredientsFromObject(fluids));
+        }
+
+        private static Object[] fluidIngredientsFromObject(Object fluids) {
+            var list = ListJS.of(fluids);
+            if (list != null) {
+                return list.stream()
+                        .map(FluidIngredientJS::of)
+                        .map(FluidIngredientJS::ingredient)
+                        .toArray();
+            }
+            return new Object[]{FluidIngredientJS.of(fluids).ingredient};
         }
 
         public MBDRecipeJS outputEntities(EntityIngredientJS... entities) {
@@ -791,6 +810,8 @@ public interface MBDRecipeSchema {
                 return ingredientJS;
             } else if (o instanceof FluidIngredient ingredient) {
                 return new FluidIngredientJS(ingredient);
+            } else if (FluidIngredient.isCreateFluidIngredient(o)) {
+                return new FluidIngredientJS(FluidIngredient.ofCreate(o));
             } else if (o instanceof JsonElement json) {
                 return new FluidIngredientJS(FluidIngredient.fromJson(json));
             } else if (o instanceof FluidStackJS fluidStackJS) {

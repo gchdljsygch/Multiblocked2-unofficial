@@ -30,6 +30,7 @@ import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.IContentChangeAware;
 import com.lowdragmc.lowdraglib.syncdata.ITagSerializable;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -94,20 +95,27 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     private final SerializableManagedGridNode mainNode;
+    @DropSaved
     @Persisted
     private final SerializableInputBuffer inputBuffer;
+    @DropSaved
     @Persisted
     private final SerializablePatternInventory patternInventory;
+    @DropSaved
     @Persisted
     private final SerializablePatternRecipeGroups patternRecipeGroups;
+    @DropSaved
     @Persisted
     @DescSynced
     private final DynamicItemStorage itemStorage;
+    @DropSaved
     @Persisted
     @DescSynced
     private final DynamicFluidStorage fluidStorage;
+    @DropSaved
     @Persisted
     private int recipeGroupSeed = 0;
 
@@ -360,6 +368,9 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
 
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
+        if (getMachine().shouldKeepDropItemNbt()) {
+            return;
+        }
         for (var stack : patternInventory) {
             if (!stack.isEmpty()) {
                 drops.add(stack);

@@ -223,6 +223,11 @@ public class MBDEntityMachine extends MBDMachine {
         return ItemStack.EMPTY;
     }
 
+    @Override
+    public boolean shouldKeepDropItemNbt() {
+        return false;
+    }
+
     /**
      * Adds entity-machine drops from additional traits.
      *

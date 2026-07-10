@@ -61,6 +61,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -124,19 +125,23 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
 
     @Getter
     @Setter
+    @DropSaved
     @Persisted
     @DescSynced
     private Component customName = null;
+    @DropSaved
     @Persisted
     @DescSynced
     @UpdateListener(methodName = "updateCustomData")
     @Setter
     private CompoundTag customData = new CompoundTag();
+    @DropSaved
     @Persisted
     @DescSynced
     private final RecipeLogic recipeLogic;
     private final Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> recipeCapabilitiesProxy;
     @Nonnull
+    @DropSaved
     @Persisted
     @DescSynced
     @UpdateListener(methodName = "updateState")
@@ -147,10 +152,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     private Map<IRenderer, Object> animatableMachine = new HashMap<>(); // it's used for Geckolib
     @Getter
     private Map<String, Object> photonFXs = new HashMap<>(); // it's used for Photon
+    @DropSaved
     @Persisted
     @DescSynced
     @Getter
     private int dynamicMachineLevel = -1;
+    @DropSaved
     @Persisted
     @DescSynced
     @Getter
@@ -190,14 +197,17 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     private long lastGameDelaySampleMicroseconds;
     // redstone signal
     @Getter
+    @DropSaved
     @Persisted
     @DescSynced
     private byte[] outputSignal = new byte[6];
     @Getter
+    @DropSaved
     @Persisted
     @DescSynced
     private byte[] outputDirectSignal = new byte[6];
     @Getter
+    @DropSaved
     @Persisted
     @DescSynced
     private byte analogOutputSignal = 0;
@@ -699,6 +709,12 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
     @Override
     public MBDRecipeType getRecipeType() {
         return definition.recipeLogicSettings().getRecipeType();
+    }
+
+    @NotNull
+    @Override
+    public List<MBDRecipeType> getRecipeTypes() {
+        return definition.recipeLogicSettings().getRecipeTypes();
     }
 
     /**
@@ -1448,7 +1464,25 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
         if (customName != null) {
             item.setHoverName(customName);
         }
+        if (shouldKeepDropItemNbt()) {
+            CompoundTag blockEntityTag = new CompoundTag();
+            machineHolder.saveManagedPersistentData(blockEntityTag, true);
+            if (!blockEntityTag.isEmpty()) {
+                item.getOrCreateTag().put(BlockItem.BLOCK_ENTITY_TAG, blockEntityTag);
+            }
+        }
         return item;
+    }
+
+    /**
+     * Whether the broken machine item should keep machine persisted NBT.
+     *
+     * <p>Only block-backed machines with a machine item drop can use this path.
+     * Entity machines override {@link #getDropItem()} with an empty stack.</p>
+     */
+    public boolean shouldKeepDropItemNbt() {
+        return getDefinition().machineSettings().dropMachineItem() &&
+                getDefinition().machineSettings().keepDropItemNbt();
     }
 
     /**

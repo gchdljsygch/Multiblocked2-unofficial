@@ -4,6 +4,7 @@ import com.lowdragmc.lowdraglib.Platform;
 import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
 import com.lowdragmc.lowdraglib.syncdata.IEnhancedManaged;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.annotation.RequireRerender;
 import com.lowdragmc.lowdraglib.syncdata.field.FieldManagedStorage;
@@ -28,6 +29,7 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -105,12 +107,14 @@ public class RecipeLogic implements IEnhancedManaged {
     public List<MBDRecipe> lastFailedMatches;
 
     @Getter
+    @DropSaved
     @Persisted
     @DescSynced
     @RequireRerender
     private Status status = Status.IDLE;
 
     @Nullable
+    @DropSaved
     @Persisted
     @DescSynced
     @Getter
@@ -120,6 +124,7 @@ public class RecipeLogic implements IEnhancedManaged {
      */
     @Nullable
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected MBDRecipe lastRecipe;
@@ -128,35 +133,43 @@ public class RecipeLogic implements IEnhancedManaged {
      */
     @Nullable
     @Getter
+    @DropSaved
     @Persisted
     protected MBDRecipe lastOriginRecipe;
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected boolean consumeInputsAfterWorking;
+    @DropSaved
     @Persisted
     @Getter
     @Setter
     protected int progress;
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected int duration;
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected int fuelTime;
     @Nullable
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected MBDRecipe lastFuelRecipe;
     @Getter
+    @DropSaved
     @Persisted
     @Setter
     protected int fuelMaxTime;
     @Getter(onMethod_ = @VisibleForTesting)
     protected boolean recipeDirty;
+    @DropSaved
     @Persisted
     @Getter
     @Setter
@@ -229,7 +242,7 @@ public class RecipeLogic implements IEnhancedManaged {
      * work; {@code false} when no fuel line is required or available
      */
     public boolean needFuel() {
-        if (machine.getRecipeType().isRequireFuelForWorking()) {
+        if (machine.getRecipeTypes().stream().anyMatch(MBDRecipeType::isRequireFuelForWorking)) {
             return true;
         }
         return handleVanillaFuelFallback();
@@ -489,7 +502,10 @@ public class RecipeLogic implements IEnhancedManaged {
      * @return candidate recipes in recipe-type-defined order
      */
     protected List<MBDRecipe> searchRecipe() {
-        return machine.getRecipeType().searchRecipe(getRecipeManager(), this.machine);
+        return machine.getRecipeTypes().stream()
+                .flatMap(recipeType -> recipeType.searchRecipe(getRecipeManager(), this.machine).stream())
+                .sorted(Comparator.comparingInt(r -> r.priority))
+                .toList();
     }
 
 
@@ -596,7 +612,11 @@ public class RecipeLogic implements IEnhancedManaged {
     public boolean handleFuelRecipe() {
         if (!needFuel() || fuelTime > 0) return true;
         lastFuelRecipe = null;
-        for (MBDRecipe recipe : machine.getRecipeType().searchFuelRecipe(getRecipeManager(), machine)) {
+        var fuelRecipes = machine.getRecipeTypes().stream()
+                .flatMap(recipeType -> recipeType.searchFuelRecipe(getRecipeManager(), machine).stream())
+                .sorted(Comparator.comparingInt(r -> r.priority))
+                .toList();
+        for (MBDRecipe recipe : fuelRecipes) {
             recipe = getMachine().modifyFuelRecipe(recipe);
             if (recipe.checkConditions(this).isSuccess()) {
                 var inputResult = recipe.handleRecipeIOWithResult(IO.IN, this.machine);

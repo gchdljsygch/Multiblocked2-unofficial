@@ -110,16 +110,17 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
     public void bindXEIWidget(Widget widget, Content content, IngredientIO ingredientIO) {
         if (widget instanceof TankWidget tankWidget) {
             var fluidIngredient = of(content.content);
+            var resolvedStacks = Arrays.asList(fluidIngredient.getStacks());
             Either<List<Pair<TagKey<Fluid>, Long>>, List<FluidStack>> either = null;
             // if all fluid tags
-            if (Arrays.stream(fluidIngredient.values).allMatch(FluidIngredient.TagValue.class::isInstance)) {
+            if (!resolvedStacks.isEmpty() && Arrays.stream(fluidIngredient.values).allMatch(FluidIngredient.TagValue.class::isInstance)) {
                 either = Either.left(Arrays.stream(fluidIngredient.values)
                         .map(FluidIngredient.TagValue.class::cast)
                         .map(FluidIngredient.TagValue::getTag)
                         .map(tagValue -> new Pair<>(tagValue, fluidIngredient.getAmount())).toList());
             }
-            if (either == null) {
-                either = Either.right(List.of(fluidIngredient.getStacks()));
+            if (either == null && !resolvedStacks.isEmpty()) {
+                either = Either.right(resolvedStacks);
             }
             if (tankWidget.getOverlay() == null || tankWidget.getOverlay() == IGuiTexture.EMPTY) {
                 tankWidget.setOverlay(content.createOverlay());
@@ -127,7 +128,9 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
                 var groupTexture = new GuiTextureGroup(tankWidget.getOverlay(), content.createOverlay());
                 tankWidget.setOverlay(groupTexture);
             }
-            tankWidget.setFluidTank(new TagOrCycleFluidTransfer(List.of(either)), 0);
+            if (either != null) {
+                tankWidget.setFluidTank(new TagOrCycleFluidTransfer(List.of(either)), 0);
+            }
             tankWidget.setIngredientIO(ingredientIO);
             tankWidget.setAllowClickDrained(false);
             tankWidget.setAllowClickFilled(false);
@@ -136,14 +139,16 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
             try {
                 if (widget instanceof com.gregtechceu.gtceu.api.gui.widget.TankWidget tankWidget) {
                     var fluidIngredient = of(content.content);
+                    var resolvedStacks = Arrays.stream(fluidIngredient.getStacks()).map(FluidHelperImpl::toFluidStack).toList();
                     var fluidEntries = new ArrayList<FluidEntryList>();
-                    Either<FluidTagList, FluidStackList> either = null;
                     // if all fluid tags
                     Arrays.stream(fluidIngredient.values).forEach(value -> {
                         if (value instanceof FluidIngredient.TagValue tagValue) {
-                            fluidEntries.add(FluidTagList.of(tagValue.getTag(), (int) fluidIngredient.getAmount(), null));
-                        } else {
-                            fluidEntries.add(FluidStackList.of(Arrays.stream(fluidIngredient.getStacks()).map(FluidHelperImpl::toFluidStack).toList()));
+                            if (!tagValue.getStacks().isEmpty()) {
+                                fluidEntries.add(FluidTagList.of(tagValue.getTag(), (int) fluidIngredient.getAmount(), null));
+                            }
+                        } else if (!resolvedStacks.isEmpty()) {
+                            fluidEntries.add(FluidStackList.of(resolvedStacks));
                         }
                     });
                     if (tankWidget.getOverlay() == null || tankWidget.getOverlay() == IGuiTexture.EMPTY) {
@@ -152,7 +157,9 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
                         var groupTexture = new GuiTextureGroup(tankWidget.getOverlay(), content.createOverlay());
                         tankWidget.setOverlay(groupTexture);
                     }
-                    tankWidget.setFluidTank(new CycleFluidEntryHandler(fluidEntries), 0);
+                    if (!fluidEntries.isEmpty()) {
+                        tankWidget.setFluidTank(new CycleFluidEntryHandler(fluidEntries), 0);
+                    }
                     tankWidget.setIngredientIO(ingredientIO);
                     tankWidget.setAllowClickDrained(false);
                     tankWidget.setAllowClickFilled(false);

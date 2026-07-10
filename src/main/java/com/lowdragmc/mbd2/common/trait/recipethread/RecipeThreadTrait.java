@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.common.trait.recipethread;
 
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
@@ -38,6 +39,7 @@ public class RecipeThreadTrait implements ITrait {
     private final MBDMachine machine;
     private final RecipeThreadTraitDefinition definition;
 
+    @DropSaved
     @Persisted
     private final List<ThreadedRecipeLogic> extraThreads = new ArrayList<>();
 
@@ -510,7 +512,9 @@ public class RecipeThreadTrait implements ITrait {
             return;
         }
 
-        List<MBDRecipe> matches = machine.getRecipeType().searchRecipe(machine.getRecipeLogic().getRecipeManager(), machine);
+        List<MBDRecipe> matches = machine.getRecipeTypes().stream()
+                .flatMap(recipeType -> recipeType.searchRecipe(machine.getRecipeLogic().getRecipeManager(), machine).stream())
+                .toList();
         List<String> recipeIdsLowercase = new ArrayList<>();
         for (MBDRecipe recipe : matches) {
             if (recipe == null || recipe.getId() == null) continue;

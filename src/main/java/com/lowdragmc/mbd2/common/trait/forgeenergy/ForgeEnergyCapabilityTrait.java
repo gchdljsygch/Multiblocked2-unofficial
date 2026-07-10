@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.common.trait.forgeenergy;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -45,6 +46,7 @@ public class ForgeEnergyCapabilityTrait extends SimpleCapabilityTrait implements
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final CopiableEnergyStorage storage;

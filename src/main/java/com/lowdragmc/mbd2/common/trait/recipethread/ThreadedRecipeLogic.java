@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.common.trait.recipethread;
 
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
@@ -22,9 +23,11 @@ public class ThreadedRecipeLogic extends RecipeLogic {
 
     private final int threadId;
 
+    @DropSaved
     @Persisted
     private final Set<String> whitelist = new HashSet<>();
 
+    @DropSaved
     @Persisted
     private final Set<String> blacklist = new HashSet<>();
 
@@ -32,12 +35,15 @@ public class ThreadedRecipeLogic extends RecipeLogic {
     private final Set<String> externalRecipeAllowlist = new HashSet<>();
     private boolean externalRecipeAllowlistEnabled;
 
+    @DropSaved
     @Persisted
     private String idleText;
 
+    @DropSaved
     @Persisted
     private String runningText;
 
+    @DropSaved
     @Persisted
     private String waitingText;
 
@@ -213,8 +219,7 @@ public class ThreadedRecipeLogic extends RecipeLogic {
      */
     @Override
     protected List<MBDRecipe> searchRecipe() {
-        var recipeType = getMachine().getRecipeType();
-        var allRecipes = recipeType.searchRecipe(getRecipeManager(), getMachine());
+        var allRecipes = super.searchRecipe();
 
         List<MBDRecipe> candidates = new ArrayList<>();
 

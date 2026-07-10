@@ -90,8 +90,7 @@ public class MBDRecipeTypeFuelCategory extends ModularUIRecipeCategory<MBDRecipe
         for (var mbdRecipeType : MBDRegistries.RECIPE_TYPES) {
             if (mbdRecipeType.isXEIVisible() && mbdRecipeType.isRequireFuelForWorking()) {
                 for (var definition : MBDRegistries.MACHINE_DEFINITIONS) {
-                    var recipeType = definition.recipeLogicSettings().getRecipeType();
-                    if (recipeType == mbdRecipeType && definition.item() != null) {
+                    if (definition.recipeLogicSettings().isRecipeTypeAllowed(mbdRecipeType) && definition.item() != null) {
                         registration.addRecipeCatalyst(definition.item().getDefaultInstance(), MBDRecipeTypeFuelCategory.TYPES.apply(mbdRecipeType));
                     }
                 }

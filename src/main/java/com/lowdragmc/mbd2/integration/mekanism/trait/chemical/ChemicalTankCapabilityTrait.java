@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.integration.mekanism.trait.chemical;
 
 import com.google.common.base.Predicates;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -53,6 +54,7 @@ public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEM
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final ChemicalStorage<CHEMICAL, STACK>[] storages;

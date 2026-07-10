@@ -90,6 +90,10 @@ public class ConfigMachineSettings implements IPersistedSerializable, IConfigura
     private boolean dropMachineItem = true;
     @Getter
     @Builder.Default
+    @Configurable(name = "config.machine_settings.keep_drop_item_nbt", tips = "config.machine_settings.keep_drop_item_nbt.tooltip")
+    private boolean keepDropItemNbt = false;
+    @Getter
+    @Builder.Default
     @Configurable(name = "config.machine_settings.signal_connection", subConfigurable = true,
             tips = {"config.machine_settings.signal_connection.tooltip.0", "config.machine_settings.signal_connection.tooltip.1"})
     private final SignalConnection signalConnection = new SignalConnection();

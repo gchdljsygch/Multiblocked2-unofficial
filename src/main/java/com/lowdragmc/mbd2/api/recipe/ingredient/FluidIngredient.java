@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.gson.*;
 import com.lowdragmc.lowdraglib.side.fluid.FluidHelper;
 import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
+import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.core.Holder;
@@ -38,6 +39,7 @@ import java.util.stream.StreamSupport;
  * {@link #setNbt(CompoundTag)} is called concurrently with readers.</p>
  */
 public class FluidIngredient implements Predicate<FluidStack> {
+    private static final String CREATE_FLUID_INGREDIENT_CLASS = "com.simibubi.create.foundation.fluid.FluidIngredient";
     public static final FluidIngredient EMPTY = new FluidIngredient(Stream.empty(), 0, null);
     public Value[] values;
     @Nullable
@@ -247,6 +249,81 @@ public class FluidIngredient implements Predicate<FluidStack> {
     }
 
     /**
+     * Returns whether the object is Create's fluid ingredient type without
+     * linking against Create when it is absent.
+     *
+     * @param ingredient object to test
+     * @return true when the Create class is present and owns the object
+     */
+    public static boolean isCreateFluidIngredient(@Nullable Object ingredient) {
+        if (ingredient == null) return false;
+        try {
+            return Class.forName(CREATE_FLUID_INGREDIENT_CLASS, false, ingredient.getClass().getClassLoader()).isInstance(ingredient);
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Creates an ingredient from Create's fluid ingredient representation without
+     * making Create a hard runtime dependency.
+     *
+     * @param ingredient Create ingredient to convert
+     * @return equivalent MBD fluid ingredient where possible
+     */
+    public static FluidIngredient ofCreate(Object ingredient) {
+        if (!FluidIngredient.isCreateFluidIngredient(ingredient)) {
+            return EMPTY;
+        }
+        try {
+            Class<?> createIngredientClass = Class.forName(CREATE_FLUID_INGREDIENT_CLASS, false, ingredient.getClass().getClassLoader());
+            if (ingredient == createIngredientClass.getField("EMPTY").get(null)) {
+                return EMPTY;
+            }
+            Object json = ingredient.getClass().getMethod("serialize").invoke(ingredient);
+            if (json instanceof JsonObject jsonObject && FluidIngredient.isCreateJson(jsonObject)) {
+                return FluidIngredient.fromCreateJson(jsonObject);
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            // Network-decoded Create tag ingredients may only carry resolved stacks.
+        }
+        try {
+            Object stacksObject = ingredient.getClass().getMethod("getMatchingFluidStacks").invoke(ingredient);
+            if (stacksObject instanceof Collection<?> stacks) {
+                return FluidIngredient.of(stacks.stream()
+                        .filter(net.minecraftforge.fluids.FluidStack.class::isInstance)
+                        .map(net.minecraftforge.fluids.FluidStack.class::cast)
+                        .map(FluidHelperImpl::toFluidStack)
+                        .toArray(FluidStack[]::new));
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        }
+        return EMPTY;
+    }
+
+    /**
+     * Converts supported dynamic fluid input objects into an MBD ingredient.
+     *
+     * @param object source object from scripts, builders, or integrations
+     * @return normalized ingredient, or {@link #EMPTY} when unsupported
+     */
+    public static FluidIngredient fromObject(Object object) {
+        if (object instanceof FluidIngredient ingredient) {
+            return ingredient;
+        }
+        if (FluidIngredient.isCreateFluidIngredient(object)) {
+            return FluidIngredient.ofCreate(object);
+        }
+        if (object instanceof FluidStack stack) {
+            return FluidIngredient.of(stack.copy());
+        }
+        if (object instanceof net.minecraftforge.fluids.FluidStack stack) {
+            return FluidIngredient.of(FluidHelperImpl.toFluidStack(stack.copy()));
+        }
+        return EMPTY;
+    }
+
+    /**
      * Creates an ingredient from a fluid stream.
      *
      * @param stacks fluid stream; {@code null} and empty fluids are ignored
@@ -325,6 +402,9 @@ public class FluidIngredient implements Predicate<FluidStack> {
             throw new JsonSyntaxException("Expected fluid ingredient to be object");
         }
         JsonObject jsonObject = GsonHelper.convertToJsonObject(json, "ingredient");
+        if (FluidIngredient.isCreateJson(jsonObject)) {
+            return FluidIngredient.fromCreateJson(jsonObject);
+        }
         long amount = GsonHelper.getAsLong(jsonObject, "amount", 0);
         CompoundTag nbt = jsonObject.has("nbt") ? CraftingHelper.getNBT(jsonObject.get("nbt")) : null;
         if (GsonHelper.isObjectNode(jsonObject, "value")) {
@@ -339,16 +419,50 @@ public class FluidIngredient implements Predicate<FluidStack> {
         throw new JsonSyntaxException("expected value to be either object or array.");
     }
 
+    private static boolean isCreateJson(JsonObject jsonObject) {
+        return jsonObject.has("fluid") || jsonObject.has("fluidTag");
+    }
+
+    private static FluidIngredient fromCreateJson(JsonObject jsonObject) {
+        long amount = GsonHelper.getAsLong(jsonObject, "amount", 0);
+        CompoundTag nbt = jsonObject.has("nbt") ? CraftingHelper.getNBT(jsonObject.get("nbt")) : null;
+        if (nbt != null && nbt.isEmpty()) {
+            nbt = null;
+        }
+        if (jsonObject.has("fluid") && jsonObject.has("fluidTag")) {
+            throw new JsonParseException("A Create fluid ingredient entry is either a fluidTag or a fluid, not both");
+        }
+        if (jsonObject.has("fluid")) {
+            Fluid fluid = BuiltInRegistries.FLUID.get(FluidIngredient.resourceLocationFromJson(jsonObject, "fluid"));
+            return FluidIngredient.of(Stream.of(fluid), amount, nbt);
+        }
+        if (jsonObject.has("fluidTag")) {
+            ResourceLocation resourceLocation = FluidIngredient.resourceLocationFromJson(jsonObject, "fluidTag");
+            TagKey<Fluid> tagKey = TagKey.create(Registries.FLUID, resourceLocation);
+            return FluidIngredient.of(tagKey, amount, nbt);
+        }
+        throw new JsonParseException("A Create fluid ingredient entry needs either a fluidTag or a fluid");
+    }
+
+    private static ResourceLocation resourceLocationFromJson(JsonObject json, String memberName) {
+        String id = GsonHelper.getAsString(json, memberName);
+        ResourceLocation resourceLocation = ResourceLocation.tryParse(id);
+        if (resourceLocation == null) {
+            throw new JsonParseException("Invalid fluid ingredient " + memberName + ": " + id);
+        }
+        return resourceLocation;
+    }
+
     private static Value valueFromJson(JsonObject json) {
         if (json.has("fluid") && json.has("tag")) {
             throw new JsonParseException("A fluid ingredient entry is either a tag or a fluid, not both");
         }
         if (json.has("fluid")) {
-            Fluid fluid = BuiltInRegistries.FLUID.get(new ResourceLocation(GsonHelper.getAsString(json, "fluid")));
+            Fluid fluid = BuiltInRegistries.FLUID.get(FluidIngredient.resourceLocationFromJson(json, "fluid"));
             return new FluidValue(fluid);
         }
         if (json.has("tag")) {
-            ResourceLocation resourceLocation = new ResourceLocation(GsonHelper.getAsString(json, "tag"));
+            ResourceLocation resourceLocation = FluidIngredient.resourceLocationFromJson(json, "tag");
             TagKey<Fluid> tagKey = TagKey.create(Registries.FLUID, resourceLocation);
             return new TagValue(tagKey);
         }

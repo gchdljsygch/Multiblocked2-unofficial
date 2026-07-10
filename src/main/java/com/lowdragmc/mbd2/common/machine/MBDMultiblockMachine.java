@@ -859,4 +859,9 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         }
         return super.getDropItem();
     }
+
+    @Override
+    public boolean shouldKeepDropItemNbt() {
+        return originalBlock == null && super.shouldKeepDropItemNbt();
+    }
 }

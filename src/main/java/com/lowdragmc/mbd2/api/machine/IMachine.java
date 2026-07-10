@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -374,6 +375,21 @@ public interface IMachine extends IRecipeCapabilityHolder {
     MBDRecipeType getRecipeType();
 
     /**
+     * Returns every recipe type accepted by this machine.
+     *
+     * @return non-null recipe type list; the first entry is {@link #getRecipeType()}
+     */
+    @Nonnull
+    default List<MBDRecipeType> getRecipeTypes() {
+        var recipeType = getRecipeType();
+        return recipeType == MBDRecipeType.DUMMY ? List.of() : List.of(recipeType);
+    }
+
+    default boolean isRecipeTypeAllowed(MBDRecipeType recipeType) {
+        return recipeType != null && getRecipeTypes().contains(recipeType);
+    }
+
+    /**
      * Called after recipe logic status changes.
      *
      * <p>Side effects: implementation-specific, usually UI, render, redstone, or
@@ -392,7 +408,7 @@ public interface IMachine extends IRecipeCapabilityHolder {
      * {@link MBDRecipeType#DUMMY}
      */
     default boolean runRecipeLogic() {
-        return getRecipeType() != MBDRecipeType.DUMMY;
+        return !getRecipeTypes().isEmpty();
     }
 
     /**

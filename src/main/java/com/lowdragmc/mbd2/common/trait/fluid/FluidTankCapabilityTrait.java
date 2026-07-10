@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.misc.FluidTransferList;
 import com.lowdragmc.lowdraglib.side.fluid.*;
 import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -55,6 +56,7 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final FluidStorage[] storages;

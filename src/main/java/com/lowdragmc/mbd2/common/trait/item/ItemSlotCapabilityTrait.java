@@ -5,6 +5,7 @@ import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
 import com.lowdragmc.lowdraglib.misc.ItemTransferList;
 import com.lowdragmc.lowdraglib.side.item.forge.ItemTransferHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -56,6 +57,7 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final ItemStackTransfer storage;
@@ -92,6 +94,9 @@ public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IA
      */
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
+        if (getMachine().shouldKeepDropItemNbt()) {
+            return;
+        }
         for (int i = 0; i < storage.getSlots(); i++) {
             ItemStack stackInSlot = storage.getStackInSlot(i);
             if (!stackInSlot.isEmpty()) {

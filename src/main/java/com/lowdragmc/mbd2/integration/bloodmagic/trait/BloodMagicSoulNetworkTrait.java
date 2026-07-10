@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.integration.bloodmagic.trait;
 
 import com.lowdragmc.lowdraglib.misc.ItemStackTransfer;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -34,6 +35,7 @@ import java.util.List;
 public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<Integer> {
     public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicSoulNetworkTrait.class);
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final ItemStackTransfer orbSlot;
@@ -73,6 +75,9 @@ public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements
      */
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
+        if (getMachine().shouldKeepDropItemNbt()) {
+            return;
+        }
         var orb = getOrbStack();
         if (!orb.isEmpty()) {
             drops.add(orb);

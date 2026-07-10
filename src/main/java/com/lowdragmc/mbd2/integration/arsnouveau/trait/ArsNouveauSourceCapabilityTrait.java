@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.integration.arsnouveau.trait;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -38,6 +39,7 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final CopiableSourceStorage storage;
@@ -117,7 +119,7 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
      *
      * @param port machine port position
      * @param side port side used to find the adjacent block entity
-     * @param io configured IO direction for this transfer pass
+     * @param io   configured IO direction for this transfer pass
      */
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
@@ -143,8 +145,8 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
     /**
      * Transfers Source between two endpoints without exceeding either endpoint's capacity.
      *
-     * @param source endpoint to drain
-     * @param target endpoint to fill
+     * @param source    endpoint to drain
+     * @param target    endpoint to fill
      * @param maxAmount upper bound for the move
      */
     private void moveSource(ISourceTile source, ISourceTile target, int maxAmount) {
@@ -167,9 +169,9 @@ public class ArsNouveauSourceCapabilityTrait extends SimpleCapabilityTrait imple
         /**
          * Handles integer Source requirements for one recipe pass.
          *
-         * @param io recipe IO role
-         * @param recipe recipe being processed
-         * @param left remaining Source amounts to satisfy
+         * @param io       recipe IO role
+         * @param recipe   recipe being processed
+         * @param left     remaining Source amounts to satisfy
          * @param slotName optional recipe slot name for consumption tracking
          * @param simulate whether to test without mutating storage
          * @return unsatisfied amounts, or {@code null} when fully handled

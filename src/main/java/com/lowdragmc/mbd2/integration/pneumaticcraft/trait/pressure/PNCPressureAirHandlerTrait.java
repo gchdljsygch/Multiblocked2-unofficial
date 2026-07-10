@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.integration.pneumaticcraft.trait.pressure;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -40,6 +41,7 @@ public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     public final CopiableAirHandler handler;

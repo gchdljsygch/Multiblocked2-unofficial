@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.common.trait.redstone;
 
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
@@ -39,9 +40,11 @@ public class RedstoneSignalCapabilityTrait extends SimpleCapabilityTrait {
         return MANAGED_FIELD_HOLDER;
     }
 
+    @DropSaved
     @Persisted
     @DescSynced
     private final byte[] emittedSignal = new byte[6];
+    @DropSaved
     @Persisted
     @DescSynced
     private final int[] remainingTicks = new int[6];

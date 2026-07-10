@@ -82,13 +82,7 @@ public class SerializerFluidIngredient implements IContentSerializer<FluidIngred
      */
     @Override
     public FluidIngredient of(Object o) {
-        if (o instanceof FluidIngredient ingredient) {
-            return ingredient;
-        }
-        if (o instanceof FluidStack stack) {
-            return FluidIngredient.of(stack.copy());
-        }
-        return FluidIngredient.EMPTY;
+        return FluidIngredient.fromObject(o);
     }
 
     /**

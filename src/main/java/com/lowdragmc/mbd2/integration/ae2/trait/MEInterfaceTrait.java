@@ -18,6 +18,7 @@ import com.lowdragmc.lowdraglib.side.fluid.FluidStack;
 import com.lowdragmc.lowdraglib.side.fluid.IFluidTransfer;
 import com.lowdragmc.lowdraglib.side.item.IItemTransfer;
 import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DropSaved;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.capability.recipe.IRecipeHandlerTrait;
@@ -59,8 +60,10 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
 
     private final Random random = new Random();
 
+    @DropSaved
     @Persisted
     private final SerializableManagedGridNode mainNode;
+    @DropSaved
     @Persisted
     private final SerializableInterfaceLogic interfaceLogic;
     private final ItemRecipeHandler itemRecipeHandler = new ItemRecipeHandler();
@@ -158,6 +161,9 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
 
     @Override
     public void onMachineDrop(Entity entity, List<ItemStack> drops) {
+        if (getMachine().shouldKeepDropItemNbt()) {
+            return;
+        }
         this.interfaceLogic.addDrops(drops);
         this.interfaceLogic.clearContent();
     }

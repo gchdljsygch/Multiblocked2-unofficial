@@ -10,10 +10,18 @@ import com.lowdragmc.lowdraglib.gui.widget.SearchComponentWidget;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.api.pattern.MultiblockState;
+import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
+import com.lowdragmc.mbd2.api.recipe.content.Content;
+import com.lowdragmc.mbd2.api.recipe.ingredient.EntityIngredient;
+import com.lowdragmc.mbd2.api.recipe.ingredient.FluidIngredient;
+import com.lowdragmc.mbd2.api.recipe.ingredient.SizedIngredient;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
+import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.registry.MBDRegistries;
+import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
+import com.lowdragmc.mbd2.common.trait.recipethread.RecipeThreadTrait;
 import com.lowdragmc.mbd2.common.network.MBD2Network;
 import com.lowdragmc.mbd2.common.network.packets.SPatternErrorPosPacket;
 import com.lowdragmc.mbd2.config.ConfigHolder;
@@ -24,6 +32,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -33,15 +42,20 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.crafting.StrictNBTIngredient;
 import net.minecraftforge.fml.DistExecutor;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -57,6 +71,8 @@ import java.util.function.Consumer;
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemUIHolder {
+    private static final int CONTENT_PREVIEW_LIMIT = 3;
+    private static final int CONTENT_JSON_PREVIEW_LIMIT = 160;
 
     /**
      * Creates the non-stackable fire-resistant gadget item.
@@ -330,20 +346,28 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
                     serverPlayer.sendSystemMessage(Component.translatable("item.mbd2.mbd_gadgets.multiblock_debugger.failure.error.not_controller"));
                 }
                 return InteractionResult.SUCCESS;
-            } else if (isRecipeDebugger(stack) && getRecipe(stack) != null && serverPlayer.getServer() != null) {
+            } else if (isRecipeDebugger(stack) && serverPlayer.getServer() != null) {
                 var machine = IMachine.ofMachine(player.level(), context.getClickedPos()).orElse(null);
                 if (machine != null) {
+                    MBDRecipe runtimeRecipe = showRecipeDebuggerRuntimeInfo(serverPlayer, machine);
                     var recipe = getRecipe(stack);
+                    if (recipe == null) {
+                        isUsed = true;
+                        return InteractionResult.SUCCESS;
+                    }
                     var recipeManager = serverPlayer.getServer().getRecipeManager();
                     for (MBDRecipeType recipeType : MBDRegistries.RECIPE_TYPES) {
                         for (MBDRecipe mbdRecipe : recipeManager.getAllRecipesFor(recipeType)) {
                             if (Objects.equals(mbdRecipe.id, recipe)) {
-                                if (machine.getRecipeType() != recipeType) {
+                                if (runtimeRecipe == null || !Objects.equals(runtimeRecipe.id, mbdRecipe.id)) {
+                                    showRecipeDebuggerRecipeContents(serverPlayer, mbdRecipe);
+                                }
+                                if (!machine.isRecipeTypeAllowed(recipeType)) {
                                     serverPlayer.sendSystemMessage(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.warning.recipe_type",
                                             Component.literal("id").withStyle(style ->
                                                     style.withColor(ChatFormatting.YELLOW)
                                                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                                                    Component.literal(machine.getRecipeType().toString())))),
+                                                                    Component.literal(machine.getRecipeTypes().toString())))),
                                             Component.literal("id").withStyle(style ->
                                                     style.withColor(ChatFormatting.YELLOW)
                                                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
@@ -421,6 +445,264 @@ public class MBDGadgetsItem extends Item implements HeldItemUIFactory.IHeldItemU
      */
     private static void showOccupiedMismatchPreview(MBDMultiblockMachine multiblock, BlockPos controllerPos, int durationTicks) {
         com.lowdragmc.mbd2.client.MultiblockDebuggerClient.showPreviewWithOccupiedMismatch(multiblock, controllerPos, durationTicks);
+    }
+
+    /**
+     * Prints the clicked machine's currently displayed recipe runtime state to the recipe debugger user.
+     *
+     * @param serverPlayer player receiving the diagnostics
+     * @param machine      clicked machine
+     */
+    @Nullable
+    private static MBDRecipe showRecipeDebuggerRuntimeInfo(ServerPlayer serverPlayer, IMachine machine) {
+        RecipeLogic logic = getDebuggerDisplayRecipeLogic(machine);
+        serverPlayer.sendSystemMessage(Component.translatable(
+                "item.mbd2.mbd_gadgets.recipe_debugger.runtime.status",
+                recipeStatusComponent(logic.getStatus())));
+
+        MBDRecipe originRecipe = logic.getLastOriginRecipe();
+        MBDRecipe runningRecipe = logic.getLastRecipe();
+        MBDRecipe displayRecipe = runningRecipe != null ? runningRecipe : originRecipe;
+        if (displayRecipe == null) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.recipe.none"));
+        } else {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.recipe",
+                    recipeIdTextComponent(displayRecipe)));
+            showRecipeDebuggerRecipeContents(serverPlayer, displayRecipe);
+        }
+        if (originRecipe != null && runningRecipe != null && !Objects.equals(originRecipe.id, runningRecipe.id)) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.origin_recipe",
+                    recipeIdTextComponent(originRecipe)));
+        }
+
+        if (logic.getDuration() > 0 || logic.getProgress() > 0) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.progress",
+                    logic.getProgress(), logic.getDuration(), toPercent(logic.getProgressPercent())));
+        }
+        if (logic.getFuelMaxTime() > 0 || logic.getFuelTime() > 0) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.fuel",
+                    logic.getFuelTime(), logic.getFuelMaxTime(), toPercent(logic.getFuelProgressPercent())));
+        }
+        if (logic.getLastFuelRecipe() != null) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.fuel_recipe",
+                    recipeIdTextComponent(logic.getLastFuelRecipe())));
+        }
+        if (logic.isWaiting() && logic.getWaitingReason() != null) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.waiting_reason",
+                    logic.getWaitingReason()));
+        }
+        return displayRecipe;
+    }
+
+    private static RecipeLogic getDebuggerDisplayRecipeLogic(IMachine machine) {
+        if (machine instanceof MBDMachine mbdMachine) {
+            RecipeThreadTrait trait = RecipeThreadTrait.get(mbdMachine);
+            return trait == null ? mbdMachine.getCurrentRecipeLogic() : trait.getRecipeLogicForExternalDisplay();
+        }
+        return machine.getRecipeLogic();
+    }
+
+    private static Component recipeStatusComponent(RecipeLogic.Status status) {
+        return Component.translatable("recipe_logic.status." + status.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static Component recipeIdTextComponent(MBDRecipe recipe) {
+        return Component.literal(recipe.id.toString()).withStyle(ChatFormatting.YELLOW);
+    }
+
+    private static void showRecipeDebuggerRecipeContents(ServerPlayer serverPlayer, MBDRecipe recipe) {
+        if (!hasRecipeContents(recipe.inputs) && !hasRecipeContents(recipe.outputs)) {
+            serverPlayer.sendSystemMessage(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.contents.empty",
+                    recipeIdTextComponent(recipe)));
+            return;
+        }
+        serverPlayer.sendSystemMessage(Component.translatable(
+                "item.mbd2.mbd_gadgets.recipe_debugger.runtime.contents.header",
+                recipeIdTextComponent(recipe)));
+        sendRecipeDebuggerContents(serverPlayer,
+                Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.side.input").withStyle(ChatFormatting.AQUA),
+                recipe.inputs);
+        sendRecipeDebuggerContents(serverPlayer,
+                Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.side.output").withStyle(ChatFormatting.GOLD),
+                recipe.outputs);
+    }
+
+    private static boolean hasRecipeContents(Map<RecipeCapability<?>, List<Content>> contents) {
+        return contents.values().stream().anyMatch(list -> list != null && !list.isEmpty());
+    }
+
+    private static void sendRecipeDebuggerContents(ServerPlayer serverPlayer, Component side,
+                                                   Map<RecipeCapability<?>, List<Content>> contents) {
+        for (var entry : contents.entrySet()) {
+            RecipeCapability<?> capability = entry.getKey();
+            List<Content> contentList = entry.getValue();
+            if (contentList == null || contentList.isEmpty()) continue;
+            for (Content content : contentList) {
+                MutableComponent line = Component.translatable(
+                        "item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.line",
+                        side,
+                        capability.getTraslateComponent(),
+                        recipeContentComponent(capability, content));
+                Component metadata = recipeContentMetadataComponent(content);
+                if (metadata != null) {
+                    line.append(Component.literal(" ")).append(metadata);
+                }
+                serverPlayer.sendSystemMessage(line);
+            }
+        }
+    }
+
+    private static Component recipeContentComponent(RecipeCapability<?> capability, Content content) {
+        Object inner = content.getContent();
+        if (inner instanceof Ingredient ingredient) {
+            return itemIngredientComponent(ingredient);
+        }
+        if (inner instanceof FluidIngredient fluidIngredient) {
+            return fluidIngredientComponent(fluidIngredient);
+        }
+        if (inner instanceof EntityIngredient entityIngredient) {
+            return entityIngredientComponent(entityIngredient);
+        }
+        if (inner instanceof Number || inner instanceof Boolean || inner instanceof CharSequence) {
+            return Component.literal(String.valueOf(inner)).withStyle(ChatFormatting.YELLOW);
+        }
+        return Component.literal(serializedContentText(capability, content)).withStyle(ChatFormatting.GRAY);
+    }
+
+    private static Component itemIngredientComponent(Ingredient ingredient) {
+        int amount = 1;
+        Ingredient displayIngredient = ingredient;
+        if (ingredient instanceof SizedIngredient sizedIngredient) {
+            amount = sizedIngredient.getAmount();
+            displayIngredient = sizedIngredient.getInner();
+        }
+
+        MutableComponent result = Component.literal(amount + "x ");
+        ItemStack[] stacks = displayIngredient.getItems();
+        appendItemCandidates(result, stacks);
+        if (displayIngredient instanceof StrictNBTIngredient) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.nbt"));
+        }
+        return result;
+    }
+
+    private static Component fluidIngredientComponent(FluidIngredient fluidIngredient) {
+        MutableComponent result = Component.literal(fluidIngredient.getAmount() + "x ");
+        var stacks = fluidIngredient.getStacks();
+        int limit = Math.min(stacks.length, CONTENT_PREVIEW_LIMIT);
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) result.append(Component.literal(", "));
+            result.append(stacks[i].getDisplayName());
+        }
+        appendMoreCandidates(result, stacks.length);
+        if (stacks.length == 0) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.unknown"));
+        }
+        if (fluidIngredient.getNbt() != null) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.nbt"));
+        }
+        return result;
+    }
+
+    private static Component entityIngredientComponent(EntityIngredient entityIngredient) {
+        MutableComponent result = Component.literal(entityIngredient.getCount() + "x ");
+        var types = entityIngredient.getTypes();
+        int limit = Math.min(types.length, CONTENT_PREVIEW_LIMIT);
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) result.append(Component.literal(", "));
+            result.append(types[i].getDescription());
+        }
+        appendMoreCandidates(result, types.length);
+        if (types.length == 0) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.unknown"));
+        }
+        if (entityIngredient.getNbt() != null) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.nbt"));
+        }
+        return result;
+    }
+
+    private static void appendItemCandidates(MutableComponent result, ItemStack[] stacks) {
+        int limit = Math.min(stacks.length, CONTENT_PREVIEW_LIMIT);
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) result.append(Component.literal(", "));
+            result.append(stacks[i].getDisplayName());
+        }
+        appendMoreCandidates(result, stacks.length);
+        if (stacks.length == 0) {
+            result.append(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.unknown"));
+        }
+    }
+
+    private static void appendMoreCandidates(MutableComponent result, int totalCount) {
+        if (totalCount > CONTENT_PREVIEW_LIMIT) {
+            result.append(Component.translatable(
+                    "item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.more",
+                    totalCount - CONTENT_PREVIEW_LIMIT));
+        }
+    }
+
+    @Nullable
+    private static Component recipeContentMetadataComponent(Content content) {
+        List<Component> parts = new ArrayList<>();
+        if (content.perTick) {
+            parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.per_tick"));
+        }
+        if (content.chance != 1) {
+            if (content.chance == 0) {
+                parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.not_consumed"));
+            } else {
+                parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.chance",
+                        toPercent(content.chance) + "%"));
+            }
+        }
+        if (content.tierChanceBoost != 0) {
+            parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.tier_boost",
+                    toPercent(content.tierChanceBoost) + "%"));
+        }
+        if (!content.slotName.isEmpty()) {
+            parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.slot",
+                    content.slotName));
+        }
+        if (!content.uiName.isEmpty()) {
+            parts.add(Component.translatable("item.mbd2.mbd_gadgets.recipe_debugger.runtime.content.metadata.ui",
+                    content.uiName));
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        MutableComponent result = Component.literal("[");
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) result.append(Component.literal(", "));
+            result.append(parts.get(i));
+        }
+        return result.append(Component.literal("]"));
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static String serializedContentText(RecipeCapability capability, Content content) {
+        String text;
+        try {
+            text = capability.serializer.toJson(capability.of(content.getContent())).toString();
+        } catch (RuntimeException e) {
+            text = String.valueOf(content.getContent());
+        }
+        if (text.length() > CONTENT_JSON_PREVIEW_LIMIT) {
+            return text.substring(0, CONTENT_JSON_PREVIEW_LIMIT) + "...";
+        }
+        return text;
+    }
+
+    private static int toPercent(double progress) {
+        return (int) Math.round(progress * 100.0);
     }
 
     /**

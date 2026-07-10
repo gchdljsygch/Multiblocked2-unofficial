@@ -17,6 +17,7 @@
     "client.LDLibTipsI18nFallbackMixin",
     "client.MBDWorkspaceResourcePackMixin",
     "client.ModelManagerAccessor",
+    "create.AnimatedSpoutMixin",
     "lowdraglib.DrawerHelperMixin",
     "lowdraglib.IModelRendererFusionMixin",
     "lowdraglib.IRendererResourceContainerMixin",
