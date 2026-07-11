@@ -7,12 +7,15 @@ import com.lowdragmc.mbd2.api.pattern.MultiblockWorldSavedData;
 import com.lowdragmc.mbd2.common.item.MBDGadgetsItem;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
+import com.lowdragmc.mbd2.common.data.TemplateMultiblockXEIDataManager;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -44,6 +47,28 @@ public class ForgeCommonEventListener {
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         ServerCommands.createServerCommands().forEach(event.getDispatcher()::register);
+    }
+
+    /**
+     * Registers the server data-pack listener for template XEI pages.
+     *
+     * @param event server reload-listener registration event
+     */
+    @SubscribeEvent
+    public static void onAddReloadListener(AddReloadListenerEvent event) {
+        event.addListener(TemplateMultiblockXEIDataManager.RELOAD_LISTENER);
+    }
+
+    /**
+     * Sends the active template XEI snapshot to a newly connected player.
+     *
+     * @param event player login event
+     */
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            TemplateMultiblockXEIDataManager.syncToPlayer(player);
+        }
     }
 
     /**
@@ -172,6 +197,7 @@ public class ForgeCommonEventListener {
                 MultiblockWorldSavedData.getOrCreate(level).releaseExecutorService();
             }
         }
+        TemplateMultiblockXEIDataManager.clear();
     }
 
 }

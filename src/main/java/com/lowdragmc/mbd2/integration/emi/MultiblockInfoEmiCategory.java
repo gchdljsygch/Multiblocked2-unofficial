@@ -4,8 +4,8 @@ import com.lowdragmc.lowdraglib.emi.ModularEmiRecipe;
 import com.lowdragmc.lowdraglib.gui.widget.SlotWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.MBD2;
-import com.lowdragmc.mbd2.api.pattern.PatternPreviewWidget;
-import com.lowdragmc.mbd2.api.registry.MBDRegistries;
+import com.lowdragmc.mbd2.api.pattern.IMultiblockXEI;
+import com.lowdragmc.mbd2.api.registry.MultiblockXEIRegistry;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import dev.emi.emi.api.EmiRegistry;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
@@ -26,23 +26,38 @@ import java.util.function.Supplier;
 public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
 
     /**
-     * EMI display wrapper for a single multiblock machine definition preview.
+     * EMI display wrapper for a single multiblock XEI entry.
      */
     public static class MultiblockInfoEmiRecipe extends ModularEmiRecipe<WidgetGroup> {
 
+        public final IMultiblockXEI entry;
+        @Nullable
         public final MultiblockMachineDefinition definition;
 
         public MultiblockInfoEmiRecipe(MultiblockMachineDefinition definition) {
-            this(definition, new PatternWidgetSupplier(definition));
+            this(IMultiblockXEI.of(definition), definition);
         }
 
-        private MultiblockInfoEmiRecipe(MultiblockMachineDefinition definition, PatternWidgetSupplier widgetSupplier) {
+        public MultiblockInfoEmiRecipe(IMultiblockXEI entry) {
+            this(entry, null);
+        }
+
+        private MultiblockInfoEmiRecipe(IMultiblockXEI entry, @Nullable MultiblockMachineDefinition definition) {
+            this(entry, definition, new PatternWidgetSupplier(entry));
+        }
+
+        private MultiblockInfoEmiRecipe(IMultiblockXEI entry, @Nullable MultiblockMachineDefinition definition,
+                                        PatternWidgetSupplier widgetSupplier) {
             super(widgetSupplier);
+            this.entry = entry;
             this.definition = definition;
             inputs.clear();
-            inputs.addAll(createPatternInputs(widgetSupplier.initialWidget));
+            inputs.addAll(createPatternInputs(entry, widgetSupplier.initialWidget));
             outputs.clear();
-            outputs.add(EmiStack.of(definition.asStack()));
+            var workstation = entry.getWorkstation();
+            if (!workstation.isEmpty()) {
+                outputs.add(EmiStack.of(workstation));
+            }
         }
 
         @Override
@@ -52,7 +67,7 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
 
         @Override
         public @Nullable ResourceLocation getId() {
-            return definition.id();
+            return entry.getId();
         }
 
         @Override
@@ -60,8 +75,10 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
             super.clearSlotWidgetHandler(slotW, slotIndex);
         }
 
-        private static List<EmiIngredient> createPatternInputs(PatternPreviewWidget widget) {
-            return widget.getCurrentPatternParts().stream()
+        private static List<EmiIngredient> createPatternInputs(IMultiblockXEI entry, WidgetGroup widget) {
+            var inputs = entry.getInputs(widget);
+            return inputs.stream()
+                    .filter(java.util.Objects::nonNull)
                     .map(MultiblockInfoEmiRecipe::createInput)
                     .filter(input -> !input.isEmpty())
                     .toList();
@@ -83,16 +100,16 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
 
         private static final class PatternWidgetSupplier implements Supplier<WidgetGroup> {
 
-            private final MultiblockMachineDefinition definition;
-            private PatternPreviewWidget initialWidget;
+            private final IMultiblockXEI entry;
+            private WidgetGroup initialWidget;
 
-            private PatternWidgetSupplier(MultiblockMachineDefinition definition) {
-                this.definition = definition;
+            private PatternWidgetSupplier(IMultiblockXEI entry) {
+                this.entry = entry;
             }
 
             @Override
             public WidgetGroup get() {
-                var widget = PatternPreviewWidget.getPatternWidget(definition);
+                var widget = entry.createWidget();
                 if (initialWidget == null) {
                     initialWidget = widget;
                 }
@@ -108,17 +125,16 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
     }
 
     public static void registerDisplays(EmiRegistry registry) {
-        MBDRegistries.MACHINE_DEFINITIONS.values().stream()
-                .filter(MultiblockMachineDefinition.class::isInstance)
-                .map(MultiblockMachineDefinition.class::cast)
+        MultiblockXEIRegistry.entries().stream()
                 .map(MultiblockInfoEmiRecipe::new)
                 .forEach(registry::addRecipe);
     }
 
     public static void registerWorkStations(EmiRegistry registry) {
-        for (var definition : MBDRegistries.MACHINE_DEFINITIONS.values()) {
-            if (definition instanceof MultiblockMachineDefinition multiblockDefinition) {
-                registry.addWorkstation(CATEGORY, EmiStack.of(multiblockDefinition.asStack()));
+        for (var entry : MultiblockXEIRegistry.entries()) {
+            var workstation = entry.getWorkstation();
+            if (!workstation.isEmpty()) {
+                registry.addWorkstation(CATEGORY, EmiStack.of(workstation));
             }
         }
     }

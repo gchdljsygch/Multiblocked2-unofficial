@@ -1,5 +1,7 @@
 package com.lowdragmc.mbd2.common.item;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.lowdragmc.lowdraglib.gui.factory.HeldItemUIFactory;
 import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
@@ -9,9 +11,12 @@ import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
 import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
 import com.lowdragmc.lowdraglib.gui.widget.SearchComponentWidget;
+import com.lowdragmc.lowdraglib.gui.widget.SwitchWidget;
 import com.lowdragmc.lowdraglib.gui.widget.TextTextureWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.MBD2;
+import com.lowdragmc.mbd2.api.pattern.TemplateMultiblockXEIData;
+import com.lowdragmc.mbd2.api.pattern.TemplateMultiblockXEIData.StructureBlock;
 import com.lowdragmc.mbd2.api.pattern.predicates.PredicateBlocks;
 import com.lowdragmc.mbd2.api.pattern.predicates.PredicateFluids;
 import com.lowdragmc.mbd2.api.pattern.predicates.PredicateStates;
@@ -31,6 +36,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -44,19 +50,26 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -78,8 +91,13 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
     private static final String TAG_SECOND = "second";
     private static final String TAG_DIMENSION = "dimension";
     private static final String TAG_TARGET = "target";
+    private static final String TAG_XEI_TARGET = "xei_target";
+    private static final String TAG_DATA_PACK_MODE = "data_pack_mode";
     private static final String TAG_FACING = "facing";
     private static final String DEFAULT_TARGET = "new_multiblock.mb";
+    private static final String DEFAULT_XEI_TARGET = "mbd2_export/data/mbd2/mbd2_xei/selection_export.json";
+    private static final int DATA_PACK_FORMAT = 15;
+    private static final Gson JSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Direction[] GUI_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP, Direction.DOWN
     };
@@ -179,6 +197,7 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.0").withStyle(ChatFormatting.GRAY));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.1").withStyle(ChatFormatting.GRAY));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.blocks").withStyle(ChatFormatting.GRAY));
+        components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.mode", exportModeName(stack)).withStyle(ChatFormatting.GRAY));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.2", getTargetPath(stack)).withStyle(ChatFormatting.DARK_GREEN));
         components.add(Component.translatable("item.mbd2.mbd_selection_export_tool.tooltip.3", getFacing(stack).getSerializedName()).withStyle(ChatFormatting.DARK_GREEN));
         Selection selection = readSelection(stack);
@@ -202,7 +221,7 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
     @Override
     public ModularUI createUI(Player entityPlayer, HeldItemUIFactory.HeldItemHolder holder) {
         ItemStack stack = holder.getHeld();
-        var fileSearch = new SearchComponentWidget<>(66, 22, 158, 12, new SearchComponentWidget.IWidgetSearch<String>() {
+        var fileSearch = new SearchComponentWidget<>(66, 40, 158, 12, new SearchComponentWidget.IWidgetSearch<String>() {
             @Override
             public String resultDisplay(String value) {
                 return value;
@@ -215,7 +234,11 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
 
             @Override
             public void search(String word, Consumer<String> find) {
-                findExistingMultiblockFiles(word, find);
+                if (isDataPackMode(stack)) {
+                    findExistingDataPackFiles(entityPlayer.getServer(), word, find);
+                } else {
+                    findExistingMultiblockFiles(word, find);
+                }
             }
 
             @Override
@@ -232,7 +255,21 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
         fileSearch.textFieldWidget.setCurrentString(getTargetPath(stack));
         fileSearch.textFieldWidget.setMaxStringLength(256);
 
-        WidgetGroup directionButtons = new WidgetGroup(66, 48, 158, 14);
+        var exportModeText = new TextTextureWidget(66, 22, 132, 10)
+                .setText(() -> Component.translatable("item.mbd2.mbd_selection_export_tool.gui.mode.current",
+                        exportModeName(stack)));
+        var exportModeButton = new SwitchWidget(204, 19, 18, 18, (cd, pressed) -> {
+            setDataPackMode(stack, pressed);
+            fileSearch.textFieldWidget.setCurrentString(getTargetPath(stack));
+        }).setSupplier(() -> isDataPackMode(stack))
+                .setTexture(
+                        new GuiTextureGroup(ColorPattern.T_GRAY.rectTexture().setRadius(4),
+                                new TextTexture("P").setWidth(18)),
+                        new GuiTextureGroup(ColorPattern.T_GRAY.rectTexture().setRadius(4),
+                                new TextTexture("J").setWidth(18)))
+                .setHoverTooltips("item.mbd2.mbd_selection_export_tool.gui.mode.toggle");
+
+        WidgetGroup directionButtons = new WidgetGroup(66, 66, 158, 14);
         int x = 0;
         for (Direction direction : GUI_DIRECTIONS) {
             directionButtons.addWidget(new ButtonWidget(x, 0, 24, 14,
@@ -243,25 +280,29 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
             x += 26;
         }
 
-        TextTextureWidget facingText = new TextTextureWidget(66, 64, 158, 10)
+        TextTextureWidget facingText = new TextTextureWidget(66, 82, 158, 10)
                 .setText(() -> Component.translatable("item.mbd2.mbd_selection_export_tool.gui.current_facing",
                         getFacing(stack).getSerializedName()));
-        TextTextureWidget selectionText = new TextTextureWidget(10, 78, 214, 10)
+        TextTextureWidget selectionText = new TextTextureWidget(10, 96, 214, 10)
                 .setText(() -> selectionStatus(stack));
 
-        ModularUI ui = new ModularUI(234, 112, holder, entityPlayer)
+        ModularUI ui = new ModularUI(234, 130, holder, entityPlayer)
                 .background(ResourceBorderTexture.BORDERED_BACKGROUND)
                 .widget(new ImageWidget(10, 8, 214, 10,
                         new TextTexture("item.mbd2.mbd_selection_export_tool.gui.title").setWidth(214)))
                 .widget(new ImageWidget(10, 22, 52, 12,
+                        new TextTexture("item.mbd2.mbd_selection_export_tool.gui.mode").setWidth(52)))
+                .widget(exportModeText)
+                .widget(exportModeButton)
+                .widget(new ImageWidget(10, 40, 52, 12,
                         new TextTexture("item.mbd2.mbd_selection_export_tool.gui.file").setWidth(52)))
                 .widget(fileSearch)
-                .widget(new ImageWidget(10, 48, 52, 12,
+                .widget(new ImageWidget(10, 66, 52, 12,
                         new TextTexture("item.mbd2.mbd_selection_export_tool.gui.facing").setWidth(52)))
                 .widget(directionButtons)
                 .widget(facingText)
                 .widget(selectionText)
-                .widget(new ButtonWidget(66, 92, 158, 14,
+                .widget(new ButtonWidget(66, 110, 158, 14,
                         buttonTexture("item.mbd2.mbd_selection_export_tool.gui.export"),
                         cd -> {
                             if (entityPlayer instanceof ServerPlayer serverPlayer) {
@@ -322,6 +363,15 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
      * @return success or failure message for chat feedback
      */
     private static ExportResult exportSelection(ServerPlayer player, ItemStack stack, String rawPath) {
+        return isDataPackMode(stack)
+                ? exportDataPackSelection(player, stack, rawPath)
+                : exportProjectSelection(player, stack, rawPath);
+    }
+
+    /**
+     * Exports the selected blocks into an MBD project file.
+     */
+    private static ExportResult exportProjectSelection(ServerPlayer player, ItemStack stack, String rawPath) {
         Selection selection = readSelection(stack);
         if (!selection.isComplete()) {
             return ExportResult.failure(Component.translatable("item.mbd2.mbd_selection_export_tool.export.failure.incomplete"));
@@ -367,6 +417,123 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
             MBD2.LOGGER.error("Failed to export multiblock selection to {}", target, e);
             return ExportResult.failure(Component.translatable("item.mbd2.mbd_selection_export_tool.export.failure.write"));
         }
+    }
+
+    /**
+     * Exports the selected blocks into a live world data pack entry for the
+     * external XEI template API.
+     */
+    private static ExportResult exportDataPackSelection(ServerPlayer player, ItemStack stack, String rawPath) {
+        Selection selection = readSelection(stack);
+        if (!selection.isComplete()) {
+            return ExportResult.failure(Component.translatable("item.mbd2.mbd_selection_export_tool.export.failure.incomplete"));
+        }
+        if (!player.level().dimension().location().equals(selection.dimension())) {
+            return ExportResult.failure(Component.translatable("item.mbd2.mbd_selection_export_tool.export.failure.dimension",
+                    selection.dimension()));
+        }
+
+        MinecraftServer server = player.getServer();
+        DataPackTarget target = server == null ? null : resolveDataPackTarget(server, rawPath);
+        if (target == null) {
+            return ExportResult.failure(Component.translatable(
+                    "item.mbd2.mbd_selection_export_tool.export.failure.xei_path"));
+        }
+
+        ExternalDataBuildResult data = buildExternalData(player.level(), selection, target.id());
+        if (!data.success()) {
+            return ExportResult.failure(data.message());
+        }
+
+        try {
+            writeDataPackEntry(target, data.data());
+            return ExportResult.success(Component.translatable(
+                    "item.mbd2.mbd_selection_export_tool.export.xei_success",
+                    target.displayPath(), target.id().toString()));
+        } catch (IOException | RuntimeException e) {
+            MBD2.LOGGER.error("Failed to export external XEI data-pack entry to {}", target.file(), e);
+            return ExportResult.failure(Component.translatable(
+                    "item.mbd2.mbd_selection_export_tool.export.failure.xei_write"));
+        }
+    }
+
+    private static ExternalDataBuildResult buildExternalData(Level level, Selection selection, ResourceLocation id) {
+        BlockPos first = selection.first().orElseThrow();
+        BlockPos second = selection.second().orElseThrow();
+        int minX = Math.min(first.getX(), second.getX());
+        int minY = Math.min(first.getY(), second.getY());
+        int minZ = Math.min(first.getZ(), second.getZ());
+        int maxX = Math.max(first.getX(), second.getX());
+        int maxY = Math.max(first.getY(), second.getY());
+        int maxZ = Math.max(first.getZ(), second.getZ());
+        List<StructureBlock> structure = new ArrayList<>();
+        int controllerCount = 0;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockPos worldPos = new BlockPos(x, y, z);
+                    BlockState state = level.getBlockState(worldPos);
+                    if (state.isAir()) {
+                        continue;
+                    }
+                    if (state.getBlock() == Blocks.STRUCTURE_BLOCK) {
+                        controllerCount++;
+                        continue;
+                    }
+                    structure.add(new StructureBlock(
+                            new BlockPos(x - minX, y - minY, z - minZ),
+                            state,
+                            copyBlockEntityData(level, worldPos)));
+                }
+            }
+        }
+
+        if (controllerCount == 0) {
+            return ExternalDataBuildResult.failure(Component.translatable(
+                    "item.mbd2.mbd_selection_export_tool.export.failure.no_controller"));
+        }
+        if (controllerCount > 1) {
+            return ExternalDataBuildResult.failure(Component.translatable(
+                    "item.mbd2.mbd_selection_export_tool.export.failure.multiple_controllers"));
+        }
+
+        return ExternalDataBuildResult.success(new TemplateMultiblockXEIData(
+                id, id.toString(), List.of(), ItemStack.EMPTY, List.of(), structure));
+    }
+
+    @Nullable
+    private static CompoundTag copyBlockEntityData(Level level, BlockPos pos) {
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (blockEntity == null) {
+            return null;
+        }
+        CompoundTag tag = blockEntity.saveWithFullMetadata();
+        tag.remove("x");
+        tag.remove("y");
+        tag.remove("z");
+        return tag;
+    }
+
+    private static void writeDataPackEntry(DataPackTarget target, TemplateMultiblockXEIData data) throws IOException {
+        Path packRoot = target.packRoot().toPath();
+        Files.createDirectories(packRoot);
+        Path metadata = packRoot.resolve("pack.mcmeta");
+        if (Files.notExists(metadata)) {
+            com.google.gson.JsonObject pack = new com.google.gson.JsonObject();
+            com.google.gson.JsonObject packInfo = new com.google.gson.JsonObject();
+            packInfo.addProperty("description", "MBD2 exported XEI data");
+            packInfo.addProperty("pack_format", DATA_PACK_FORMAT);
+            pack.add("pack", packInfo);
+            Files.writeString(metadata, JSON.toJson(pack), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        }
+        Path parent = target.file().toPath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Files.writeString(target.file().toPath(), JSON.toJson(data.toJson()), StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
     }
 
     /**
@@ -567,6 +734,80 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
     }
 
     /**
+     * Resolves a data-pack target relative to the current world's datapacks
+     * directory and extracts the XEI resource id from its path.
+     *
+     * <p>The required layout is
+     * {@code <pack>/data/<namespace>/mbd2_xei/<id>.json}. Restricting the
+     * target to this layout prevents a UI path from writing outside the
+     * world's data-pack root and makes the generated file immediately usable
+     * by the reload listener.</p>
+     */
+    @Nullable
+    private static DataPackTarget resolveDataPackTarget(MinecraftServer server, String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+        String pathText = rawPath.trim().replace('\\', '/');
+        if (pathText.isBlank() || pathText.startsWith("/") || pathText.matches("^[A-Za-z]:/.*")) {
+            return null;
+        }
+        if (pathText.toLowerCase(Locale.ROOT).endsWith(".json")) {
+            pathText = pathText.substring(0, pathText.length() - ".json".length()) + ".json";
+        } else {
+            pathText += ".json";
+        }
+
+        final Path relative;
+        try {
+            relative = Path.of(pathText).normalize();
+        } catch (InvalidPathException exception) {
+            return null;
+        }
+        if (relative.isAbsolute() || relative.getNameCount() < 5) {
+            return null;
+        }
+        for (Path part : relative) {
+            if ("..".equals(part.toString())) {
+                return null;
+            }
+        }
+        if (!"data".equals(relative.getName(1).toString())
+                || !TemplateMultiblockXEIData.DATA_DIRECTORY.equals(relative.getName(3).toString())) {
+            return null;
+        }
+
+        String namespace = relative.getName(2).toString();
+        String resourcePath = relative.subpath(4, relative.getNameCount()).toString().replace('\\', '/');
+        if (!resourcePath.toLowerCase(Locale.ROOT).endsWith(".json")) {
+            return null;
+        }
+        resourcePath = resourcePath.substring(0, resourcePath.length() - ".json".length());
+        if (resourcePath.isBlank()) {
+            return null;
+        }
+
+        ResourceLocation id;
+        try {
+            id = ResourceLocation.fromNamespaceAndPath(namespace, resourcePath);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+
+        Path datapacksRoot = server.getWorldPath(LevelResource.DATAPACK_DIR).toAbsolutePath().normalize();
+        Path file = datapacksRoot.resolve(relative).normalize();
+        if (!file.startsWith(datapacksRoot)) {
+            return null;
+        }
+        Path packRoot = datapacksRoot.resolve(relative.getName(0).toString()).normalize();
+        if (!file.startsWith(packRoot)) {
+            return null;
+        }
+        return new DataPackTarget(file.toFile(), packRoot.toFile(), id,
+                relative.toString().replace(File.separatorChar, '/'));
+    }
+
+    /**
      * Searches existing multiblock project files for UI autocompletion.
      *
      * @param word search filter; {@code null} matches all files
@@ -587,6 +828,37 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
                     .forEach(find);
         } catch (IOException ignored) {
         }
+    }
+
+    /**
+     * Searches installed world data packs for external XEI template files.
+     */
+    private static void findExistingDataPackFiles(@Nullable MinecraftServer server, String word,
+                                                  Consumer<String> find) {
+        if (server == null) {
+            return;
+        }
+        Path root = server.getWorldPath(LevelResource.DATAPACK_DIR);
+        if (!Files.isDirectory(root)) {
+            return;
+        }
+        String filter = word == null ? "" : word.toLowerCase(Locale.ROOT);
+        try (var stream = Files.walk(root)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> isTemplateDataPackPath(root, path))
+                    .map(path -> root.relativize(path).toString().replace(File.separatorChar, '/'))
+                    .filter(path -> path.toLowerCase(Locale.ROOT).contains(filter))
+                    .forEach(find);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static boolean isTemplateDataPackPath(Path root, Path file) {
+        Path relative = root.relativize(file);
+        return relative.getNameCount() >= 5
+                && "data".equals(relative.getName(1).toString())
+                && TemplateMultiblockXEIData.DATA_DIRECTORY.equals(relative.getName(3).toString())
+                && relative.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json");
     }
 
     /**
@@ -762,27 +1034,47 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
     }
 
     /**
-     * Reads the target project path from stack NBT.
+     * Reads the target path for the currently selected export mode.
      *
      * @param stack tool stack to inspect
-     * @return saved target path or {@value #DEFAULT_TARGET}
+     * @return saved target path or the mode-specific default
      */
     private static String getTargetPath(ItemStack stack) {
         CompoundTag tag = readToolTag(stack);
         if (tag == null) {
-            return DEFAULT_TARGET;
+            return isDataPackMode(stack) ? DEFAULT_XEI_TARGET : DEFAULT_TARGET;
         }
-        return tag.contains(TAG_TARGET) ? tag.getString(TAG_TARGET) : DEFAULT_TARGET;
+        String key = isDataPackMode(stack) ? TAG_XEI_TARGET : TAG_TARGET;
+        String fallback = isDataPackMode(stack) ? DEFAULT_XEI_TARGET : DEFAULT_TARGET;
+        return tag.contains(key) && !tag.getString(key).isBlank() ? tag.getString(key) : fallback;
     }
 
     /**
-     * Stores the target project path.
+     * Stores the target path for the currently selected export mode.
      *
      * @param stack tool stack to mutate
-     * @param path  path to store; blank values reset to {@value #DEFAULT_TARGET}
+     * @param path  path to store; blank values reset to the mode-specific default
      */
     private static void setTargetPath(ItemStack stack, String path) {
-        toolTag(stack).putString(TAG_TARGET, path == null || path.isBlank() ? DEFAULT_TARGET : path.trim());
+        boolean dataPackMode = isDataPackMode(stack);
+        String key = dataPackMode ? TAG_XEI_TARGET : TAG_TARGET;
+        String fallback = dataPackMode ? DEFAULT_XEI_TARGET : DEFAULT_TARGET;
+        toolTag(stack).putString(key, path == null || path.isBlank() ? fallback : path.trim());
+    }
+
+    private static boolean isDataPackMode(ItemStack stack) {
+        CompoundTag tag = readToolTag(stack);
+        return tag != null && tag.getBoolean(TAG_DATA_PACK_MODE);
+    }
+
+    private static void setDataPackMode(ItemStack stack, boolean enabled) {
+        toolTag(stack).putBoolean(TAG_DATA_PACK_MODE, enabled);
+    }
+
+    private static Component exportModeName(ItemStack stack) {
+        return Component.translatable(isDataPackMode(stack)
+                ? "item.mbd2.mbd_selection_export_tool.gui.mode.xei"
+                : "item.mbd2.mbd_selection_export_tool.gui.mode.pattern");
     }
 
     /**
@@ -807,6 +1099,27 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
      */
     private static void setFacing(ItemStack stack, Direction facing) {
         toolTag(stack).putInt(TAG_FACING, facing.get3DDataValue());
+    }
+
+    private record DataPackTarget(File file, File packRoot, ResourceLocation id, String displayPath) {
+    }
+
+    private record ExternalDataBuildResult(boolean success, @Nullable TemplateMultiblockXEIData data,
+                                           Component message) {
+        static ExternalDataBuildResult success(TemplateMultiblockXEIData data) {
+            return new ExternalDataBuildResult(true, data, Component.empty());
+        }
+
+        static ExternalDataBuildResult failure(Component message) {
+            return new ExternalDataBuildResult(false, null, message);
+        }
+
+        public TemplateMultiblockXEIData data() {
+            if (data == null) {
+                throw new IllegalStateException("Missing external XEI data");
+            }
+            return data;
+        }
     }
 
     private record Selection(Optional<BlockPos> first, Optional<BlockPos> second,

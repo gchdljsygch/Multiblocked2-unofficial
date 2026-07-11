@@ -7,6 +7,7 @@ import com.lowdragmc.mbd2.common.network.packets.C2SSetBuilderBuildModePacket;
 import com.lowdragmc.mbd2.common.network.packets.C2SSetBuilderPatternPacket;
 import com.lowdragmc.mbd2.common.network.packets.C2SSetGadgetModePacket;
 import com.lowdragmc.mbd2.common.network.packets.SPatternErrorPosPacket;
+import com.lowdragmc.mbd2.common.network.packets.STemplateMultiblockXEIDataPacket;
 
 /**
  * Network channel registration for MBD2 gameplay packets.
@@ -29,6 +30,7 @@ public class MBD2Network {
      */
     public static void init() {
         NETWORK.registerS2C(SPatternErrorPosPacket.class);
+        NETWORK.registerS2C(STemplateMultiblockXEIDataPacket.class);
         NETWORK.registerC2S(C2SSetGadgetModePacket.class);
         NETWORK.registerC2S(C2SSetBuilderBuildModePacket.class);
         NETWORK.registerC2S(C2SSetBuilderPatternPacket.class);

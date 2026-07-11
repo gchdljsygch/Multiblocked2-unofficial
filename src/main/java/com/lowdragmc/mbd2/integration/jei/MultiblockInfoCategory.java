@@ -3,9 +3,10 @@ package com.lowdragmc.mbd2.integration.jei;
 import com.lowdragmc.lowdraglib.jei.ModularUIRecipeCategory;
 import com.lowdragmc.lowdraglib.jei.ModularWrapper;
 import com.lowdragmc.mbd2.MBD2;
-import com.lowdragmc.mbd2.api.pattern.PatternPreviewWidget;
-import com.lowdragmc.mbd2.api.registry.MBDRegistries;
+import com.lowdragmc.mbd2.api.pattern.IMultiblockXEI;
+import com.lowdragmc.mbd2.api.registry.MultiblockXEIRegistry;
 import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
+import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
@@ -14,6 +15,9 @@ import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * JEI category that shows preview pages for registered multiblock machine structures.
@@ -21,14 +25,25 @@ import org.jetbrains.annotations.NotNull;
 public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockInfoCategory.MultiblockInfoWrapper> {
 
     /**
-     * JEI wrapper for a single multiblock machine definition preview.
+     * JEI wrapper for a single multiblock XEI entry.
      */
-    public static class MultiblockInfoWrapper extends ModularWrapper<PatternPreviewWidget> {
+    public static class MultiblockInfoWrapper extends ModularWrapper<WidgetGroup> {
 
+        public final IMultiblockXEI entry;
+        @Nullable
         public final MultiblockMachineDefinition definition;
 
         public MultiblockInfoWrapper(MultiblockMachineDefinition definition) {
-            super(PatternPreviewWidget.getPatternWidget(definition));
+            this(IMultiblockXEI.of(definition), definition);
+        }
+
+        public MultiblockInfoWrapper(IMultiblockXEI entry) {
+            this(entry, null);
+        }
+
+        private MultiblockInfoWrapper(IMultiblockXEI entry, @Nullable MultiblockMachineDefinition definition) {
+            super(entry.createWidget());
+            this.entry = entry;
             this.definition = definition;
             setShouldRenderTooltips(true);
         }
@@ -48,18 +63,19 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
         this.icon = helpers.getGuiHelper().drawableBuilder(MBD2.id("textures/gui/multiblock_info_page.png"), 0, 0, 16, 16).setTextureSize(16, 16).build();
     }
 
-    public static void registerRecipes(IRecipeRegistration registry) {
-        registry.addRecipes(RECIPE_TYPE, MBDRegistries.MACHINE_DEFINITIONS.values().stream()
-                .filter(MultiblockMachineDefinition.class::isInstance)
-                .map(MultiblockMachineDefinition.class::cast)
+    public static List<MultiblockInfoWrapper> registerRecipes(IRecipeRegistration registry) {
+        var recipes = MultiblockXEIRegistry.entries().stream()
                 .map(MultiblockInfoWrapper::new)
-                .toList());
+                .toList();
+        registry.addRecipes(RECIPE_TYPE, recipes);
+        return recipes;
     }
 
     public static void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
-        for (var definition : MBDRegistries.MACHINE_DEFINITIONS.values()) {
-            if (definition instanceof MultiblockMachineDefinition multiblockDefinition) {
-                registration.addRecipeCatalyst(multiblockDefinition.asStack(), RECIPE_TYPE);
+        for (var entry : MultiblockXEIRegistry.entries()) {
+            var workstation = entry.getWorkstation();
+            if (workstation != null && !workstation.isEmpty()) {
+                registration.addRecipeCatalyst(workstation, RECIPE_TYPE);
             }
         }
     }
