@@ -31,6 +31,7 @@ import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.integration.ae2.MEOutputScheduler;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.core.Direction;
@@ -186,6 +187,7 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
+        MEOutputScheduler.removeInterface(this.interfaceLogic);
         this.getMainNode().destroy();
     }
 
@@ -200,7 +202,13 @@ public class MEInterfaceTrait extends SimpleCapabilityTrait implements IGridConn
     @Override
     public void onMachineUnLoad() {
         super.onMachineUnLoad();
+        MEOutputScheduler.removeInterface(this.interfaceLogic);
         this.getMainNode().destroy();
+    }
+
+    @Override
+    public void onMachineRemoved() {
+        MEOutputScheduler.removeInterface(this.interfaceLogic);
     }
 
     ///////////////////////////

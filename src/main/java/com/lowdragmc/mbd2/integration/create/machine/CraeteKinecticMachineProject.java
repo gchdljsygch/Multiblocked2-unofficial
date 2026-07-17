@@ -8,10 +8,12 @@ import com.lowdragmc.lowdraglib.gui.editor.configurator.NumberConfigurator;
 import com.lowdragmc.lowdraglib.gui.editor.data.Resources;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.IRendererResource;
 import com.lowdragmc.lowdraglib.gui.editor.data.resource.Resource;
+import com.lowdragmc.lowdraglib.gui.editor.runtime.PersistedParser;
 import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
 import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
+import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.utils.LocalizationUtils;
 import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
@@ -22,9 +24,11 @@ import com.simibubi.create.Create;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.shapes.Shapes;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -39,9 +43,11 @@ public class CraeteKinecticMachineProject extends MachineProject {
 
     @Getter
     @Setter
+    @Persisted
     private boolean isRotating = true;
     @Getter
     @Setter
+    @Persisted
     private float stress = 128;
 
     public CraeteKinecticMachineProject(Resources resources, CreateKineticMachineDefinition definition, WidgetGroup ui) {
@@ -91,6 +97,19 @@ public class CraeteKinecticMachineProject extends MachineProject {
     @Override
     public CraeteKinecticMachineProject newEmptyProject() {
         return new CraeteKinecticMachineProject(new Resources(createResources()), createDefinition(), createDefaultUI());
+    }
+
+    @Override
+    public CompoundTag serializeNBT() {
+        var tag = super.serializeNBT();
+        PersistedParser.serializeNBT(tag, getClass(), this);
+        return tag;
+    }
+
+    @Override
+    public void deserializeNBT(CompoundTag tag) {
+        super.deserializeNBT(tag);
+        PersistedParser.deserializeNBT(tag, new HashMap<>(), getClass(), this);
     }
 
     @Override

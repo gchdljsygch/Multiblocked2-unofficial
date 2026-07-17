@@ -44,6 +44,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
@@ -69,6 +70,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -467,6 +469,7 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
         int maxY = Math.max(first.getY(), second.getY());
         int maxZ = Math.max(first.getZ(), second.getZ());
         List<StructureBlock> structure = new ArrayList<>();
+        Map<ResourceLocation, Integer> inputCounts = new HashMap<>();
         int controllerCount = 0;
 
         for (int x = minX; x <= maxX; x++) {
@@ -485,6 +488,11 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
                             new BlockPos(x - minX, y - minY, z - minZ),
                             state,
                             copyBlockEntityData(level, worldPos)));
+                    Item item = state.getBlock().asItem();
+                    ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
+                    if (item != Items.AIR && itemId != null) {
+                        inputCounts.merge(itemId, 1, Integer::sum);
+                    }
                 }
             }
         }
@@ -498,8 +506,27 @@ public class MultiblockSelectionExportToolItem extends Item implements HeldItemU
                     "item.mbd2.mbd_selection_export_tool.export.failure.multiple_controllers"));
         }
 
+        List<List<ItemStack>> inputs = buildInputGroups(inputCounts);
         return ExternalDataBuildResult.success(new TemplateMultiblockXEIData(
-                id, id.toString(), List.of(), ItemStack.EMPTY, List.of(), structure));
+                id, id.toString(), List.of(), ItemStack.EMPTY, inputs, structure));
+    }
+
+    /**
+     * Converts aggregated block item counts into the input slot format used by the XEI data-pack schema.
+     */
+    private static List<List<ItemStack>> buildInputGroups(Map<ResourceLocation, Integer> inputCounts) {
+        List<Map.Entry<ResourceLocation, Integer>> entries = new ArrayList<>(inputCounts.entrySet());
+        entries.sort(Comparator.comparing(entry -> entry.getKey().toString()));
+
+        List<List<ItemStack>> inputs = new ArrayList<>(entries.size());
+        for (Map.Entry<ResourceLocation, Integer> entry : entries) {
+            Item item = ForgeRegistries.ITEMS.getValue(entry.getKey());
+            if (item == null || item == Items.AIR) {
+                continue;
+            }
+            inputs.add(List.of(new ItemStack(item, entry.getValue())));
+        }
+        return inputs;
     }
 
     @Nullable

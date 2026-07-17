@@ -9,6 +9,7 @@ import appeng.util.ConfigInventory;
 import com.lowdragmc.lowdraglib.syncdata.IContentChangeAware;
 import com.lowdragmc.lowdraglib.syncdata.ITagSerializable;
 import com.lowdragmc.mbd2.core.mixins.ae2.InterfaceLogicAccessor;
+import com.lowdragmc.mbd2.integration.ae2.MEOutputScheduler;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.nbt.CompoundTag;
@@ -25,6 +26,8 @@ public class SerializableInterfaceLogic extends InterfaceLogic implements ITagSe
 
     private Runnable onContentsChanged = () -> {
     };
+    private int storageBatchDepth;
+    private boolean storageBatchDirty;
 
     /**
      * Creates serializable interface logic with MBD-sized config and storage inventories.
@@ -49,9 +52,52 @@ public class SerializableInterfaceLogic extends InterfaceLogic implements ITagSe
         useExtendedCapacities(config);
         accessor.mbd2$setConfig(config);
 
-        var storage = ConfigInventory.configStacks(null, slots, accessor::mbd2$onStorageChanged, true);
+        var storage = ConfigInventory.configStacks(null, slots, this::mbd2$onStorageChanged, true);
         useExtendedCapacities(storage);
         accessor.mbd2$setStorage(storage);
+    }
+
+    /**
+     * Starts a batch of local storage mutations.
+     *
+     * <p>AE2 normally recalculates every interface plan after each storage
+     * mutation. The ME output scheduler uses this scope to defer that callback
+     * until all slots in the batch have been updated.</p>
+     */
+    public void beginStorageBatch() {
+        storageBatchDepth++;
+    }
+
+    /**
+     * Ends a local storage mutation batch and emits one deferred AE2 callback.
+     */
+    public void endStorageBatch() {
+        if (storageBatchDepth <= 0) {
+            return;
+        }
+
+        storageBatchDepth--;
+        if (storageBatchDepth == 0 && storageBatchDirty) {
+            storageBatchDirty = false;
+            ((InterfaceLogicAccessor) this).mbd2$onStorageChanged();
+        }
+    }
+
+    private void mbd2$onStorageChanged() {
+        if (storageBatchDepth > 0) {
+            storageBatchDirty = true;
+            return;
+        }
+        ((InterfaceLogicAccessor) this).mbd2$onStorageChanged();
+    }
+
+    /**
+     * Drops queued output when the interface is detached from its old grid.
+     */
+    @Override
+    public void gridChanged() {
+        MEOutputScheduler.removeInterface(this);
+        super.gridChanged();
     }
 
     private static void useExtendedCapacities(ConfigInventory inventory) {

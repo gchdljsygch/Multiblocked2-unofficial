@@ -16,6 +16,8 @@ import appeng.helpers.InterfaceLogic;
 import appeng.helpers.InterfaceLogicHost;
 import appeng.helpers.MultiCraftingTracker;
 import appeng.util.ConfigInventory;
+import com.lowdragmc.mbd2.integration.ae2.MEOutputScheduler;
+import com.lowdragmc.mbd2.integration.ae2.trait.SerializableInterfaceLogic;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -30,8 +32,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>MBD's AE2 traits can expose recipe buffers with amounts beyond vanilla item-stack sizes.
  * This mixin intercepts {@code InterfaceLogic.updateStorage} so planned work is processed using
  * {@code long} amounts all the way through network insertion, extraction, fuzzy matching, and
- * crafting-card requests. It mutates the interface's storage inventory and may issue AE2 network
- * operations, so it must run on AE2's normal server tick path.</p>
+ * crafting-card requests. MBD interface output is handed to the server-side
+ * {@code MEOutputScheduler}, while imports and crafting requests stay on AE2's normal grid tick path.</p>
  */
 @Mixin(InterfaceLogic.class)
 public class InterfaceLogicMixin {
@@ -81,6 +83,7 @@ public class InterfaceLogicMixin {
 
     /**
      * Applies one planned-work entry and refreshes AE2's plan when it changed.
+     * MBD interface output is queued here and committed by the global scheduler.
      *
      * @param slot   storage slot associated with the planned work
      * @param what   AE key to move or craft
@@ -118,6 +121,20 @@ public class InterfaceLogicMixin {
         var networkInv = grid.getStorageService().getInventory();
         var energySrc = grid.getEnergyService();
 
+        var interfaceLogic = (InterfaceLogic) (Object) this;
+        if (amount < 0 && interfaceLogic instanceof SerializableInterfaceLogic serializable
+                && MEOutputScheduler.enqueueInterfaceOutput(
+                grid,
+                storage,
+                serializable,
+                (InterfaceLogicAccessor) this,
+                slot,
+                what,
+                amount,
+                interfaceRequestSource)) {
+            return false;
+        }
+
         if (amount < 0) {
             amount = amount == Long.MIN_VALUE ? Long.MAX_VALUE : -amount;
 
@@ -146,7 +163,7 @@ public class InterfaceLogicMixin {
             }
 
             if (storage.getStack(slot) == null && upgrades.isInstalled(AEItems.FUZZY_CARD)) {
-                FuzzyMode fuzzyMode = ((InterfaceLogic) (Object) this).getConfigManager().getSetting(Settings.FUZZY_MODE);
+                FuzzyMode fuzzyMode = interfaceLogic.getConfigManager().getSetting(Settings.FUZZY_MODE);
                 for (var entry : grid.getStorageService().getCachedInventory().findFuzzy(what, fuzzyMode)) {
                     long maxAmount = storage.insert(slot, entry.getKey(), amount, Actionable.SIMULATE);
                     if (mbd2$acquireFromNetwork(energySrc, networkInv, slot, entry.getKey(), maxAmount)) {

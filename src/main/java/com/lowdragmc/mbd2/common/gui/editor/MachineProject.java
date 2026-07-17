@@ -24,12 +24,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Base editor project for block-backed MBD machine definitions.
@@ -187,6 +193,10 @@ public class MachineProject implements IProject {
      * @param tag project tag containing resources, definition, and UI
      */
     public void deserializeNBT(CompoundTag tag) {
+        if (tag == null || !tag.contains("resources", Tag.TAG_COMPOUND) ||
+                !tag.contains("definition", Tag.TAG_COMPOUND) || !tag.contains("ui", Tag.TAG_COMPOUND)) {
+            throw new IllegalArgumentException("Machine project is missing resources, definition, or UI data");
+        }
         this.resources = loadResources(tag.getCompound("resources"));
         if (this.definition == null) {
             this.definition = createDefinition();
@@ -216,10 +226,99 @@ public class MachineProject implements IProject {
      */
     @Override
     public void saveProject(File file) {
+        saveProjectChecked(file);
+    }
+
+    /**
+     * Writes the project NBT to disk and reports whether the complete write succeeded.
+     *
+     * <p>The editor framework's {@code IProject.saveProject} method has a void return type and suppresses I/O
+     * failures. Editor callers use this method so a failed save cannot be reported as successful.</p>
+     *
+     * @param file target project file
+     * @return {@code true} when the target was atomically replaced and verified
+     */
+    public boolean saveProjectChecked(File file) {
         try {
-            NbtIo.write(serializeNBT(), file);
-        } catch (IOException ignored) {
+            writeCompoundTagAtomically(file, serializeNBT());
+            return true;
+        } catch (IOException | RuntimeException e) {
+            MBD2.LOGGER.error("Failed to save machine project {}", file, e);
+            return false;
         }
+    }
+
+    /**
+     * Loads a machine project into a fresh instance of the registered project type.
+     *
+     * @param file source project file
+     * @return loaded project, or {@code null} when the file is missing, malformed, or cannot be read
+     */
+    @Nullable
+    @Override
+    public IProject loadProject(File file) {
+        try {
+            var tag = NbtIo.read(file);
+            if (tag == null) {
+                return null;
+            }
+            var project = newEmptyProject();
+            project.deserializeNBT(tag);
+            return project;
+        } catch (IOException | RuntimeException e) {
+            MBD2.LOGGER.error("Failed to load machine project {}", file, e);
+            return null;
+        }
+    }
+
+    /**
+     * Writes a compound tag to a temporary file, validates the encoded result, and atomically replaces the target.
+     */
+    protected static void writeCompoundTagAtomically(File file, CompoundTag tag) throws IOException {
+        if (file == null) {
+            throw new IOException("Project file must not be null");
+        }
+        Path target = file.getAbsoluteFile().toPath();
+        Path parent = target.getParent();
+        if (parent == null) {
+            throw new IOException("Project file has no parent directory: " + file);
+        }
+        Files.createDirectories(parent);
+        if (Files.isDirectory(target)) {
+            throw new IOException("Project target is a directory: " + file);
+        }
+
+        Path temporary = Files.createTempFile(parent, "." + safeTempPrefix(file.getName()), ".tmp");
+        boolean moved = false;
+        try {
+            NbtIo.write(tag, temporary.toFile());
+            var written = NbtIo.read(temporary.toFile());
+            if (written == null || !written.equals(tag)) {
+                throw new IOException("Written project data did not pass verification: " + file);
+            }
+            moveAtomically(temporary, target);
+            moved = true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(temporary);
+            }
+        }
+    }
+
+    /**
+     * Replaces a file using an atomic move when the filesystem supports it, with a same-filesystem replacement fallback.
+     */
+    protected static void moveAtomically(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static String safeTempPrefix(String fileName) {
+        var prefix = "." + fileName + ".";
+        return prefix.length() >= 3 ? prefix : ".project.";
     }
 
     /**

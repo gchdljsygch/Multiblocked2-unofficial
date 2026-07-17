@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.Tag;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -156,6 +157,10 @@ public class RecipeTypeProject implements IProject {
      * @param tag project NBT
      */
     public void deserializeNBT(CompoundTag tag) {
+        if (tag == null || !tag.contains("resources", Tag.TAG_COMPOUND) ||
+                !tag.contains("ui", Tag.TAG_COMPOUND) || !tag.contains("recipe_type", Tag.TAG_COMPOUND)) {
+            throw new IllegalArgumentException("Recipe type project is missing resources, UI, or recipe type data");
+        }
         this.resources = loadResources(tag.getCompound("resources"));
         this.ui = new WidgetGroup();
         IConfigurableWidget.deserializeNBT(this.ui, tag.getCompound("ui"), resources, true);
@@ -170,8 +175,11 @@ public class RecipeTypeProject implements IProject {
         }
         this.recipeType = createDefaultRecipeType();
         UIResourceTexture.setCurrentResource((Resource) resources.resources.get(TexturesResource.RESOURCE_NAME), true);
-        this.recipeType.deserializeNBT(tag.getCompound("recipe_type"));
-        UIResourceTexture.clearCurrentResource();
+        try {
+            this.recipeType.deserializeNBT(tag.getCompound("recipe_type"));
+        } finally {
+            UIResourceTexture.clearCurrentResource();
+        }
     }
 
     /**
@@ -192,9 +200,22 @@ public class RecipeTypeProject implements IProject {
      */
     @Override
     public void saveProject(File file) {
+        saveProjectChecked(file);
+    }
+
+    /**
+     * Writes the recipe project and reports failures to the editor layer.
+     *
+     * @param file target project file
+     * @return {@code true} when the target was atomically replaced and verified
+     */
+    public boolean saveProjectChecked(File file) {
         try {
-            NbtIo.write(serializeNBT(), file);
-        } catch (IOException ignored) {
+            MachineProject.writeCompoundTagAtomically(file, serializeNBT());
+            return true;
+        } catch (IOException | RuntimeException e) {
+            MBD2.LOGGER.error("Failed to save recipe type project {}", file, e);
+            return false;
         }
     }
 
@@ -214,7 +235,8 @@ public class RecipeTypeProject implements IProject {
                 proj.deserializeNBT(tag);
                 return proj;
             }
-        } catch (IOException ignored) {
+        } catch (IOException | RuntimeException e) {
+            MBD2.LOGGER.error("Failed to load recipe type project {}", file, e);
         }
         return null;
     }

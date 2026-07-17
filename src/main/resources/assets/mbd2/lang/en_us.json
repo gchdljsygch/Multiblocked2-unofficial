@@ -1221,5 +1221,6 @@
   "config.entity_machine.model.preview": "Preview",
   "config.entity_machine.state.renderer": "Entity Model",
   "config.entity_machine.state.renderer.tooltip.0": "Enable - set a separated entity model for this machine state.",
-  "config.entity_machine.state.renderer.tooltip.1": "Disable - use the entity model of root state machine instead."
+  "config.entity_machine.state.renderer.tooltip.1": "Disable - use the entity model of root state machine instead.",
+  "mbd2.gui.editor.save_failed": "Save failed. The project file was not changed."
 }

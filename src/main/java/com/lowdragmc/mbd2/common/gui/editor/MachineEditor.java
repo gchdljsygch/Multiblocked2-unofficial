@@ -5,12 +5,18 @@ import com.lowdragmc.lowdraglib.gui.editor.Icons;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegisterClient;
 import com.lowdragmc.lowdraglib.gui.editor.data.IProject;
 import com.lowdragmc.lowdraglib.gui.editor.ui.*;
+import com.lowdragmc.lowdraglib.gui.widget.DialogWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.MBD2;
+import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -79,5 +85,140 @@ public class MachineEditor extends Editor implements ILDLRegisterClient {
         } else {
             throw new IllegalArgumentException("Invalid project type");
         }
+    }
+
+    /**
+     * Saves through project implementations that can report a real write result.
+     */
+    @Override
+    public void saveProject(BooleanConsumer callback) {
+        var project = getCurrentProject();
+        if (project == null) {
+            callback.accept(false);
+            return;
+        }
+        var currentFile = getCurrentProjectFile();
+        if (currentFile == null) {
+            saveAsProject(callback);
+            return;
+        }
+        var target = saveTarget(project, currentFile);
+        if (saveProjectToFile(project, target)) {
+            setCurrentProjectFile(target);
+            DialogWidget.showNotification(this, "ldlib.gui.editor.menu.save", "ldlib.gui.compass.save_success");
+            callback.accept(true);
+        } else {
+            showSaveFailure();
+            callback.accept(false);
+        }
+    }
+
+    /**
+     * Saves through the same file picker as LDLib while delaying editor state changes until the write succeeds.
+     */
+    @Override
+    public void saveAsProject(BooleanConsumer callback) {
+        var project = getCurrentProject();
+        if (project == null) {
+            callback.accept(false);
+            return;
+        }
+        var suffix = "." + project.getSuffix();
+        DialogWidget.showFileDialog(this,
+                "ldlib.gui.editor.tips.save_as",
+                project.getProjectWorkSpace(this),
+                false,
+                DialogWidget.suffixFilter(suffix),
+                selected -> {
+                    if (selected == null || selected.isDirectory()) {
+                        callback.accept(false);
+                        return;
+                    }
+                    var requested = withSuffix(selected, suffix);
+                    var target = saveTarget(project, requested);
+                    if (saveProjectToFile(project, target)) {
+                        setCurrentProjectFile(target);
+                        DialogWidget.showNotification(this, "ldlib.gui.editor.menu.save", "ldlib.gui.compass.save_success");
+                        callback.accept(true);
+                    } else {
+                        showSaveFailure();
+                        callback.accept(false);
+                    }
+                });
+    }
+
+    /**
+     * Compares the expanded multiblock project with its split manifest, while retaining defensive handling for all
+     * editor project files.
+     */
+    @Override
+    public boolean isCurrentProjectSaved() {
+        var project = getCurrentProject();
+        if (project == null) {
+            return true;
+        }
+        var file = getCurrentProjectFile();
+        if (file == null) {
+            return false;
+        }
+        try {
+            CompoundTag saved;
+            if (project instanceof MultiblockMachineProject) {
+                saved = MultiblockMachineProject.readProjectFile(file);
+            } else {
+                saved = NbtIo.read(file);
+            }
+            return saved != null && saved.equals(project.serializeNBT());
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Keeps the editor's current file aligned with the canonical multiblock manifest path.
+     */
+    @Override
+    public void setCurrentProjectFile(File file) {
+        if (file != null && getCurrentProject() instanceof MultiblockMachineProject) {
+            file = MultiblockMachineProject.existingProjectFile(file);
+        }
+        super.setCurrentProjectFile(file);
+    }
+
+    private boolean saveProjectToFile(IProject project, File file) {
+        try {
+            if (project instanceof MultiblockMachineProject multiblockProject) {
+                return multiblockProject.saveProjectChecked(file);
+            }
+            if (project instanceof MachineProject machineProject) {
+                return machineProject.saveProjectChecked(file);
+            }
+            if (project instanceof RecipeTypeProject recipeProject) {
+                return recipeProject.saveProjectChecked(file);
+            }
+            MBD2.LOGGER.error("Unsupported editor project type: {}", project.getClass().getName());
+            return false;
+        } catch (RuntimeException e) {
+            MBD2.LOGGER.error("Failed to save editor project {}", file, e);
+            return false;
+        }
+    }
+
+    private static File saveTarget(IProject project, File requested) {
+        return project instanceof MultiblockMachineProject ?
+                MultiblockMachineProject.projectManifestFile(requested) : requested;
+    }
+
+    private static File withSuffix(File file, String suffix) {
+        if (file.getName().endsWith(suffix)) {
+            return file;
+        }
+        var parent = file.getParentFile();
+        var name = file.getName() + suffix;
+        return parent == null ? new File(name) : new File(parent, name);
+    }
+
+    private void showSaveFailure() {
+        DialogWidget.showNotification(this, "ldlib.gui.editor.menu.save", "mbd2.gui.editor.save_failed");
     }
 }

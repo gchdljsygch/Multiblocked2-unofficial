@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.core.mixins.lowdraglib;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUIContainer;
 import com.lowdragmc.lowdraglib.gui.util.PerTickIntCounter;
+import com.lowdragmc.lowdraglib.gui.widget.SlotWidget;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
@@ -12,9 +13,15 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Adjusts LDLib modular-container item movement for oversized widget stacks.
@@ -38,6 +45,40 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
 
     protected ModularUIContainerMixin() {
         super(null, -1);
+    }
+
+    /**
+     * Uses the visual order of machine-side slots when shift-clicking from the player inventory.
+     * LowDragLib sorts these slots by {@link Slot#index}, which is replaced with the global menu
+     * index when the slot is registered and therefore is not a reliable UI-order key.
+     *
+     * @param itemStack stack being transferred
+     * @param fromContainer whether the source is a machine-side slot
+     * @param simulate whether to only test the transfer
+     * @param cir callback return value
+     */
+    @Inject(method = "attemptMergeStack", at = @At("HEAD"), cancellable = true, remap = false)
+    private void mbd2$mergeStackInUiOrder(ItemStack itemStack, boolean fromContainer, boolean simulate,
+                                           CallbackInfoReturnable<Boolean> cir) {
+        Comparator<SlotWidget> order = fromContainer
+                ? Comparator.comparingInt(widget -> -mbd2$getHandlerIndex(widget))
+                : Comparator.comparingInt((SlotWidget widget) -> widget.getPosition().y)
+                .thenComparingInt(widget -> widget.getPosition().x)
+                .thenComparingInt(this::mbd2$getHandlerIndex);
+        List<Slot> targetSlots = modularUI.getSlotMap().values().stream()
+                .filter(widget -> widget.canMergeSlot(itemStack))
+                .filter(widget -> widget.isPlayerContainer == fromContainer)
+                .filter(widget -> widget.getHandler() != null)
+                .sorted(order)
+                .map(SlotWidget::getHandler)
+                .collect(Collectors.toList());
+        cir.setReturnValue(ModularUIContainer.mergeItemStack(itemStack, targetSlots, simulate));
+    }
+
+    @Unique
+    private int mbd2$getHandlerIndex(SlotWidget widget) {
+        Slot handler = widget.getHandler();
+        return handler == null ? Integer.MAX_VALUE : handler.index;
     }
 
     /**
@@ -122,6 +163,7 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
      * @param clickTypeIn vanilla click type
      * @return {@code true} when the click should be blocked
      */
+    @Unique
     private boolean mbd2$shouldBlockOversizedSwap(Slot slot, ClickType clickTypeIn) {
         if (clickTypeIn != ClickType.PICKUP) {
             return false;
@@ -145,6 +187,7 @@ public abstract class ModularUIContainerMixin extends AbstractContainerMenu {
      * @param slot slot instance to test
      * @return {@code true} for LDLib widget item-transfer slots
      */
+    @Unique
     private boolean mbd2$isWidgetTransferSlot(Slot slot) {
         return slot.getClass().getName().equals("com.lowdragmc.lowdraglib.gui.widget.SlotWidget$WidgetSlotItemTransfer");
     }
