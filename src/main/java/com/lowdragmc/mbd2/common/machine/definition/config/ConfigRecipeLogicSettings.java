@@ -126,8 +126,15 @@ public class ConfigRecipeLogicSettings implements IToggleConfigurable, IPersiste
     @Override
     public void deserializeNBT(CompoundTag tag) {
         IPersistedSerializable.super.deserializeNBT(tag);
+        migrateLegacyRecipeType(tag);
         syncRecipeTypes();
         recipeModifiers.deserializeNBT(tag.getList("recipeModifiers", Tag.TAG_COMPOUND));
+    }
+
+    private void migrateLegacyRecipeType(CompoundTag tag) {
+        if (tag.contains("recipeTypes")) return;
+        if (recipeType == null || recipeType.equals(MBDRecipeType.DUMMY.getRegistryName())) return;
+        recipeTypes = new ResourceLocation[]{recipeType};
     }
 
     @Override

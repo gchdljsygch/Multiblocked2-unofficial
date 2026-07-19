@@ -179,10 +179,11 @@ public class Content {
     }
 
     /**
-     * Appends common content metadata tooltips.
+     * Appends content metadata tooltips.
      *
-     * <p>Side effects: adds chance, tier boost, and per-tick tooltip components
-     * to {@code tooltips} when those metadata values are active.</p>
+     * <p>Side effects: adds chance, tier boost, per-tick, slot-name, and UI-name
+     * tooltip components to {@code tooltips} when those metadata values are
+     * active.</p>
      *
      * @param tooltips mutable tooltip list to append to
      */
@@ -199,6 +200,12 @@ public class Content {
         }
         if (perTick) {
             tooltips.add(Component.translatable("mbd2.gui.content.per_tick"));
+        }
+        if (!slotName.isEmpty()) {
+            tooltips.add(Component.translatable("mbd2.gui.content.slot_name", slotName));
+        }
+        if (!uiName.isEmpty()) {
+            tooltips.add(Component.translatable("mbd2.gui.content.ui_name", uiName));
         }
     }
 }

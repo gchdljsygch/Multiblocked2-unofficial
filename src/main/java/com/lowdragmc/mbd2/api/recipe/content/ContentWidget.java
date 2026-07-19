@@ -1,9 +1,7 @@
 package com.lowdragmc.mbd2.api.recipe.content;
 
-import com.lowdragmc.lowdraglib.gui.editor.ui.Editor;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
-import com.lowdragmc.mbd2.common.gui.editor.MachineEditor;
 import lombok.Getter;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.nbt.Tag;
@@ -102,14 +100,6 @@ public class ContentWidget<T> extends WidgetGroup {
                 tooltips.addAll(gui.getModularUIGui().tooltipTexts);
             }
             content.appendTooltip(tooltips);
-            if (Editor.INSTANCE instanceof MachineEditor) {
-                if (!content.slotName.isEmpty()) {
-                    tooltips.add(Component.translatable("mbd2.gui.content.slot_name", content.slotName));
-                }
-                if (!content.uiName.isEmpty()) {
-                    tooltips.add(Component.translatable("mbd2.gui.content.ui_name", content.uiName));
-                }
-            }
             if (!tooltips.isEmpty()) {
                 gui.getModularUIGui().tooltipTexts = tooltips;
             }

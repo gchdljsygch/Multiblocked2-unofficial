@@ -13,6 +13,7 @@ import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.common.capability.recipe.FluidRecipeCapability;
 import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -116,7 +117,7 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
             PreviewSlot slot = previewSlots.get(i);
             Widget widget = slot.capability.createXEITemplate();
             widget.setSelfPosition(getSlotPosition(i));
-            slot.capability.bindXEIWidget(widget, slot.content, ingredientIO(io));
+            bindXEIWidget(slot, widget, ingredientIO(io));
             widget.setId(getSlotId(slot.capability, io, i));
             addWidget(widget);
         }
@@ -153,7 +154,7 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
             }
             Widget widget = slot.capability.createXEITemplate();
             widget.setSelfPosition(getSlotPosition(visibleIndex));
-            slot.capability.bindXEIWidget(widget, slot.content, ingredientIO(io));
+            bindXEIWidget(slot, widget, ingredientIO(io));
             widget.setId(getSlotId(slot.capability, io, visibleIndex));
             addWidget(widget);
             visibleIndex++;
@@ -176,7 +177,7 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
             PreviewSlot slot = previewSlots.get(i);
             Widget widget = slot.capability.createXEITemplate();
             widget.setSelfPosition(getSlotPosition(i));
-            slot.capability.bindXEIWidget(widget, slot.content, ingredientIO);
+            bindXEIWidget(slot, widget, ingredientIO);
             widget.setId(getSlotId(slot.capability, ingredientIO, i));
             addWidget(widget);
         }
@@ -290,6 +291,15 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
             }
         });
         return previewSlots;
+    }
+
+    private static void bindXEIWidget(PreviewSlot slot, Widget widget, IngredientIO ingredientIO) {
+        slot.capability.bindXEIWidget(widget, slot.content, ingredientIO);
+        var tooltips = new ArrayList<Component>();
+        slot.content.appendTooltip(tooltips);
+        if (!tooltips.isEmpty()) {
+            widget.appendHoverTooltips(tooltips);
+        }
     }
 
     private static String getSlotId(RecipeCapability<?> capability, IO io, int index) {
