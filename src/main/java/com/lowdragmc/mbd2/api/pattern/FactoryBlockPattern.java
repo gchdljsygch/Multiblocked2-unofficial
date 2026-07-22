@@ -77,6 +77,7 @@ public class FactoryBlockPattern {
      * @return this builder for chaining
      */
     public FactoryBlockPattern aisleRepeatable(int minRepeat, int maxRepeat, String... aisle) {
+        BlockPattern.validateAisleRepetitionRange(minRepeat, maxRepeat);
         if (!ArrayUtils.isEmpty(aisle) && !StringUtils.isEmpty(aisle[0])) {
             if (this.depth.isEmpty()) {
                 this.aisleHeight = aisle.length;
@@ -99,8 +100,6 @@ public class FactoryBlockPattern {
                 }
 
                 this.depth.add(aisle);
-                if (minRepeat > maxRepeat)
-                    throw new IllegalArgumentException("Lower bound of repeat counting must smaller than upper bound!");
                 aisleRepetitions.add(new int[]{minRepeat, maxRepeat});
                 return this;
             }
@@ -127,8 +126,10 @@ public class FactoryBlockPattern {
      * @return this builder for chaining
      */
     public FactoryBlockPattern setRepeatable(int minRepeat, int maxRepeat) {
-        if (minRepeat > maxRepeat)
-            throw new IllegalArgumentException("Lower bound of repeat counting must smaller than upper bound!");
+        BlockPattern.validateAisleRepetitionRange(minRepeat, maxRepeat);
+        if (aisleRepetitions.isEmpty()) {
+            throw new IllegalStateException("Cannot set repetitions before adding an aisle");
+        }
         aisleRepetitions.set(aisleRepetitions.size() - 1, new int[]{minRepeat, maxRepeat});
         return this;
     }
@@ -211,6 +212,7 @@ public class FactoryBlockPattern {
     public BlockPattern build() {
         this.checkMissingPredicates();
         int[] centerOffset = new int[5];
+        int controllerCount = 0;
         int[][] aisleRepetitions = this.aisleRepetitions.toArray(new int[this.aisleRepetitions.size()][]);
         TraceabilityPredicate[][][] predicate = (TraceabilityPredicate[][][]) Array.newInstance(TraceabilityPredicate.class, this.depth.size(), this.aisleHeight, this.rowWidth);
 
@@ -219,10 +221,19 @@ public class FactoryBlockPattern {
                 for (int k = 0; k < this.rowWidth; k++) {
                     predicate[i][j][k] = this.symbolMap.get(this.depth.get(i)[j].charAt(k));
                     if (predicate[i][j][k].isController) {
+                        controllerCount++;
                         centerOffset = new int[]{k, j, i, minZ, maxZ};
                     }
                 }
             }
+        }
+
+        if (controllerCount != 1) {
+            throw new IllegalStateException("A block pattern must contain exactly one controller, found " + controllerCount);
+        }
+        int controllerAisle = centerOffset[2];
+        if (aisleRepetitions[controllerAisle][0] != 1 || aisleRepetitions[controllerAisle][1] != 1) {
+            throw new IllegalStateException("The aisle containing the controller cannot be repeated");
         }
 
         return new BlockPattern(predicate, structureDir, aisleRepetitions, centerOffset);

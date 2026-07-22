@@ -22,11 +22,15 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -73,11 +77,16 @@ public class MultiblockState {
     private BlockPattern matchedPattern;
     @Getter
     private int matchedPatternIndex = -1;
+    private int[] matchedAisleRepetitions = new int[0];
 
     // persist
     public LongOpenHashSet cache;
     private LongOpenHashSet formedCache = new LongOpenHashSet();
     private PatternMatchContext formedMatchContext = new PatternMatchContext();
+    @Nullable
+    private BlockPattern formedMatchedPattern;
+    private int formedMatchedPatternIndex = -1;
+    private int[] formedAisleRepetitions = new int[0];
     private boolean hasCommittedMatch;
     private boolean commitSuccessfulMatches = true;
 
@@ -141,8 +150,59 @@ public class MultiblockState {
      * normalized to {@code -1} when {@code matchedPattern} is null
      */
     public void setMatchedPattern(@Nullable BlockPattern matchedPattern, int matchedPatternIndex) {
+        if (this.matchedPattern != matchedPattern) {
+            this.matchedAisleRepetitions = new int[0];
+        }
         this.matchedPattern = matchedPattern;
         this.matchedPatternIndex = matchedPattern == null ? -1 : matchedPatternIndex;
+    }
+
+    void setMatchedAisleRepetitions(int[] repetitions) {
+        this.matchedAisleRepetitions = repetitions == null ? new int[0] : repetitions.clone();
+    }
+
+    /**
+     * Returns the actual repeat count selected for every aisle by the latest stable match.
+     *
+     * @return defensive copy of repeat counts, or an empty array when no pattern has matched
+     */
+    public int[] getMatchedAisleRepetitions() {
+        int[] repetitions = hasCommittedMatch ? formedAisleRepetitions : matchedAisleRepetitions;
+        return repetitions.clone();
+    }
+
+    /**
+     * Returns the actual repeat count for one aisle in the latest stable match.
+     *
+     * @param aisleIndex zero-based aisle index
+     * @return matched repeat count, or empty when no such matched aisle exists
+     */
+    public OptionalInt getMatchedAisleRepetition(int aisleIndex) {
+        int[] repetitions = hasCommittedMatch ? formedAisleRepetitions : matchedAisleRepetitions;
+        return aisleIndex >= 0 && aisleIndex < repetitions.length
+                ? OptionalInt.of(repetitions[aisleIndex])
+                : OptionalInt.empty();
+    }
+
+    /**
+     * Returns configured repeatable aisles together with their actual matched counts.
+     *
+     * @return immutable repeat-layer metadata for the latest stable match
+     */
+    public List<BlockPattern.MatchedAisleRepeat> getMatchedRepeatableAisles() {
+        BlockPattern pattern = hasCommittedMatch ? formedMatchedPattern : matchedPattern;
+        int[] repetitions = hasCommittedMatch ? formedAisleRepetitions : matchedAisleRepetitions;
+        if (pattern == null || repetitions.length == 0) {
+            return List.of();
+        }
+        var result = new ArrayList<BlockPattern.MatchedAisleRepeat>();
+        for (var range : pattern.getRepeatableAisles()) {
+            if (range.aisleIndex() < repetitions.length) {
+                result.add(new BlockPattern.MatchedAisleRepeat(
+                        range.aisleIndex(), repetitions[range.aisleIndex()], range.minRepeats(), range.maxRepeats()));
+            }
+        }
+        return List.copyOf(result);
     }
 
     /**
@@ -357,6 +417,9 @@ public class MultiblockState {
     public void commitCache() {
         formedCache = cache == null ? new LongOpenHashSet() : new LongOpenHashSet(cache);
         formedMatchContext = copyMatchContext(matchContext);
+        formedMatchedPattern = matchedPattern;
+        formedMatchedPatternIndex = matchedPatternIndex;
+        formedAisleRepetitions = matchedAisleRepetitions.clone();
         LongSet partPositions = formedMatchContext.getOrCreate("partPositions", LongOpenHashSet::new);
         if (cache != null) {
             for (long cachedPos : cache) {
@@ -382,8 +445,9 @@ public class MultiblockState {
     public FormedSnapshot createFormedSnapshot() {
         return new FormedSnapshot(
                 hasCommittedMatch,
-                matchedPattern,
-                matchedPatternIndex,
+                formedMatchedPattern,
+                formedMatchedPatternIndex,
+                formedAisleRepetitions.clone(),
                 formedCache == null ? new LongOpenHashSet() : new LongOpenHashSet(formedCache),
                 copyMatchContext(formedMatchContext));
     }
@@ -399,8 +463,9 @@ public class MultiblockState {
         if (!hasCommittedMatch) {
             return false;
         }
-        return snapshot.matchedPattern() == matchedPattern &&
-                snapshot.matchedPatternIndex() == matchedPatternIndex &&
+        return snapshot.matchedPattern() == formedMatchedPattern &&
+                snapshot.matchedPatternIndex() == formedMatchedPatternIndex &&
+                Arrays.equals(snapshot.aisleRepetitions(), formedAisleRepetitions) &&
                 Objects.equals(snapshot.formedCache(), formedCache) &&
                 matchContextEquals(snapshot.formedMatchContext(), formedMatchContext);
     }
@@ -420,6 +485,7 @@ public class MultiblockState {
     public record FormedSnapshot(boolean hasCommittedMatch,
                                  @Nullable BlockPattern matchedPattern,
                                  int matchedPatternIndex,
+                                 int[] aisleRepetitions,
                                  LongOpenHashSet formedCache,
                                  PatternMatchContext formedMatchContext) {
     }
@@ -437,8 +503,59 @@ public class MultiblockState {
     public void clearCommittedCache() {
         formedCache.clear();
         formedMatchContext.reset();
+        formedMatchedPattern = null;
+        formedMatchedPatternIndex = -1;
+        formedAisleRepetitions = new int[0];
+        matchedPattern = null;
+        matchedPatternIndex = -1;
+        matchedAisleRepetitions = new int[0];
         hasCommittedMatch = false;
         commitSuccessfulMatches = true;
+    }
+
+    MatchSnapshot createMatchSnapshot() {
+        return new MatchSnapshot(
+                pos == null ? null : pos.immutable(),
+                blockState,
+                tileEntity,
+                tileEntityInitialized,
+                predicate,
+                io,
+                error,
+                globalCount == null ? new HashMap<>() : new HashMap<>(globalCount),
+                layerCount == null ? new HashMap<>() : new HashMap<>(layerCount),
+                cache == null ? new LongOpenHashSet() : new LongOpenHashSet(cache),
+                copyMatchContext(matchContext));
+    }
+
+    void restoreMatchSnapshot(MatchSnapshot snapshot) {
+        this.pos = snapshot.pos();
+        this.blockState = snapshot.blockState();
+        this.tileEntity = snapshot.tileEntity();
+        this.tileEntityInitialized = snapshot.tileEntityInitialized();
+        this.predicate = snapshot.predicate();
+        this.io = snapshot.io();
+        this.error = snapshot.error();
+        this.globalCount = new HashMap<>(snapshot.globalCount());
+        this.layerCount = new HashMap<>(snapshot.layerCount());
+        this.cache = new LongOpenHashSet(snapshot.cache());
+        this.matchContext.reset();
+        for (var entry : copyMatchContext(snapshot.matchContext()).entrySet()) {
+            this.matchContext.set(entry.getKey(), entry.getValue());
+        }
+    }
+
+    record MatchSnapshot(@Nullable BlockPos pos,
+                         @Nullable BlockState blockState,
+                         @Nullable BlockEntity tileEntity,
+                         boolean tileEntityInitialized,
+                         @Nullable TraceabilityPredicate predicate,
+                         @Nullable IO io,
+                         @Nullable PatternError error,
+                         Map<SimplePredicate, Integer> globalCount,
+                         Map<SimplePredicate, Integer> layerCount,
+                         LongOpenHashSet cache,
+                         PatternMatchContext matchContext) {
     }
 
     @SuppressWarnings("unchecked")
@@ -493,7 +610,7 @@ public class MultiblockState {
 
     @Nullable
     private LongOpenHashSet getStableCache() {
-        return formedCache != null && !formedCache.isEmpty() ? formedCache : cache;
+        return hasCommittedMatch ? formedCache : cache;
     }
 
     /**

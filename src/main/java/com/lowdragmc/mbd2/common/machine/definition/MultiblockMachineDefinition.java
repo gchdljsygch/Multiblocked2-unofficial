@@ -313,6 +313,35 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
     }
 
     /**
+     * Returns configured repeatable aisles for one pattern without exposing its mutable backing arrays.
+     *
+     * @param controller controller context used by dynamic pattern factories, or {@code null}
+     * @param patternIndex zero-based pattern index
+     * @return immutable repeat-layer metadata, or an empty list for an invalid index
+     */
+    public List<BlockPattern.AisleRepeat> getPatternRepeatableAisles(@Nullable MBDMultiblockMachine controller,
+                                                                    int patternIndex) {
+        var patterns = getPatterns(controller);
+        return patternIndex >= 0 && patternIndex < patterns.length
+                ? patterns[patternIndex].getRepeatableAisles()
+                : List.of();
+    }
+
+    /**
+     * Returns every aisle repetition range for one concrete pattern.
+     *
+     * @param controller controller context used by dynamic pattern factories, or {@code null}
+     * @param patternIndex zero-based concrete pattern index
+     * @return defensive {@code [aisle][min,max]} array, or an empty array for an invalid index
+     */
+    public int[][] getPatternAisleRepetitionRanges(@Nullable MBDMultiblockMachine controller, int patternIndex) {
+        var patterns = getPatterns(controller);
+        return patternIndex >= 0 && patternIndex < patterns.length
+                ? patterns[patternIndex].getAisleRepetitionRanges()
+                : new int[0][2];
+    }
+
+    /**
      * Builds preview shape infos for every configured pattern and every repeated-aisle preview variant.
      * <p>
      * This method recomputes shape infos from current patterns rather than using the memoized project preview factory.
@@ -470,32 +499,25 @@ public class MultiblockMachineDefinition extends MBDMachineDefinition {
         };
         var aisleRepetitions = new int[aisleLength][2];
         var repetitions = MultiblockMachineProject.getIntArrayCompat(patternTag, "aisle_repetitions");
+        if (repetitions.length != 0 && repetitions.length != aisleLength * 2) {
+            throw new IllegalArgumentException("Aisle repetition count does not match the " + layerAxis + " axis length");
+        }
         for (int i = 0; i < aisleLength; i++) {
             aisleRepetitions[i][0] = i * 2 < repetitions.length ? repetitions[i * 2] : 1;
             aisleRepetitions[i][1] = i * 2 + 1 < repetitions.length ? repetitions[i * 2 + 1] : aisleRepetitions[i][0];
+            BlockPattern.validateAisleRepetitionRange(aisleRepetitions[i][0], aisleRepetitions[i][1]);
         }
         return new LoadedPattern(patternTag, createBlockPattern(placeholders, layerAxis, aisleRepetitions, this), aisleRepetitions);
     }
 
     private void appendPatternShapeInfos(List<MultiblockShapeInfo> shapeInfos, BlockPattern pattern) {
-        var repetition = Arrays.stream(pattern.aisleRepetitions).mapToInt(range -> range[0]).toArray();
-        shapeInfos.add(new MultiblockShapeInfo(pattern.getPreview(repetition)));
-        for (int layer = 0; layer < pattern.aisleRepetitions.length; layer++) {
-            var range = pattern.aisleRepetitions[layer];
-            for (int i = range[0] + 1; i <= range[1]; i++) {
-                repetition[layer] = i;
-                shapeInfos.add(new MultiblockShapeInfo(pattern.getPreview(repetition)));
-                repetition[layer] = range[0];
-            }
+        for (int[] repetitions : pattern.getAisleRepetitionCombinations()) {
+            shapeInfos.add(new MultiblockShapeInfo(pattern.getPreview(repetitions)));
         }
     }
 
     private int getShapeInfoCount(BlockPattern pattern) {
-        int count = 1;
-        for (var range : pattern.aisleRepetitions) {
-            count += Math.max(0, range[1] - range[0]);
-        }
-        return count;
+        return Math.toIntExact(pattern.getRepetitionCombinationCount());
     }
 
     private record LoadedPattern(CompoundTag tag, BlockPattern pattern, int[][] aisleRepetitions) {

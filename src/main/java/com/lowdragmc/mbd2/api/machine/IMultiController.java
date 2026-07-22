@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -173,6 +174,36 @@ public interface IMultiController extends IMachine {
      */
     @Nonnull
     MultiblockState getMultiblockState();
+
+    /**
+     * Returns the actual repeat count selected for every aisle in the latest
+     * successful structure match.
+     *
+     * @return defensive repeat-count array, or an empty array before a match
+     */
+    default int[] getMatchedAisleRepetitions() {
+        return getMultiblockState().getMatchedAisleRepetitions();
+    }
+
+    /**
+     * Returns one aisle's actual repeat count from the latest successful match.
+     *
+     * @param aisleIndex zero-based aisle index
+     * @return matched count, or empty when the aisle has no successful match
+     */
+    default OptionalInt getMatchedAisleRepetition(int aisleIndex) {
+        return getMultiblockState().getMatchedAisleRepetition(aisleIndex);
+    }
+
+    /**
+     * Returns actual counts and configured ranges for all non-default repeated
+     * aisles in the latest successful match.
+     *
+     * @return immutable repeated-aisle match metadata
+     */
+    default List<BlockPattern.MatchedAisleRepeat> getMatchedRepeatableAisles() {
+        return getMultiblockState().getMatchedRepeatableAisles();
+    }
 
     /**
      * Applies controller-part recipe modifications.

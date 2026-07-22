@@ -69,6 +69,9 @@ dependencies {
     implementation fg.deobf("dev.architectury:architectury-forge:${architectury_version}")
 
     implementation fg.deobf("curse.maven:probejs-585406:5227399")
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
     // Nature's Aura
     implementation fg.deobf("maven.modrinth:natures-aura:${natures_aura_version}")
 

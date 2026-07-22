@@ -21,7 +21,6 @@ import net.minecraft.core.BlockPos;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * Scrollable toolbox list for selecting and managing multiblock shape previews.
@@ -75,15 +74,8 @@ public class ShapeInfoList extends DraggableScrollableWidgetGroup {
                     panel.getProject().getAisleRepetitions(),
                     panel.getProject().getDefinition(),
                     true);
-            var repetition = Arrays.stream(panel.getProject().getAisleRepetitions()).mapToInt(range -> range[0]).toArray();
-            shapes.add(new MultiblockShapeInfo(blockPattern.getPreview(repetition)));
-            for (int layer = 0; layer < panel.getProject().getAisleRepetitions().length; layer++) {
-                var range = panel.getProject().getAisleRepetitions()[layer];
-                for (int i = range[0] + 1; i <= range[1]; i++) {
-                    repetition[layer] = i;
-                    shapes.add(new MultiblockShapeInfo(blockPattern.getPreview(repetition)));
-                    repetition[layer] = range[0];
-                }
+            for (int[] repetitions : blockPattern.getAisleRepetitionCombinations()) {
+                shapes.add(new MultiblockShapeInfo(blockPattern.getPreview(repetitions)));
             }
         }
         for (int i = 0; i < shapes.size(); i++) {

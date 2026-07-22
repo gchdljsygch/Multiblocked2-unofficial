@@ -9,6 +9,7 @@ import com.lowdragmc.lowdraglib.gui.widget.*;
 import com.lowdragmc.lowdraglib.gui.widget.layout.Layout;
 import com.lowdragmc.lowdraglib.utils.Size;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
+import com.lowdragmc.mbd2.api.pattern.BlockPattern;
 import com.lowdragmc.mbd2.common.gui.editor.multiblock.BlockPlaceholder;
 import com.lowdragmc.mbd2.common.gui.editor.multiblock.MultiblockPatternPanel;
 import lombok.Getter;
@@ -220,7 +221,7 @@ public class PatternLayerList extends WidgetGroup {
                     })
                     .setCurrentString(repetition[0] + "")
                     .setBordered(false)
-                    .setNumbersOnly(1, 100)
+                    .setNumbersOnly(1, BlockPattern.MAX_AISLE_REPETITION)
                     .setWheelDur(1));
             group.addWidget(new ImageWidget(66, 14, 20, 10, new TextTexture("max")));
             group.addWidget(new ImageWidget(88, 14, 40, 10, ColorPattern.T_GRAY.rectTexture().setRadius(5)));
@@ -233,7 +234,7 @@ public class PatternLayerList extends WidgetGroup {
                     })
                     .setCurrentString(repetition[1] + "")
                     .setBordered(false)
-                    .setNumbersOnly(1, 100)
+                    .setNumbersOnly(1, BlockPattern.MAX_AISLE_REPETITION)
                     .setWheelDur(1));
             group.addWidget(new ImageWidget(130, 13, 11, 11, Icons.HELP)
                     .setHoverTooltips("editor.machine.multiblock.multiblock_pattern.repetition"));

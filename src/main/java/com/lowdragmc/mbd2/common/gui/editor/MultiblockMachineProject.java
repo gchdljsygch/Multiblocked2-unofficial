@@ -80,7 +80,7 @@ public class MultiblockMachineProject extends MachineProject {
     private static final String JSON_TYPE_TABLE_KEY = "__mbd2_nbt_types";
     private static final int MAX_PATTERN_AXIS_SIZE = 512;
     private static final long MAX_PATTERN_CELLS = 1_000_000L;
-    private static final int MAX_PATTERN_REPETITION = 4096;
+    private static final int MAX_PATTERN_REPETITION = BlockPattern.MAX_AISLE_REPETITION;
 
     private transient File loadingFile;
     protected BlockPlaceholder[][][] blockPlaceholders;
@@ -341,12 +341,74 @@ public class MultiblockMachineProject extends MachineProject {
             case Y -> blockPlaceholders[0][0].length;
             case Z -> blockPlaceholders[0].length;
         };
-        var predicate = new TraceabilityPredicate[aisleLength][aisleHeight][rowWidth];
+        if (aisleRepetitions.length != aisleLength) {
+            throw new IllegalArgumentException("Aisle repetition count does not match the " + layerAxis + " axis length");
+        }
+        for (int[] range : aisleRepetitions) {
+            if (range == null || range.length < 2) {
+                throw new IllegalArgumentException("Aisle repetition range is missing");
+            }
+            BlockPattern.validateAisleRepetitionRange(range[0], range[1]);
+        }
+
         BlockPlaceholder controller = null;
+        int controllerX = -1;
+        int controllerY = -1;
+        int controllerZ = -1;
+        for (int x = 0; x < blockPlaceholders.length; x++) {
+            for (int y = 0; y < blockPlaceholders[x].length; y++) {
+                for (int z = 0; z < blockPlaceholders[x][y].length; z++) {
+                    var placeholder = blockPlaceholders[x][y][z];
+                    if (placeholder != null && placeholder.isController()) {
+                        if (controller != null) {
+                            throw new IllegalArgumentException("Multiblock pattern contains more than one controller placeholder");
+                        }
+                        controller = placeholder;
+                        controllerX = x;
+                        controllerY = y;
+                        controllerZ = z;
+                    }
+                }
+            }
+        }
+        if (controller == null) {
+            controller = findControllerFallback(blockPlaceholders);
+            outer:
+            for (int x = 0; x < blockPlaceholders.length; x++) {
+                for (int y = 0; y < blockPlaceholders[x].length; y++) {
+                    for (int z = 0; z < blockPlaceholders[x][y].length; z++) {
+                        if (blockPlaceholders[x][y][z] == controller) {
+                            controllerX = x;
+                            controllerY = y;
+                            controllerZ = z;
+                            break outer;
+                        }
+                    }
+                }
+            }
+        }
+        int controllerAisle = switch (layerAxis) {
+            case X -> controllerX;
+            case Y -> controllerY;
+            case Z -> controllerZ;
+        };
+        if (aisleRepetitions[controllerAisle][0] != 1 || aisleRepetitions[controllerAisle][1] != 1) {
+            throw new IllegalArgumentException("The aisle containing the controller cannot be repeated");
+        }
+        int minBeforeController = 0;
+        int maxBeforeController = 0;
+        for (int aisle = 0; aisle < controllerAisle; aisle++) {
+            minBeforeController = Math.addExact(minBeforeController, aisleRepetitions[aisle][0]);
+            maxBeforeController = Math.addExact(maxBeforeController, aisleRepetitions[aisle][1]);
+        }
+        var centerOffset = switch (layerAxis) {
+            case X -> new int[]{controllerZ, controllerY, controllerX, minBeforeController, maxBeforeController};
+            case Y -> new int[]{controllerZ, controllerX, controllerY, minBeforeController, maxBeforeController};
+            case Z -> new int[]{controllerY, controllerX, controllerZ, minBeforeController, maxBeforeController};
+        };
+
+        var predicate = new TraceabilityPredicate[aisleLength][aisleHeight][rowWidth];
         var x = 0;
-        var min = 0;
-        var max = 0;
-        var centerOffset = new int[5];
         for (BlockPlaceholder[][] xSlice : blockPlaceholders) {
             var y = 0;
             for (BlockPlaceholder[] ySlice : xSlice) {
@@ -358,15 +420,7 @@ public class MultiblockMachineProject extends MachineProject {
                             .map(TraceabilityPredicate::new)
                             .reduce(TraceabilityPredicate::or)
                             .orElse(new TraceabilityPredicate());
-                    if (placeholder.isController()) {
-                        controller = placeholder;
-                        if (Direction.Axis.X == layerAxis) {
-                            centerOffset = new int[]{z, y, x, min, max};
-                        } else if (Direction.Axis.Y == layerAxis) {
-                            centerOffset = new int[]{z, x, y, min, max};
-                        } else {
-                            centerOffset = new int[]{y, x, z, min, max};
-                        }
+                    if (placeholder == controller) {
                         if (shapeInfo) {
                             traceabilityPredicate = new TraceabilityPredicate(new SimplePredicate(state ->
                                     state.getBlockState().getBlock() == MBDRegistries.FAKE_MACHINE().block(), () -> new BlockInfo[]{new ControllerBlockInfo()}));
@@ -387,32 +441,11 @@ public class MultiblockMachineProject extends MachineProject {
                     } else {
                         predicate[z][x][y] = traceabilityPredicate;
                     }
-                    if (layerAxis == Direction.Axis.Z) {
-                        min += aisleRepetitions[z][0];
-                        max += aisleRepetitions[z][1];
-                    }
                     z++;
-                }
-                if (layerAxis == Direction.Axis.Y) {
-                    min += aisleRepetitions[y][0];
-                    max += aisleRepetitions[y][1];
-                } else if (layerAxis == Direction.Axis.Z) {
-                    min = 0;
-                    max = 0;
                 }
                 y++;
             }
-            if (layerAxis == Direction.Axis.X) {
-                min += aisleRepetitions[x][0];
-                max += aisleRepetitions[x][1];
-            } else if (layerAxis == Direction.Axis.Y) {
-                min = 0;
-                max = 0;
-            }
             x++;
-        }
-        if (controller == null) {
-            controller = findControllerFallback(blockPlaceholders);
         }
         var controllerFace = controller.getFacing().getAxis() == Direction.Axis.Y ? Direction.NORTH : controller.getFacing();
         var structureDir = new RelativeDirection[3];
@@ -1591,7 +1624,7 @@ public class MultiblockMachineProject extends MachineProject {
         for (int i = 0; i < aisleLength; i++) {
             var min = repetitions[i * 2];
             var max = repetitions[i * 2 + 1];
-            if (min < 0 || max < min || max > MAX_PATTERN_REPETITION) {
+            if (min < 1 || max < min || max > MAX_PATTERN_REPETITION) {
                 throw new IllegalArgumentException("Invalid aisle repetition range at index " + i);
             }
             aisleRepetitions[i][0] = min;

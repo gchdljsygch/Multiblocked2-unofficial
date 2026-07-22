@@ -21,7 +21,6 @@ import com.lowdragmc.mbd2.utils.MultiItemHandler;
 import com.lowdragmc.mbd2.utils.PatternAutoBuildPlacement;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -63,9 +62,20 @@ import java.util.function.BiPredicate;
  */
 public class BlockPattern {
 
+    public static final int MAX_AISLE_REPETITION = 4096;
+    public static final long MAX_EXPANDED_PATTERN_BLOCKS = 1_000_000L;
+    public static final long MAX_REPETITION_COMBINATIONS = 4096L;
     static Direction[] FACINGS = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST, Direction.UP, Direction.DOWN};
     static Direction[] FACINGS_H = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST};
+    /**
+     * Legacy repetition-range snapshot retained for binary compatibility.
+     *
+     * @deprecated use {@link #getAisleRepetitionRanges()}; mutating this array
+     * does not change the compiled pattern
+     */
+    @Deprecated(forRemoval = false)
     public final int[][] aisleRepetitions;
+    private final int[][] aisleRepetitionRanges;
     public final RelativeDirection[] structureDir;
     protected final TraceabilityPredicate[][][] blockMatches; //[z][y][x]
     protected final int fingerLength; //z size
@@ -74,14 +84,25 @@ public class BlockPattern {
     protected final int[] centerOffset; // x, y, z, minZ, maxZ
     private Direction mbd2$baseFacing = Direction.NORTH;
 
+    /** Configured repeat range for one non-default aisle. */
+    public record AisleRepeat(int aisleIndex, int minRepeats, int maxRepeats) {
+        public boolean isVariable() {
+            return minRepeats != maxRepeats;
+        }
+    }
+
+    /** Configured and actual repeat counts for one aisle in a successful match. */
+    public record MatchedAisleRepeat(int aisleIndex, int repetitions, int minRepeats, int maxRepeats) {
+    }
+
     /**
      * Creates a compiled pattern.
      *
      * <p>Preconditions: {@code predicatesIn} is indexed as {@code [z][y][x]},
      * {@code structureDir} has three orthogonal relative directions, and
      * {@code centerOffset} contains controller offsets as
-     * {@code [x, y, z, minZ, maxZ]}. Side effects: stores the supplied arrays by
-     * reference.</p>
+     * {@code [x, y, z, minZ, maxZ]}. The array containers are copied; predicate
+     * instances remain shared because they are the compiled matching rules.</p>
      *
      * @param predicatesIn     predicate grid for every pattern position
      * @param structureDir     mapping from pattern axes to controller-relative axes
@@ -89,10 +110,19 @@ public class BlockPattern {
      * @param centerOffset     controller location and repeat-search bounds
      */
     public BlockPattern(TraceabilityPredicate[][][] predicatesIn, RelativeDirection[] structureDir, int[][] aisleRepetitions, int[] centerOffset) {
-        this.blockMatches = predicatesIn;
+        Objects.requireNonNull(predicatesIn, "predicatesIn");
+        Objects.requireNonNull(structureDir, "structureDir");
+        Objects.requireNonNull(aisleRepetitions, "aisleRepetitions");
+        Objects.requireNonNull(centerOffset, "centerOffset");
+        if (structureDir.length != 3) {
+            throw new IllegalArgumentException("Pattern structure directions must contain exactly three axes");
+        }
+        if (centerOffset.length != 5) {
+            throw new IllegalArgumentException("Pattern center offset must contain exactly five values");
+        }
+
         this.fingerLength = predicatesIn.length;
-        this.structureDir = structureDir;
-        this.aisleRepetitions = aisleRepetitions;
+        this.structureDir = validateAndCopyStructureDirections(structureDir);
 
         if (this.fingerLength > 0) {
             this.thumbLength = predicatesIn[0].length;
@@ -107,7 +137,156 @@ public class BlockPattern {
             this.palmLength = 0;
         }
 
-        this.centerOffset = centerOffset;
+        validatePredicateGrid(predicatesIn, thumbLength, palmLength);
+        this.blockMatches = copyPredicateGrid(predicatesIn);
+        this.aisleRepetitionRanges = validateAndCopyRepetitions(
+                aisleRepetitions, fingerLength, thumbLength, palmLength);
+        this.aisleRepetitions = copyRepetitionRanges(this.aisleRepetitionRanges);
+        this.centerOffset = centerOffset.clone();
+        validateCenterOffset();
+        validateControllerPosition();
+    }
+
+    private static RelativeDirection[] validateAndCopyStructureDirections(RelativeDirection[] directions) {
+        int axes = 0;
+        for (RelativeDirection direction : directions) {
+            Objects.requireNonNull(direction, "Pattern structure directions cannot contain null");
+            axes |= switch (direction) {
+                case UP, DOWN -> 0x1;
+                case LEFT, RIGHT -> 0x2;
+                case FRONT, BACK -> 0x4;
+            };
+        }
+        if (axes != 0x7) {
+            throw new IllegalArgumentException("Pattern structure directions must cover three different axes");
+        }
+        return directions.clone();
+    }
+
+    private static void validatePredicateGrid(TraceabilityPredicate[][][] predicates, int height, int width) {
+        for (int aisle = 0; aisle < predicates.length; aisle++) {
+            if (predicates[aisle] == null || predicates[aisle].length != height) {
+                throw new IllegalArgumentException("Pattern predicate grid is not rectangular at aisle " + aisle);
+            }
+            for (int row = 0; row < predicates[aisle].length; row++) {
+                if (predicates[aisle][row] == null || predicates[aisle][row].length != width) {
+                    throw new IllegalArgumentException("Pattern predicate grid is not rectangular at aisle " + aisle + ", row " + row);
+                }
+                for (TraceabilityPredicate predicate : predicates[aisle][row]) {
+                    Objects.requireNonNull(predicate, "Pattern predicates cannot be null");
+                }
+            }
+        }
+    }
+
+    private static TraceabilityPredicate[][][] copyPredicateGrid(TraceabilityPredicate[][][] predicates) {
+        var copy = new TraceabilityPredicate[predicates.length][][];
+        for (int aisle = 0; aisle < predicates.length; aisle++) {
+            copy[aisle] = new TraceabilityPredicate[predicates[aisle].length][];
+            for (int row = 0; row < predicates[aisle].length; row++) {
+                copy[aisle][row] = predicates[aisle][row].clone();
+            }
+        }
+        return copy;
+    }
+
+    private static int[][] validateAndCopyRepetitions(int[][] repetitions, int aisleCount, int height, int width) {
+        if (repetitions.length != aisleCount) {
+            throw new IllegalArgumentException("Aisle repetition count does not match the pattern depth");
+        }
+        int[][] copy = new int[aisleCount][2];
+        long repeatedAisles = 0;
+        long combinations = 1;
+        for (int aisle = 0; aisle < aisleCount; aisle++) {
+            if (repetitions[aisle] == null || repetitions[aisle].length < 2) {
+                throw new IllegalArgumentException("Aisle repetition range is missing at index " + aisle);
+            }
+            int min = repetitions[aisle][0];
+            int max = repetitions[aisle][1];
+            validateAisleRepetitionRange(min, max);
+            copy[aisle][0] = min;
+            copy[aisle][1] = max;
+            repeatedAisles = Math.addExact(repeatedAisles, max);
+            combinations = Math.multiplyExact(combinations, (long) max - min + 1);
+            if (combinations > MAX_REPETITION_COMBINATIONS) {
+                throw new IllegalArgumentException("Pattern has more than " + MAX_REPETITION_COMBINATIONS + " repetition combinations");
+            }
+        }
+        long expandedBlocks = Math.multiplyExact(repeatedAisles, Math.multiplyExact((long) height, width));
+        if (expandedBlocks > MAX_EXPANDED_PATTERN_BLOCKS) {
+            throw new IllegalArgumentException("Expanded pattern exceeds " + MAX_EXPANDED_PATTERN_BLOCKS + " blocks");
+        }
+        return copy;
+    }
+
+    private static int[][] copyRepetitionRanges(int[][] repetitions) {
+        return Arrays.stream(repetitions).map(int[]::clone).toArray(int[][]::new);
+    }
+
+    public static void validateAisleRepetitionRange(int minRepeats, int maxRepeats) {
+        if (minRepeats < 1 || maxRepeats < minRepeats || maxRepeats > MAX_AISLE_REPETITION) {
+            throw new IllegalArgumentException("Invalid aisle repetition range: " + minRepeats + ".." + maxRepeats);
+        }
+    }
+
+    private void validateCenterOffset() {
+        if (fingerLength == 0) {
+            if (centerOffset[0] != 0 || centerOffset[1] != 0 || centerOffset[2] != 0
+                    || centerOffset[3] != 0 || centerOffset[4] != 0) {
+                throw new IllegalArgumentException("An empty pattern must use a zero center offset");
+            }
+            return;
+        }
+        if (thumbLength == 0 || palmLength == 0) {
+            throw new IllegalArgumentException("A non-empty pattern must contain at least one row and column");
+        }
+        if (centerOffset[0] < 0 || centerOffset[0] >= palmLength
+                || centerOffset[1] < 0 || centerOffset[1] >= thumbLength
+                || centerOffset[2] < 0 || centerOffset[2] >= fingerLength) {
+            throw new IllegalArgumentException("Pattern center position is outside the predicate grid");
+        }
+
+        int expectedMin = 0;
+        int expectedMax = 0;
+        for (int aisle = 0; aisle < centerOffset[2]; aisle++) {
+            expectedMin = Math.addExact(expectedMin, aisleRepetitionRanges[aisle][0]);
+            expectedMax = Math.addExact(expectedMax, aisleRepetitionRanges[aisle][1]);
+        }
+        if (centerOffset[3] != expectedMin || centerOffset[4] != expectedMax) {
+            throw new IllegalArgumentException("Pattern center repetition offsets do not match the configured aisle ranges");
+        }
+    }
+
+    private void validateControllerPosition() {
+        int controllerCount = 0;
+        int controllerAisle = -1;
+        int controllerRow = -1;
+        int controllerColumn = -1;
+        for (int aisle = 0; aisle < blockMatches.length; aisle++) {
+            for (int row = 0; row < blockMatches[aisle].length; row++) {
+                for (int column = 0; column < blockMatches[aisle][row].length; column++) {
+                    TraceabilityPredicate predicate = blockMatches[aisle][row][column];
+                    if (predicate.isController) {
+                        controllerCount++;
+                        controllerAisle = aisle;
+                        controllerRow = row;
+                        controllerColumn = column;
+                    }
+                }
+            }
+        }
+        if (controllerCount > 1) {
+            throw new IllegalArgumentException("A block pattern may contain only one controller");
+        }
+        if (controllerCount == 1) {
+            if (controllerColumn != centerOffset[0] || controllerRow != centerOffset[1]
+                    || controllerAisle != centerOffset[2]) {
+                throw new IllegalArgumentException("Controller marker does not match the configured center position");
+            }
+            if (aisleRepetitionRanges[controllerAisle][0] != 1 || aisleRepetitionRanges[controllerAisle][1] != 1) {
+                throw new IllegalArgumentException("The aisle containing the controller cannot be repeated");
+            }
+        }
     }
 
     /**
@@ -137,6 +316,82 @@ public class BlockPattern {
     }
 
     /**
+     * Returns every aisle whose configured repetition differs from the default {@code 1..1}.
+     *
+     * @return immutable repeat-layer metadata in aisle order
+     */
+    public List<AisleRepeat> getRepeatableAisles() {
+        var result = new ArrayList<AisleRepeat>();
+        for (int aisle = 0; aisle < aisleRepetitionRanges.length; aisle++) {
+            int min = aisleRepetitionRanges[aisle][0];
+            int max = aisleRepetitionRanges[aisle][1];
+            if (min != 1 || max != 1) {
+                result.add(new AisleRepeat(aisle, min, max));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    /**
+     * Returns one aisle's configured minimum and maximum repeat counts.
+     *
+     * @param aisleIndex zero-based aisle index
+     * @return defensive {@code [min,max]} array
+     */
+    public int[] getAisleRepetitionRange(int aisleIndex) {
+        if (aisleIndex < 0 || aisleIndex >= aisleRepetitionRanges.length) {
+            throw new IndexOutOfBoundsException("Invalid aisle index: " + aisleIndex);
+        }
+        return aisleRepetitionRanges[aisleIndex].clone();
+    }
+
+    /**
+     * Returns every aisle's configured minimum and maximum repeat counts.
+     *
+     * @return defensive {@code [aisle][min,max]} array
+     */
+    public int[][] getAisleRepetitionRanges() {
+        return copyRepetitionRanges(aisleRepetitionRanges);
+    }
+
+    /**
+     * Returns the number of Cartesian repeat-count combinations for this pattern.
+     */
+    public long getRepetitionCombinationCount() {
+        long combinations = 1;
+        for (int[] range : aisleRepetitionRanges) {
+            combinations = Math.multiplyExact(combinations, (long) range[1] - range[0] + 1);
+        }
+        return combinations;
+    }
+
+    /**
+     * Enumerates every valid repeat-count combination, starting with all minimum values.
+     *
+     * @return defensive repeat-count arrays in deterministic aisle order
+     */
+    public List<int[]> getAisleRepetitionCombinations() {
+        if (aisleRepetitionRanges.length == 0) {
+            return List.of(new int[0]);
+        }
+        int combinationCount = Math.toIntExact(getRepetitionCombinationCount());
+        var combinations = new ArrayList<int[]>(combinationCount);
+        int[] current = Arrays.stream(aisleRepetitionRanges).mapToInt(range -> range[0]).toArray();
+        while (true) {
+            combinations.add(current.clone());
+            int aisle = current.length - 1;
+            while (aisle >= 0 && current[aisle] == aisleRepetitionRanges[aisle][1]) {
+                current[aisle] = aisleRepetitionRanges[aisle][0];
+                aisle--;
+            }
+            if (aisle < 0) {
+                return List.copyOf(combinations);
+            }
+            current[aisle]++;
+        }
+    }
+
+    /**
      * Estimates the maximum number of block positions covered by this pattern.
      *
      * <p>Business goal: let controllers scale async check frequency for large
@@ -151,8 +406,8 @@ public class BlockPattern {
         long repetitions = 0;
         for (int i = 0; i < fingerLength; i++) {
             int maxRepetition = 1;
-            if (i < aisleRepetitions.length && aisleRepetitions[i].length > 1) {
-                maxRepetition = Math.max(aisleRepetitions[i][0], aisleRepetitions[i][1]);
+            if (i < aisleRepetitionRanges.length && aisleRepetitionRanges[i].length > 1) {
+                maxRepetition = Math.max(aisleRepetitionRanges[i][0], aisleRepetitionRanges[i][1]);
             }
             repetitions += Math.max(1, maxRepetition);
         }
@@ -198,9 +453,9 @@ public class BlockPattern {
         }
         int min = 1;
         int max = 1;
-        if (layer < aisleRepetitions.length && aisleRepetitions[layer].length > 1) {
-            min = Math.max(0, aisleRepetitions[layer][0]);
-            max = Math.max(min, aisleRepetitions[layer][1]);
+        if (layer < aisleRepetitionRanges.length && aisleRepetitionRanges[layer].length > 1) {
+            min = Math.max(0, aisleRepetitionRanges[layer][0]);
+            max = Math.max(min, aisleRepetitionRanges[layer][1]);
         }
         for (int repeat = min; repeat <= max && variants.size() < maxVariants; repeat++) {
             repetitions[layer] = repeat;
@@ -209,8 +464,8 @@ public class BlockPattern {
     }
 
     private int getMaxRepetition(int layer) {
-        if (layer < aisleRepetitions.length && aisleRepetitions[layer].length > 1) {
-            return Math.max(0, Math.max(aisleRepetitions[layer][0], aisleRepetitions[layer][1]));
+        if (layer < aisleRepetitionRanges.length && aisleRepetitionRanges[layer].length > 1) {
+            return Math.max(0, Math.max(aisleRepetitionRanges[layer][0], aisleRepetitionRanges[layer][1]));
         }
         return 1;
     }
@@ -328,193 +583,153 @@ public class BlockPattern {
      */
     public boolean checkPatternAt(MultiblockState worldState, BlockPos centerPos, Direction facing, boolean savePredicate,
                                   BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
-        boolean findFirstAisle = false;
-        int minZ = -centerOffset[4];
         worldState.clean();
         worldState.setMatchedPattern(null);
         worldState.setPatternContext(facing, mbd2$getBaseFacing());
-        PatternMatchContext matchContext = worldState.getMatchContext();
-        Map<SimplePredicate, Integer> globalCount = worldState.getGlobalCount();
-        Map<SimplePredicate, Integer> layerCount = worldState.getLayerCount();
-        //Checking aisles
-        for (int c = 0, z = minZ++, r; c < this.fingerLength; c++) {
-            //Checking repeatable slices
-            loop:
-            for (r = 0; (findFirstAisle ? r < aisleRepetitions[c][1] : z <= -centerOffset[3]); r++) {
-                Set<IMultiPart> parts = matchContext.getOrCreate("parts", HashSet::new);
-                Set<IMultiPart> addedParts = new HashSet<>();
-                List<BlockPos> touchedPositions = new ArrayList<>();
-                Map<SimplePredicate, Integer> globalCountSnapshot = new HashMap<>(globalCount);
-                //Checking single slice
-                layerCount.clear();
-
-                for (int b = 0, y = -centerOffset[1]; b < this.thumbLength; b++, y++) {
-                    for (int a = 0, x = -centerOffset[0]; a < this.palmLength; a++, x++) {
-                        worldState.setError(null);
-                        TraceabilityPredicate predicate = this.blockMatches[c][b][a];
-                        BlockPos pos = setActualRelativeOffset(x, y, z, facing).offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
-                        BlockPos immutablePos = pos.immutable();
-                        touchedPositions.add(immutablePos);
-                        if (!worldState.update(pos, predicate)) {
-                            return false;
-                        }
-                        boolean canPartShared = true;
-                        var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
-                        IMultiPart matchedPart = null;
-                        if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part &&
-                                part.isPartEnabled() && !immutablePos.equals(worldState.controllerPos)) {
-                            if (!predicate.isAny()) {
-                                if (part.isAttachedToController() && !part.canShared() && !part.hasController(worldState.controllerPos)) { // check part can be shared
-                                    canPartShared = false;
-                                    worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
-                                } else {
-                                    matchedPart = part;
-                                }
-                            }
-                        }
-                        // TODO vaBlock
-//                        if (worldState.getBlockState().getBlock() instanceof ActiveBlock) {
-//                            matchContext.getOrCreate("vaBlocks", LongOpenHashSet::new).add(worldState.getPos().asLong());
-//                        }
-                        if (!predicateMatcher.test(worldState, predicate) || !canPartShared) { // matching failed
-                            if (findFirstAisle) {
-                                if (r < aisleRepetitions[c][0]) {//retreat to see if the first aisle can start later
-                                    r = c = 0;
-                                    z = minZ++;
-                                    resetPatternAttempt(worldState, matchContext, globalCount, layerCount);
-                                    findFirstAisle = false;
-                                } else {
-                                    rollbackRepeatAttempt(worldState, matchContext, globalCount, globalCountSnapshot, layerCount, touchedPositions, parts, addedParts);
-                                }
-                            } else {
-                                z++;//continue searching for the first aisle
-                                resetPatternAttempt(worldState, matchContext, globalCount, layerCount);
-                            }
-                            continue loop;
-                        }
-                        if (matchedPart != null) {
-                            if (parts.add(matchedPart)) {
-                                addedParts.add(matchedPart);
-                            }
-                            matchContext.getOrCreate("partPositions", LongOpenHashSet::new).add(immutablePos.asLong());
-                        }
-                        if (predicate.addCache()) {
-                            worldState.addPosCache(immutablePos);
-                            if (savePredicate) {
-                                matchContext.getOrCreate("predicates", HashMap::new).put(immutablePos, predicate);
-                            }
-                        }
-                        matchContext.getOrCreate("ioMap", Long2ObjectOpenHashMap::new).put(worldState.getPos().asLong(), worldState.io);
-                    }
-                }
-                findFirstAisle = true;
-                z++;
-
-                //Check layer-local matcher predicate
-                for (Map.Entry<SimplePredicate, Integer> entry : layerCount.entrySet()) {
-                    if (entry.getValue() < entry.getKey().minLayerCount) {
-                        worldState.setError(new SinglePredicateError(entry.getKey(), 3));
-                        return false;
-                    }
-                }
+        worldState.setError(null);
+        var failureTracker = new MatchFailureTracker();
+        var transaction = new AisleRepeatMatcher.Transaction<MultiblockState.MatchSnapshot>() {
+            @Override
+            public MultiblockState.MatchSnapshot snapshot() {
+                return worldState.createMatchSnapshot();
             }
-            //Repetitions out of range
-            if (r < aisleRepetitions[c][0] || worldState.hasError() || !findFirstAisle) {
-                if (!worldState.hasError()) {
-                    worldState.setError(new PatternError());
-                }
-                return false;
-            }
-        }
 
-        //Check count matches amount
-        for (Map.Entry<SimplePredicate, Integer> entry : globalCount.entrySet()) {
-            if (entry.getValue() < entry.getKey().minCount) {
-                worldState.setError(new SinglePredicateError(entry.getKey(), 1));
-                return false;
+            @Override
+            public void restore(MultiblockState.MatchSnapshot snapshot) {
+                worldState.restoreMatchSnapshot(snapshot);
             }
+
+            @Override
+            public boolean matchSlice(int aisleIndex, int aisleOffset) {
+                return matchAisleSlice(worldState, centerPos, facing, savePredicate, predicateMatcher,
+                        failureTracker, aisleIndex, aisleOffset);
+            }
+
+            @Override
+            public boolean validateComplete() {
+                return validateGlobalCounts(worldState, failureTracker);
+            }
+        };
+        int[] repetitions = AisleRepeatMatcher.findMatch(aisleRepetitionRanges, centerOffset[2], transaction);
+        if (repetitions == null) {
+            if (!failureTracker.restoreBest(worldState)) {
+                worldState.setError(new PatternError());
+            }
+            return false;
         }
 
         worldState.setError(null);
         worldState.setMatchedPattern(this);
+        worldState.setMatchedAisleRepetitions(repetitions);
         if (worldState.shouldCommitSuccessfulMatches()) {
             worldState.commitCache();
         }
         return true;
     }
 
-    /**
-     * Restores all mutable match state that may have been written while testing one optional repeated aisle.
-     *
-     * <p>Optional repetitions are allowed to fail after the minimum repeat count is satisfied. Any cache,
-     * predicate, IO, slot, render mask, UI mask, count, or part state created by that failed attempt must be
-     * removed so the already-accepted structure stays authoritative.</p>
-     */
-    private static void rollbackRepeatAttempt(MultiblockState worldState, PatternMatchContext matchContext,
-                                              Map<SimplePredicate, Integer> globalCount,
-                                              Map<SimplePredicate, Integer> globalCountSnapshot,
-                                              Map<SimplePredicate, Integer> layerCount,
-                                              List<BlockPos> touchedPositions,
-                                              Set<IMultiPart> parts,
-                                              Set<IMultiPart> addedParts) {
-        globalCount.clear();
-        globalCount.putAll(globalCountSnapshot);
+    private boolean matchAisleSlice(MultiblockState worldState,
+                                    BlockPos centerPos,
+                                    Direction facing,
+                                    boolean savePredicate,
+                                    BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher,
+                                    MatchFailureTracker failureTracker,
+                                    int aisle,
+                                    int aisleOffset) {
+        PatternMatchContext matchContext = worldState.getMatchContext();
+        Map<SimplePredicate, Integer> layerCount = worldState.getLayerCount();
+        Set<IMultiPart> parts = matchContext.getOrCreate("parts", HashSet::new);
         layerCount.clear();
-        parts.removeAll(addedParts);
-        removePositionsFromContext(worldState, matchContext, touchedPositions);
+
+        int cellIndex = 0;
+        for (int row = 0, y = -centerOffset[1]; row < thumbLength; row++, y++) {
+            for (int column = 0, x = -centerOffset[0]; column < palmLength; column++, x++, cellIndex++) {
+                TraceabilityPredicate predicate = blockMatches[aisle][row][column];
+                BlockPos pos = setActualRelativeOffset(x, y, aisleOffset, facing)
+                        .offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
+                BlockPos immutablePos = pos.immutable();
+                if (!worldState.update(pos, predicate)) {
+                    failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                    return false;
+                }
+
+                boolean canPartShared = true;
+                IMultiPart matchedPart = null;
+                var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
+                if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part
+                        && part.isPartEnabled() && !immutablePos.equals(worldState.controllerPos) && !predicate.isAny()) {
+                    if (part.isAttachedToController() && !part.canShared() && !part.hasController(worldState.controllerPos)) {
+                        canPartShared = false;
+                        worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
+                    } else {
+                        matchedPart = part;
+                    }
+                }
+
+                if (!predicateMatcher.test(worldState, predicate) || !canPartShared) {
+                    if (!worldState.hasError()) {
+                        worldState.setError(new PatternError());
+                    }
+                    failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                    return false;
+                }
+
+                if (matchedPart != null) {
+                    parts.add(matchedPart);
+                    matchContext.getOrCreate("partPositions", LongOpenHashSet::new).add(immutablePos.asLong());
+                }
+                if (predicate.addCache()) {
+                    worldState.addPosCache(immutablePos);
+                    if (savePredicate) {
+                        matchContext.getOrCreate("predicates", HashMap::new).put(immutablePos, predicate);
+                    }
+                }
+                matchContext.getOrCreate("ioMap", Long2ObjectOpenHashMap::new)
+                        .put(immutablePos.asLong(), worldState.io);
+            }
+        }
+
+        for (Map.Entry<SimplePredicate, Integer> entry : layerCount.entrySet()) {
+            if (entry.getKey().minLayerCount >= 0 && entry.getValue() < entry.getKey().minLayerCount) {
+                worldState.setError(new SinglePredicateError(entry.getKey(), 3));
+                failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                return false;
+            }
+        }
+        return true;
     }
 
-    /**
-     * Clears all accumulated state before retrying the whole pattern search from a later first aisle.
-     */
-    private static void resetPatternAttempt(MultiblockState worldState, PatternMatchContext matchContext,
-                                            Map<SimplePredicate, Integer> globalCount,
-                                            Map<SimplePredicate, Integer> layerCount) {
-        if (worldState.cache != null) {
-            worldState.cache.clear();
+    private boolean validateGlobalCounts(MultiblockState worldState, MatchFailureTracker failureTracker) {
+        for (Map.Entry<SimplePredicate, Integer> entry : worldState.getGlobalCount().entrySet()) {
+            if (entry.getKey().minCount >= 0 && entry.getValue() < entry.getKey().minCount) {
+                worldState.setError(new SinglePredicateError(entry.getKey(), 1));
+                failureTracker.capture(worldState, Long.MAX_VALUE);
+                return false;
+            }
         }
-        globalCount.clear();
-        layerCount.clear();
-        matchContext.reset();
+        return true;
     }
 
-    /**
-     * Removes per-position match context entries created while testing positions that no longer belong to a match.
-     */
-    private static void removePositionsFromContext(MultiblockState worldState, PatternMatchContext matchContext,
-                                                   List<BlockPos> positions) {
-        if (positions.isEmpty()) {
-            return;
+    private static long failureScore(int aisle, int aisleOffset, int cellIndex) {
+        return ((long) aisle << 40) + (((long) aisleOffset - Integer.MIN_VALUE) << 8) + cellIndex;
+    }
+
+    private static final class MatchFailureTracker {
+        private long score = Long.MIN_VALUE;
+        private MultiblockState.MatchSnapshot best;
+
+        void capture(MultiblockState worldState, long score) {
+            if (score >= this.score) {
+                this.score = score;
+                this.best = worldState.createMatchSnapshot();
+            }
         }
-        Map<BlockPos, TraceabilityPredicate> predicates = matchContext.get("predicates");
-        Map<Long, IO> ioMap = matchContext.get("ioMap");
-        Map<Long, Set<String>> slots = matchContext.get("slots");
-        LongSet renderMask = matchContext.get("renderMask");
-        LongSet openUIMask = matchContext.get("openUIMask");
-        LongSet partPositions = matchContext.get("partPositions");
-        for (BlockPos pos : positions) {
-            long posKey = pos.asLong();
-            if (worldState.cache != null) {
-                worldState.cache.remove(posKey);
+
+        boolean restoreBest(MultiblockState worldState) {
+            if (best == null) {
+                return false;
             }
-            if (predicates != null) {
-                predicates.remove(pos);
-            }
-            if (ioMap != null) {
-                ioMap.remove(posKey);
-            }
-            if (slots != null) {
-                slots.remove(posKey);
-            }
-            if (renderMask != null) {
-                renderMask.remove(posKey);
-            }
-            if (openUIMask != null) {
-                openUIMask.remove(posKey);
-            }
-            if (partPositions != null) {
-                partPositions.remove(posKey);
-            }
+            worldState.restoreMatchSnapshot(best);
+            return true;
         }
     }
 
@@ -534,7 +749,7 @@ public class BlockPattern {
      */
     public void autoBuild(Player player, MultiblockState worldState) {
         Level world = player.level();
-        int minZ = -centerOffset[4];
+        int z = -centerOffset[3];
         worldState.clean();
         IMultiController controller = worldState.getController();
         if (controller == null) {
@@ -595,8 +810,8 @@ public class BlockPattern {
             }
         }
 
-        for (int c = 0, z = minZ++; c < this.fingerLength; c++) {
-            for (int r = 0; r < aisleRepetitions[c][0]; r++) {
+        for (int c = 0; c < this.fingerLength; c++) {
+            for (int r = 0; r < aisleRepetitionRanges[c][0]; r++) {
                 cacheLayer.clear();
                 for (int b = 0, y = -centerOffset[1]; b < this.thumbLength; b++, y++) {
                     for (int a = 0, x = -centerOffset[0]; a < this.palmLength; a++, x++) {
@@ -900,6 +1115,10 @@ public class BlockPattern {
      * @return dense preview grid indexed by normalized x/y/z coordinates
      */
     public BlockInfo[][][] getPreview(int[] repetition) {
+        validateRepetitionSelection(repetition);
+        if (fingerLength == 0) {
+            return new BlockInfo[0][0][0];
+        }
         Rotation previewRotation = PatternStateRotation.horizontalRotation(mbd2$getBaseFacing(), Direction.NORTH);
         Map<SimplePredicate, Integer> cacheGlobal = new HashMap<>();
         Map<BlockPos, BlockInfo> blocks = new HashMap<>();
@@ -1069,6 +1288,18 @@ public class BlockPattern {
         int finalMinZ = minZ;
         blocks.forEach((pos, info) -> result[pos.getX() - finalMinX][pos.getY() - finalMinY][pos.getZ() - finalMinZ] = info);
         return result;
+    }
+
+    private void validateRepetitionSelection(int[] repetitions) {
+        if (repetitions == null || repetitions.length != aisleRepetitionRanges.length) {
+            throw new IllegalArgumentException("Preview repetition count does not match the pattern depth");
+        }
+        for (int aisle = 0; aisle < repetitions.length; aisle++) {
+            int repeat = repetitions[aisle];
+            if (repeat < aisleRepetitionRanges[aisle][0] || repeat > aisleRepetitionRanges[aisle][1]) {
+                throw new IllegalArgumentException("Preview repetition for aisle " + aisle + " is outside its configured range");
+            }
+        }
     }
 
     private static BlockInfo rotatePreviewInfo(BlockInfo info, Rotation rotation, boolean rotatePreviewState) {

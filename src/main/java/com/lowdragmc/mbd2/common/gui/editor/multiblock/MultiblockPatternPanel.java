@@ -508,7 +508,20 @@ public class MultiblockPatternPanel extends WidgetGroup {
                                 holder.setController(true);
                                 holder.setFacing(facing);
                             });
+                            var controllerPos = selectedBlocks.iterator().next();
+                            int controllerAisle = switch (project.getLayerAxis()) {
+                                case X -> controllerPos.x;
+                                case Y -> controllerPos.y;
+                                case Z -> controllerPos.z;
+                            };
+                            project.getAisleRepetitions()[controllerAisle][0] = 1;
+                            project.getAisleRepetitions()[controllerAisle][1] = 1;
                             reloadScene(false, true);
+                            editor.getToolPanel().getToolBoxes().stream()
+                                    .filter(PatternLayerList.class::isInstance)
+                                    .map(PatternLayerList.class::cast)
+                                    .findAny()
+                                    .ifPresent(PatternLayerList::reloadLayers);
                         });
                     }
                 });
