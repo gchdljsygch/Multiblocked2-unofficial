@@ -57,8 +57,7 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         super(0, 0, 20, 18 * 2 + 2);
         setupKeySlot(configSlot, CONFIG_SLOT_ID, 1, 1);
         setupKeySlot(storageSlot, STORAGE_SLOT_ID, 1, 19);
-        storageSlot.setCanAcceptPhantom(false);
-        storageSlot.setCanSetAmount(false);
+        storageSlot.setRealStorageSlot(true);
         addWidget(configSlot);
         addWidget(storageSlot);
     }
@@ -324,8 +323,7 @@ public class AEInterfaceSlotWidget extends WidgetGroup {
         ensureKeySlot(storageSlot, STORAGE_SLOT_ID, 1, 19);
         configSlot.setCanAcceptPhantom(true);
         configSlot.setCanSetAmount(true);
-        storageSlot.setCanAcceptPhantom(false);
-        storageSlot.setCanSetAmount(false);
+        storageSlot.setRealStorageSlot(true);
         setSize(20, 18 * 2 + 2);
     }
 

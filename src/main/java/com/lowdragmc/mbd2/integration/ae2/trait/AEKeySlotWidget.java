@@ -1,11 +1,14 @@
 package com.lowdragmc.mbd2.integration.ae2.trait;
 
+import appeng.api.behaviors.ContainerItemStrategies;
 import appeng.api.client.AEKeyRendering;
+import appeng.api.config.Actionable;
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AmountFormat;
 import appeng.api.stacks.GenericStack;
 import appeng.client.gui.me.common.StackSizeRenderer;
+import appeng.core.AELog;
 import appeng.util.ConfigInventory;
 import com.lowdragmc.lowdraglib.LDLib;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
@@ -62,8 +65,10 @@ import java.util.function.BiConsumer;
 @Accessors(chain = true)
 public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IGhostIngredientTarget, IConfigurableWidget {
     private static final int UPDATE_STACK = 0;
+    private static final int UPDATE_CARRIED_STACK = 1;
     private static final int ACTION_SET_STACK = 0;
     private static final int ACTION_SET_AMOUNT = 1;
+    private static final int ACTION_STORAGE_CLICK = 2;
     private static final String SET_AMOUNT_TITLE = "mbd2.ae_key_slot.set_amount";
     private static final String SET_AMOUNT_TOOLTIP = "mbd2.ae_key_slot.set_amount.tooltip";
     private static final String SET_AMOUNT_VALUE = "mbd2.ae_key_slot.set_amount.value";
@@ -79,6 +84,7 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
     protected boolean canPutItems = true;
     protected boolean canAcceptPhantom = true;
     protected boolean canSetAmount = true;
+    protected boolean realStorageSlot;
     @Configurable(name = "ldlib.gui.editor.name.showAmount")
     @Setter
     protected boolean showAmount = true;
@@ -219,6 +225,25 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
     }
 
     /**
+     * Switches this widget between AE2-style configuration and real-storage interaction.
+     * <p>
+     * Real storage clicks never accept a stack or amount from the client. The server resolves every action from its
+     * current carried stack and the backing {@link ConfigInventory}, matching AE2's separation between
+     * {@code FakeSlot} configuration rows and {@code AppEngSlot} storage rows.
+     *
+     * @param realStorageSlot {@code true} for a real, conserving storage slot
+     * @return this widget for chaining
+     */
+    public AEKeySlotWidget setRealStorageSlot(boolean realStorageSlot) {
+        this.realStorageSlot = realStorageSlot;
+        if (realStorageSlot) {
+            this.canAcceptPhantom = false;
+            this.canSetAmount = false;
+        }
+        return this;
+    }
+
+    /**
      * Lets callers append widget-specific tooltip lines.
      * <p>
      * The supplied list is mutated in place by {@link #onAddedTooltips} when a callback is installed, then returned for
@@ -354,6 +379,16 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         if (!isMouseOverElement(mouseX, mouseY) || gui == null) {
             return false;
         }
+        if (realStorageSlot) {
+            if ((button == 0 || button == 1) && (canTakeItems || canPutItems)) {
+                writeClientAction(ACTION_STORAGE_CLICK, buffer -> buffer.writeVarInt(button));
+                return true;
+            }
+            if (LDLib.isEmiLoaded()) {
+                return SlotWidget.EMICallWrapper.mouseClicked(getXEICurrentIngredient(), button);
+            }
+            return false;
+        }
         if (button == 1 && canTakeItems && mayClearStackOnThisSide()) {
             setStack(null);
             writeClientAction(ACTION_SET_STACK, buffer -> GenericStack.writeBuffer(null, buffer));
@@ -438,6 +473,11 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         if (id == UPDATE_STACK) {
             this.lastStack = GenericStack.readBuffer(buffer);
             notifyChangeListener();
+        } else if (id == UPDATE_CARRIED_STACK) {
+            var carried = buffer.readItem();
+            if (gui != null) {
+                gui.getModularUIContainer().setCarried(carried);
+            }
         } else {
             super.readUpdateInfo(id, buffer);
         }
@@ -445,6 +485,23 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
 
     @Override
     public void handleClientAction(int id, FriendlyByteBuf buffer) {
+        if (realStorageSlot) {
+            if (id == ACTION_STORAGE_CLICK) {
+                var button = buffer.readVarInt();
+                if (button == 0 || button == 1) {
+                    handleStorageClick(button);
+                }
+                syncStackToClient();
+                syncCarriedStackToClient();
+            } else if (id == ACTION_SET_STACK || id == ACTION_SET_AMOUNT) {
+                // Configuration actions carry client-authored stacks and must never mutate real storage.
+                syncStackToClient();
+                syncCarriedStackToClient();
+            } else {
+                super.handleClientAction(id, buffer);
+            }
+            return;
+        }
         if (id == ACTION_SET_STACK) {
             setStack(GenericStack.readBuffer(buffer));
             syncStackToClient();
@@ -457,6 +514,197 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         } else {
             super.handleClientAction(id, buffer);
         }
+    }
+
+    /**
+     * Applies one real-storage click using only server-owned state.
+     */
+    protected void handleStorageClick(int button) {
+        var inventory = this.inventory;
+        if (!isValidSlot(inventory) || gui == null) {
+            return;
+        }
+
+        var menu = gui.getModularUIContainer();
+        var carried = menu.getCarried();
+        var stored = inventory.getStack(slotIndex);
+
+        // AE2 reserves right-click with a supported filled container for EMPTY_ITEM, even if no content can move.
+        if (button == 1 && isContainerEmptyingClick(carried)) {
+            emptyCarriedContainerIntoStorage();
+            return;
+        }
+
+        if (stored != null && !(stored.what() instanceof AEItemKey)) {
+            // Generic keys are never exposed as fake ItemStacks. A compatible carried container is filled instead.
+            if (button == 0 && !carried.isEmpty()) {
+                fillCarriedContainerFromStorage(stored);
+            }
+            return;
+        }
+
+        handleItemStorageClick(button, carried, stored);
+    }
+
+    private boolean isContainerEmptyingClick(ItemStack carried) {
+        var inventory = this.inventory;
+        if (carried.isEmpty() || inventory == null) {
+            return false;
+        }
+        var content = ContainerItemStrategies.getContainedStack(carried);
+        return content != null && inventory.isAllowed(content.what());
+    }
+
+    private void handleItemStorageClick(int button, ItemStack carried, @Nullable GenericStack stored) {
+        var inventory = this.inventory;
+        if (inventory == null || gui == null) {
+            return;
+        }
+
+        if (carried.isEmpty()) {
+            if (!canTakeItems || !inventory.canExtract() || stored == null
+                    || !(stored.what() instanceof AEItemKey storedKey) || stored.amount() <= 0) {
+                return;
+            }
+
+            long requested = button == 1
+                    ? stored.amount() / 2 + stored.amount() % 2
+                    : stored.amount();
+            requested = Math.min(requested, storedKey.toStack().getMaxStackSize());
+            long extracted = inventory.extract(slotIndex, storedKey, requested, Actionable.MODULATE);
+            if (extracted > 0) {
+                gui.getModularUIContainer().setCarried(storedKey.toStack((int) extracted));
+            }
+            return;
+        }
+
+        var carriedKey = AEItemKey.of(carried);
+        if (carriedKey == null || !canPutItems || !inventory.canInsert()) {
+            return;
+        }
+
+        if (stored == null || stored.what().equals(carriedKey)) {
+            long requested = button == 1 ? 1 : carried.getCount();
+            long inserted = inventory.insert(slotIndex, carriedKey, requested, Actionable.MODULATE);
+            if (inserted > 0) {
+                var remainder = carried.copy();
+                remainder.shrink((int) inserted);
+                gui.getModularUIContainer().setCarried(remainder);
+            }
+            return;
+        }
+
+        if (canTakeItems && inventory.canExtract()
+                && stored.what() instanceof AEItemKey storedKey
+                && stored.amount() > 0
+                && stored.amount() <= storedKey.toStack().getMaxStackSize()) {
+            var replacement = new GenericStack(carriedKey, carried.getCount());
+            long maxReplacementAmount = Math.min(carried.getMaxStackSize(), inventory.getMaxAmount(carriedKey));
+            if (inventory.isAllowed(replacement) && carried.getCount() <= maxReplacementAmount) {
+                inventory.setStack(slotIndex, replacement);
+                gui.getModularUIContainer().setCarried(storedKey.toStack((int) stored.amount()));
+            }
+        }
+    }
+
+    private boolean emptyCarriedContainerIntoStorage() {
+        var inventory = this.inventory;
+        if (!canPutItems || inventory == null || !inventory.canInsert() || gui == null) {
+            return false;
+        }
+
+        var context = ContainerItemStrategies.findCarriedContext(
+                null, gui.entityPlayer, gui.getModularUIContainer());
+        if (context == null) {
+            return false;
+        }
+        var content = context.getExtractableContent();
+        if (content == null || content.amount() <= 0) {
+            return false;
+        }
+
+        long accepted = inventory.insert(
+                slotIndex, content.what(), content.amount(), Actionable.SIMULATE);
+        if (accepted <= 0) {
+            return false;
+        }
+
+        long extractable = context.extract(content.what(), accepted, Actionable.SIMULATE);
+        long transferAmount = Math.min(accepted, extractable);
+        if (transferAmount <= 0) {
+            return false;
+        }
+
+        // Reserve the destination first. If a container violates its simulation contract, the surplus reservation can
+        // be rolled back without having to reconstruct or locate the transformed container item.
+        long reserved = inventory.insert(slotIndex, content.what(), transferAmount, Actionable.MODULATE);
+        if (reserved <= 0) {
+            return false;
+        }
+        long extracted = context.extract(content.what(), reserved, Actionable.MODULATE);
+        if (extracted < reserved) {
+            long surplus = reserved - Math.max(0, extracted);
+            long rolledBack = inventory.extract(slotIndex, content.what(), surplus, Actionable.MODULATE);
+            if (rolledBack != surplus) {
+                AELog.error("Failed to roll back %d of %s after a container extraction mismatch", surplus,
+                        content.what());
+            }
+        } else if (extracted > reserved) {
+            long recovered = inventory.insert(
+                    slotIndex, content.what(), extracted - reserved, Actionable.MODULATE);
+            if (recovered != extracted - reserved) {
+                AELog.error("Container extracted more %s than requested: requested=%d, extracted=%d",
+                        content.what(), reserved, extracted);
+            }
+        }
+        if (extracted <= 0) {
+            return false;
+        }
+        context.playEmptySound(gui.entityPlayer, content.what());
+        return true;
+    }
+
+    private boolean fillCarriedContainerFromStorage(GenericStack stored) {
+        var inventory = this.inventory;
+        if (!canTakeItems || inventory == null || !inventory.canExtract() || gui == null) {
+            return false;
+        }
+
+        var context = ContainerItemStrategies.findCarriedContextForKey(
+                stored.what(), gui.entityPlayer, gui.getModularUIContainer());
+        if (context == null) {
+            return false;
+        }
+        long available = inventory.extract(
+                slotIndex, stored.what(), Long.MAX_VALUE, Actionable.SIMULATE);
+        if (available <= 0) {
+            return false;
+        }
+        long accepted = context.insert(stored.what(), available, Actionable.SIMULATE);
+        if (accepted <= 0) {
+            return false;
+        }
+
+        long extracted = inventory.extract(slotIndex, stored.what(), accepted, Actionable.MODULATE);
+        if (extracted <= 0) {
+            return false;
+        }
+        long inserted = context.insert(stored.what(), extracted, Actionable.MODULATE);
+        if (inserted < extracted) {
+            long remainder = extracted - Math.max(0, inserted);
+            long rolledBack = inventory.insert(slotIndex, stored.what(), remainder, Actionable.MODULATE);
+            if (rolledBack != remainder) {
+                AELog.error("Failed to restore %d of %s after a container fill mismatch", remainder, stored.what());
+            }
+        } else if (inserted > extracted) {
+            AELog.error("Container accepted more %s than provided: provided=%d, inserted=%d", stored.what(),
+                    extracted, inserted);
+        }
+        if (inserted <= 0) {
+            return false;
+        }
+        context.playFillSound(gui.entityPlayer, stored.what());
+        return true;
     }
 
     /**
@@ -614,6 +862,17 @@ public class AEKeySlotWidget extends Widget implements IRecipeIngredientSlot, IG
         var stack = getInventoryStack();
         this.lastStack = stack;
         writeUpdateInfo(UPDATE_STACK, buffer -> GenericStack.writeBuffer(stack, buffer));
+    }
+
+    /**
+     * Synchronizes the server-authoritative cursor after a real-storage action.
+     */
+    protected void syncCarriedStackToClient() {
+        if (gui == null) {
+            return;
+        }
+        var carried = gui.getModularUIContainer().getCarried().copy();
+        writeUpdateInfo(UPDATE_CARRIED_STACK, buffer -> buffer.writeItem(carried));
     }
 
     /**
