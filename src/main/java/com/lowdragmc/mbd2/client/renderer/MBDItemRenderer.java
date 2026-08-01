@@ -1,6 +1,7 @@
 package com.lowdragmc.mbd2.client.renderer;
 
 import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
+import com.lowdragmc.lowdraglib.client.renderer.impl.UIResourceRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import lombok.AllArgsConstructor;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -35,7 +36,7 @@ public class MBDItemRenderer implements IRenderer {
      */
     @Override
     public boolean useBlockLight(ItemStack stack) {
-        return useBlockLight.getAsBoolean();
+        return !usesItemTextureRenderer() && useBlockLight.getAsBoolean();
     }
 
     /**
@@ -45,7 +46,7 @@ public class MBDItemRenderer implements IRenderer {
      */
     @Override
     public boolean isGui3d() {
-        return isGui3d.getAsBoolean();
+        return !usesItemTextureRenderer() && isGui3d.getAsBoolean();
     }
 
     /**
@@ -63,5 +64,22 @@ public class MBDItemRenderer implements IRenderer {
     @Override
     public void renderItem(ItemStack stack, ItemDisplayContext transformType, boolean leftHand, PoseStack poseStack, MultiBufferSource buffer, int combinedLight, int combinedOverlay, BakedModel model) {
         renderer.get().renderItem(stack, transformType, leftHand, poseStack, buffer, combinedLight, combinedOverlay, model);
+    }
+
+    /**
+     * Resolves project-resource wrappers so PNG renderers always use vanilla flat-item layout and lighting.
+     *
+     * <p>The bounded walk also tolerates malformed resource cycles without affecting existing model renderers.</p>
+     */
+    private boolean usesItemTextureRenderer() {
+        IRenderer resolved = renderer.get();
+        for (int depth = 0; depth < 16 && resolved instanceof UIResourceRenderer resourceRenderer; depth++) {
+            var next = resourceRenderer.getRenderer();
+            if (next == resolved) {
+                break;
+            }
+            resolved = next;
+        }
+        return resolved instanceof ItemTextureRenderer;
     }
 }

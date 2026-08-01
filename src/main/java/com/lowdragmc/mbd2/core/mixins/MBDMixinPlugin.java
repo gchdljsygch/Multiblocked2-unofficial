@@ -40,7 +40,9 @@ public class MBDMixinPlugin implements IMixinConfigPlugin, MixinPluginShared {
             return LoadingModList.get().getModFileById("mna") != null;
         }
         if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.ae2")) {
-            return LoadingModList.get().getModFileById("ae2") != null;
+            return LoadingModList.get().getModFileById("ae2") != null
+                    && MixinPluginShared.isClassFound("appeng.helpers.InterfaceLogic")
+                    && MixinPluginShared.isClassFound("appeng.helpers.MultiCraftingTracker");
         }
         if (mixinClassName.contains("com.lowdragmc.mbd2.core.mixins.fusion")) {
             return LoadingModList.get().getModFileById("fusion") != null;

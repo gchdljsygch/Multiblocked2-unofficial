@@ -23,6 +23,7 @@ import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
 import com.lowdragmc.mbd2.common.network.MBD2Network;
 import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.integration.create.machine.CreateKineticMachineDefinition;
+import com.lowdragmc.mbd2.integration.ae2.MEOutputScheduler;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDMachineRegistryEventJS;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDRecipeTypeRegistryEventJS;
 import com.lowdragmc.mbd2.integration.kubejs.events.MBDStartupEvents;
@@ -86,6 +87,9 @@ public class CommonProxy {
         eventBus.register(this);
         if (Platform.isDevEnv()) {
             eventBus.register(new MBDTest());
+        }
+        if (MBD2.isAE2InterfaceLogicAvailable()) {
+            MEOutputScheduler.registerEvents();
         }
         MBD2Network.init();
         ForgeRegistries.RECIPE_SERIALIZERS.register("mbd_recipe_serializer", MBDRecipeSerializer.SERIALIZER);

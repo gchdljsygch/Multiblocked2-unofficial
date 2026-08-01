@@ -13,7 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.ArrayList;
@@ -40,11 +40,14 @@ import java.util.WeakHashMap;
  * security, priority, and statistics semantics while still coalescing multiple
  * slots belonging to the same interface.</p>
  */
-@Mod.EventBusSubscriber(modid = MBD2.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class MEOutputScheduler {
     private static final Map<MinecraftServer, ServerQueue> QUEUES = new WeakHashMap<>();
 
     private MEOutputScheduler() {
+    }
+
+    public static void registerEvents() {
+        MinecraftForge.EVENT_BUS.register(MEOutputScheduler.class);
     }
 
     /**

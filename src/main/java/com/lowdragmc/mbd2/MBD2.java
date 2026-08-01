@@ -168,6 +168,24 @@ public class MBD2 {
     }
 
     /**
+     * @return {@code true} when AE2's legacy interface internals used by MBD are available
+     */
+    public static boolean isAE2InterfaceLogicAvailable() {
+        return isAE2Loaded()
+                && isClassPresent("appeng.helpers.InterfaceLogic")
+                && isClassPresent("appeng.helpers.MultiCraftingTracker");
+    }
+
+    private static boolean isClassPresent(String className) {
+        try {
+            Class.forName(className, false, MBD2.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    /**
      * @return {@code true} when Blood Magic is loaded and related compatibility paths may run
      */
     public static boolean isBloodMagicLoaded() {

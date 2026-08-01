@@ -84,8 +84,10 @@ public class MBDTraitDefinitionTypes {
         if (MBD2.isEmbersLoaded()) {
             register(EmbersEmberCapabilityTraitDefinition.class);
         }
-        if (MBD2.isAE2Loaded()) {
+        if (MBD2.isAE2InterfaceLogicAvailable()) {
             register(MEInterfaceTraitDefinition.class);
+        }
+        if (MBD2.isAE2Loaded()) {
             register(MEPatternInputTraitDefinition.class);
         }
         if (MBD2.isBloodMagicLoaded()) {

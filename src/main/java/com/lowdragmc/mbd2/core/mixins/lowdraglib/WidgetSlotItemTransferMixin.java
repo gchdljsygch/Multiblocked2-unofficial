@@ -91,28 +91,29 @@ public abstract class WidgetSlotItemTransferMixin {
     }
 
     /**
-     * Reports a native stack limit to vanilla container code.
+     * Reports the smaller of the configured slot limit and the native item limit.
      *
-     * @return native max stack size of the current item, or 64 when empty
+     * @return effective vanilla interaction limit for the current stack
      * @author pingsu
-     * @reason Make vanilla container interaction see the native item stack size instead of oversized slot limits.
+     * @reason Honor configured slot limits without exposing oversized storage limits to vanilla container logic.
      */
     @Overwrite
     public int getMaxStackSize() {
         ItemStack current = getItem();
-        return current.isEmpty() ? 64 : current.getMaxStackSize();
+        int itemLimit = current.isEmpty() ? 64 : current.getMaxStackSize();
+        return WidgetSlotItemTransferLimits.effectiveStackLimit(this.itemHandler.getSlotLimit(this.index), itemLimit);
     }
 
     /**
-     * Reports the candidate stack's native limit for insertion and drag-splitting.
+     * Reports the candidate stack's effective limit for insertion and drag-splitting.
      *
      * @param stack candidate insertion stack
-     * @return native max stack size for the candidate stack
+     * @return smaller of the configured slot limit and candidate item's native limit
      * @author pingsu
-     * @reason Prevent cursor insertion and drag-splitting from exceeding the item's native max stack size.
+     * @reason Prevent all vanilla insertion paths from exceeding either applicable stack limit.
      */
     @Overwrite
     public int getMaxStackSize(@Nonnull ItemStack stack) {
-        return stack.getMaxStackSize();
+        return WidgetSlotItemTransferLimits.effectiveStackLimit(this.itemHandler.getSlotLimit(this.index), stack.getMaxStackSize());
     }
 }
