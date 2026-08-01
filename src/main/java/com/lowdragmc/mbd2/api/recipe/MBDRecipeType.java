@@ -24,7 +24,6 @@ import com.lowdragmc.mbd2.api.recipe.event.RecipeUIEvent;
 import com.lowdragmc.mbd2.api.recipe.event.TransferProxyRecipeEvent;
 import com.lowdragmc.mbd2.common.gui.recipe.ingredient.ScrollablePreviewSlotsWidget;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.MachineUIEvent;
-import com.lowdragmc.mbd2.core.mixins.RecipeManagerAccessor;
 import com.lowdragmc.mbd2.integration.kubejs.recipe.MBDRecipeSchema;
 import com.lowdragmc.mbd2.utils.FormattingUtil;
 import com.lowdragmc.mbd2.utils.WidgetUtils;
@@ -180,17 +179,22 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     public void onRecipeManagerLoaded(Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> rawRecipes) {
         // append builtin recipes
         var recipeTypeMap = rawRecipes.computeIfAbsent(this, type -> new HashMap<>());
-        recipeTypeMap.putAll(builtinRecipes);
+        builtinRecipes.values().forEach(recipe -> putRuntimeRecipe(recipeTypeMap, recipe));
 
         // load proxy recipes
         proxyRecipes.clear();
-        for (var type : proxyRecipeTypes) {
+        for (var type : new LinkedHashSet<>(proxyRecipeTypes)) {
+            var sourceRecipeMap = rawRecipes.get(type);
+            if (sourceRecipeMap == null || sourceRecipeMap.isEmpty()) {
+                proxyRecipes.put(type, Collections.emptyList());
+                continue;
+            }
             var recipes = new ArrayList<MBDRecipe>();
-            for (var recipe : rawRecipes.get(type).entrySet()) {
+            for (var recipe : new ArrayList<>(sourceRecipeMap.entrySet())) {
                 var mbdRecipe = toMBDrecipe(type, recipe.getKey(), recipe.getValue());
                 if (mbdRecipe != null) {
                     recipes.add(mbdRecipe);
-                    recipeTypeMap.put(mbdRecipe.id, mbdRecipe);
+                    putRuntimeRecipe(recipeTypeMap, mbdRecipe);
                 }
             }
             proxyRecipes.put(type, recipes);
@@ -208,13 +212,14 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
      * @param recipesByName flat recipe map keyed by recipe id
      */
     public void onRecipeManagerLoadedKjs(Map<ResourceLocation, Recipe<?>> recipesByName) {
-        recipesByName.putAll(builtinRecipes);
+        var sourceRecipes = new ArrayList<>(recipesByName.entrySet());
+        builtinRecipes.values().forEach(recipe -> putRuntimeRecipe(recipesByName, recipe));
         // load proxy recipes
         proxyRecipes.clear();
-        var proxyRecipeTypes = new HashSet<>(this.proxyRecipeTypes);
+        var proxyRecipeTypes = new LinkedHashSet<>(this.proxyRecipeTypes);
 
         if (proxyRecipeTypes.isEmpty()) return;
-        for (var entry : recipesByName.entrySet()) {
+        for (var entry : sourceRecipes) {
             var key = entry.getKey();
             var recipe = entry.getValue();
             if (proxyRecipeTypes.contains(recipe.getType())) {
@@ -226,7 +231,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
         }
         for (List<MBDRecipe> recipes : proxyRecipes.values()) {
             for (MBDRecipe recipe : recipes) {
-                recipesByName.put(recipe.getId(), recipe);
+                putRuntimeRecipe(recipesByName, recipe);
             }
         }
     }
@@ -520,11 +525,14 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
     public MBDRecipe toMBDrecipe(RecipeType<?> recipeType, ResourceLocation id, Recipe<?> recipe) {
         MBDRecipe result = null;
         if (recipe instanceof MBDRecipe mbdRecipe) {
-            var copied = mbdRecipe.copy();
+            if (mbdRecipe.recipeType == this || recipe.getType() == this) {
+                return null;
+            }
+            var copied = mbdRecipe.copy(getProxyRecipeId(id));
             copied.recipeType = this;
             result = copied;
         } else {
-            var newID = new ResourceLocation(registryName.getNamespace(), registryName.getPath() + "/" + id.getPath());
+            var newID = getProxyRecipeId(id);
             var builder = recipeBuilder(newID).recipeType(this);
             try {
                 for (var ingredient : recipe.getIngredients()) {
@@ -560,6 +568,14 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
             return event.mbdRecipe;
         }
         return result;
+    }
+
+    private ResourceLocation getProxyRecipeId(ResourceLocation id) {
+        return new ResourceLocation(registryName.getNamespace(), registryName.getPath() + "/" + id.getPath());
+    }
+
+    private static void putRuntimeRecipe(Map<ResourceLocation, Recipe<?>> recipeMap, MBDRecipe recipe) {
+        recipeMap.put(recipe.getId(), recipe);
     }
 
     private static boolean hasRecipeContent(Map<RecipeCapability<?>, List<Content>> contents) {
