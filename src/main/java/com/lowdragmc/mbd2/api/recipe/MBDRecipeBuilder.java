@@ -69,6 +69,12 @@ public class MBDRecipeBuilder {
     public float chance = 1;
     @Setter
     public float tierChanceBoost = 0;
+    /** Inclusive lower bound for output amounts; {@code -1} disables it. */
+    @Setter
+    public long minOutput = -1;
+    /** Inclusive upper bound for output amounts; {@code -1} disables it. */
+    @Setter
+    public long maxOutput = -1;
     @Setter
     public boolean isFuel = false;
     @Setter
@@ -161,6 +167,9 @@ public class MBDRecipeBuilder {
         copy.data = this.data.copy();
         copy.duration = this.duration;
         copy.chance = this.chance;
+        copy.tierChanceBoost = this.tierChanceBoost;
+        copy.minOutput = this.minOutput;
+        copy.maxOutput = this.maxOutput;
         copy.perTick = this.perTick;
         copy.isFuel = this.isFuel;
         copy.uiName = this.uiName;
@@ -198,7 +207,7 @@ public class MBDRecipeBuilder {
     public <T> MBDRecipeBuilder input(RecipeCapability<T> capability, T... obj) {
         input.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost, -1, -1, slotName, uiName)).toList());
         return this;
     }
 
@@ -211,9 +220,12 @@ public class MBDRecipeBuilder {
      * @return this builder for chaining
      */
     public <T> MBDRecipeBuilder output(RecipeCapability<T> capability, T... obj) {
+        boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
+        long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
+        long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
         output.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
         return this;
     }
 
@@ -252,7 +264,7 @@ public class MBDRecipeBuilder {
     public <T> MBDRecipeBuilder inputs(RecipeCapability<T> capability, Object... obj) {
         input.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost, -1, -1, slotName, uiName)).toList());
         return this;
     }
 
@@ -265,9 +277,58 @@ public class MBDRecipeBuilder {
      * @return this builder for chaining
      */
     public <T> MBDRecipeBuilder outputs(RecipeCapability<T> capability, Object... obj) {
+        boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
+        long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
+        long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
         output.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
+        return this;
+    }
+
+    /**
+     * Configures an inclusive absolute output amount range for subsequently
+     * added outputs. Both bounds must be non-negative and the maximum must be
+     * at least the minimum; otherwise subsequently added outputs keep their
+     * fixed configured amount.
+     *
+     * @param minOutput inclusive lower amount
+     * @param maxOutput inclusive upper amount
+     * @return this builder for chaining
+     */
+    public MBDRecipeBuilder outputRange(long minOutput, long maxOutput) {
+        this.minOutput = minOutput;
+        this.maxOutput = maxOutput;
+        return this;
+    }
+
+    /**
+     * Applies an output range only while the supplied builder callback adds
+     * outputs, restoring the previous range afterwards.
+     *
+     * @param minOutput inclusive lower amount
+     * @param maxOutput inclusive upper amount
+     * @param builder callback that adds outputs
+     * @return this builder for chaining
+     */
+    public MBDRecipeBuilder outputRange(long minOutput, long maxOutput, Consumer<MBDRecipeBuilder> builder) {
+        long lastMin = this.minOutput;
+        long lastMax = this.maxOutput;
+        this.minOutput = minOutput;
+        this.maxOutput = maxOutput;
+        try {
+            builder.accept(this);
+        } finally {
+            this.minOutput = lastMin;
+            this.maxOutput = lastMax;
+        }
+        return this;
+    }
+
+    /** Clears the range used for subsequently added outputs. */
+    public MBDRecipeBuilder clearOutputRange() {
+        this.minOutput = -1;
+        this.maxOutput = -1;
         return this;
     }
 

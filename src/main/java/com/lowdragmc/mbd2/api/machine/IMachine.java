@@ -361,6 +361,27 @@ public interface IMachine extends IRecipeCapabilityHolder {
     default void onLoad() {
     }
 
+    /**
+     * Runs one logical-server tick for this machine.
+     *
+     * <p>The default is intentionally empty for lightweight machine facades.
+     * Runtime implementations such as {@code MBDMachine} override it to run
+     * recipe logic, traits, and machine events. Keeping the hook on the common
+     * contract lets the block ticker dispatch through the machine capability
+     * without knowing a concrete implementation class.</p>
+     */
+    default void serverTick() {
+    }
+
+    /**
+     * Runs one logical-client tick for this machine.
+     *
+     * <p>The default is empty because only client-aware runtime machine
+     * implementations need sounds, traits, or other client-side updates.</p>
+     */
+    default void clientTick() {
+    }
+
     //////////////////////////////////////
     //********   RECIPE LOGIC  *********//
     //////////////////////////////////////

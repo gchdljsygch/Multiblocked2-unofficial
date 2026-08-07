@@ -15,12 +15,19 @@ import org.apache.commons.lang3.math.NumberUtils;
  */
 public class SerializerFloat implements IContentSerializer<Float> {
 
+    /** Largest integral value that a float represents exactly. */
     public static SerializerFloat INSTANCE = new SerializerFloat();
 
     /**
      * Singleton serializer; use {@link #INSTANCE}.
      */
     private SerializerFloat() {
+    }
+
+    @Override
+    public long getMaxOutputAmount() {
+        // Every integer up to 2^24 is exactly representable by an IEEE-754 float.
+        return 1L << 24;
     }
 
     /**

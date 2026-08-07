@@ -17,6 +17,7 @@ import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
 import com.lowdragmc.mbd2.utils.MultiFluidHandler;
 import com.lowdragmc.mbd2.utils.MultiItemHandler;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
@@ -270,7 +271,7 @@ public class MultiblockDisassemblyToolItem extends Item {
             return null;
         }
         MultiblockState state = controller.getMultiblockState();
-        Map<BlockPos, TraceabilityPredicate> predicates = state.getFormedMatchContext().get("predicates");
+        Long2ObjectMap<TraceabilityPredicate> predicates = state.getFormedMatchContext().get("predicates");
         if (predicates == null || predicates.isEmpty()) {
             return null;
         }
@@ -328,7 +329,7 @@ public class MultiblockDisassemblyToolItem extends Item {
 
     @Nullable
     private static MatchPlan createMatchingPlan(Level level, IMultiController controller, MultiblockState state, boolean verifyEntries) {
-        Map<BlockPos, TraceabilityPredicate> predicates = state.getMatchContext().get("predicates");
+        Long2ObjectMap<TraceabilityPredicate> predicates = state.getMatchContext().get("predicates");
         if (predicates == null || predicates.isEmpty()) {
             return null;
         }
@@ -352,6 +353,33 @@ public class MultiblockDisassemblyToolItem extends Item {
                 continue;
             }
             DisassemblyEntry disassemblyEntry = new DisassemblyEntry(entry.getKey().immutable(), controller.getPos().immutable(), predicate,
+                    patternFacing, patternBaseFacing);
+            if (!verifyEntries || matchesEntryPredicate(level, disassemblyEntry, blockState)) {
+                entries.add(disassemblyEntry);
+            }
+        }
+        entries.sort(Comparator.comparing((DisassemblyEntry entry) -> entry.pos().equals(controller.getPos())));
+        return new MatchPlan(entries);
+    }
+
+    @Nullable
+    private static MatchPlan createMatchingPlan(Level level, IMultiController controller, Long2ObjectMap<TraceabilityPredicate> predicates,
+                                                Direction patternFacing, Direction patternBaseFacing, boolean verifyEntries) {
+        if (predicates.isEmpty()) {
+            return null;
+        }
+        List<DisassemblyEntry> entries = new ArrayList<>();
+        for (var entry : predicates.long2ObjectEntrySet()) {
+            TraceabilityPredicate predicate = entry.getValue();
+            if (predicate == null || predicate.isAny() || predicate.isAir()) {
+                continue;
+            }
+            BlockPos pos = BlockPos.of(entry.getLongKey());
+            BlockState blockState = level.getBlockState(pos);
+            if (blockState.isAir()) {
+                continue;
+            }
+            DisassemblyEntry disassemblyEntry = new DisassemblyEntry(pos, controller.getPos().immutable(), predicate,
                     patternFacing, patternBaseFacing);
             if (!verifyEntries || matchesEntryPredicate(level, disassemblyEntry, blockState)) {
                 entries.add(disassemblyEntry);

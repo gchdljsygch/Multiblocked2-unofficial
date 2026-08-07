@@ -103,7 +103,9 @@ public class ContentContainer extends WidgetGroup {
         var width = container.getSizeWidth() - 5;
         var dur = 5;
         var x = 0;
-        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / 4 - dur);
+        var showOutputRange = showOutputRangeColumns();
+        var metadataColumns = showOutputRange ? 6 : 4;
+        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / metadataColumns - dur);
         appendTitleWidget(x, 20, "C");
         x += (20 + dur);
         if (x + 20 > width) return;
@@ -116,6 +118,14 @@ public class ContentContainer extends WidgetGroup {
         appendTitleWidget(x, textFieldWidth, "editor.machine.recipe_type.content.tier_chance_boost");
         x += (textFieldWidth + dur);
         if (x + textFieldWidth > width) return;
+        if (showOutputRange) {
+            appendTitleWidget(x, textFieldWidth, "editor.machine.recipe_type.content.min_output");
+            x += (textFieldWidth + dur);
+            if (x + textFieldWidth > width) return;
+            appendTitleWidget(x, textFieldWidth, "editor.machine.recipe_type.content.max_output");
+            x += (textFieldWidth + dur);
+            if (x + textFieldWidth > width) return;
+        }
         appendTitleWidget(x, textFieldWidth, "editor.machine.recipe_type.content.slot_name");
         x += (textFieldWidth + dur);
         if (x + textFieldWidth > width) return;
@@ -187,7 +197,9 @@ public class ContentContainer extends WidgetGroup {
         var contentWidget = new ContentWidget<>(0, 0, cap, content);
         var dur = 5;
         var x = 0;
-        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / 4 - dur);
+        var showOutputRange = showOutputRangeColumns();
+        var metadataColumns = showOutputRange ? 6 : 4;
+        var textFieldWidth = Math.max(50, (width - 20 - dur - 20 - dur) / metadataColumns - dur);
         contentLine.addWidget(contentWidget);
         x += (20 + dur);
         if (x + 20 > width) return contentLine;
@@ -206,6 +218,26 @@ public class ContentContainer extends WidgetGroup {
         createFloatField(contentLine, x, textFieldWidth, content.tierChanceBoost, f -> content.tierChanceBoost = f, 0, 1);
         x += (textFieldWidth + dur);
         if (x + textFieldWidth > width) return contentLine;
+        if (showOutputRange) {
+            boolean rangeEnabled = cap.supportsOutputRange();
+            long rangeMaximum = Math.max(0, cap.getMaxOutputAmount());
+            long displayedMin = rangeEnabled && (content.minOutput == Content.OUTPUT_RANGE_DISABLED
+                    || cap.supportsOutputAmount(content.minOutput)) ? content.minOutput : Content.OUTPUT_RANGE_DISABLED;
+            long displayedMax = rangeEnabled && (content.maxOutput == Content.OUTPUT_RANGE_DISABLED
+                    || cap.supportsOutputAmount(content.maxOutput)) ? content.maxOutput : Content.OUTPUT_RANGE_DISABLED;
+            createLongField(contentLine, x, textFieldWidth,
+                    rangeEnabled ? displayedMin : Content.OUTPUT_RANGE_DISABLED,
+                    rangeEnabled ? value -> content.minOutput = value : value -> { },
+                    -1, rangeMaximum, rangeEnabled);
+            x += (textFieldWidth + dur);
+            if (x + textFieldWidth > width) return contentLine;
+            createLongField(contentLine, x, textFieldWidth,
+                    rangeEnabled ? displayedMax : Content.OUTPUT_RANGE_DISABLED,
+                    rangeEnabled ? value -> content.maxOutput = value : value -> { },
+                    -1, rangeMaximum, rangeEnabled);
+            x += (textFieldWidth + dur);
+            if (x + textFieldWidth > width) return contentLine;
+        }
         createStringField(contentLine, x, textFieldWidth, content.slotName, s -> content.slotName = s);
         x += (textFieldWidth + dur);
         if (x + textFieldWidth > width) return contentLine;
@@ -225,6 +257,40 @@ public class ContentContainer extends WidgetGroup {
         textField.setWheelDur(0.1f);
         contentLine.addWidget(new ImageWidget(x, 5, textFieldWidth, 10, ColorPattern.T_GRAY.rectTexture().setRadius(5)));
         contentLine.addWidget(textField);
+    }
+
+    /**
+     * Adds a bounded long text field to a content row.
+     *
+     * <p>{@code -1} is accepted by the output range fields as the disabled
+     * sentinel, while non-negative values represent an absolute amount.</p>
+     */
+    private static void createLongField(WidgetGroup contentLine, int x, int textFieldWidth, long initial,
+                                        Consumer<Long> setter, long min, long max, boolean active) {
+        var textField = new TextFieldWidget(x + 3, 5, textFieldWidth - 3, 10, null,
+                s -> {
+                    try {
+                        setter.accept(Long.parseLong(s));
+                    } catch (NumberFormatException ignored) {
+                        // Keep the last valid value while the user edits the field.
+                    }
+                })
+                .setCurrentString(Long.toString(initial))
+                .setMaxStringLength(20);
+        textField.setBordered(false);
+        textField.setActive(active);
+        textField.setWheelDur(1);
+        textField.setNumbersOnly(min, max);
+        contentLine.addWidget(new ImageWidget(x, 5, textFieldWidth, 10, ColorPattern.T_GRAY.rectTexture().setRadius(5)));
+        contentLine.addWidget(textField);
+    }
+
+    /** Returns whether this editor is the output table with stable range columns. */
+    private boolean showOutputRangeColumns() {
+        // Keep the output table layout stable while capabilities are added or
+        // removed through the context menu. Unsupported capabilities render
+        // disabled range fields in these columns.
+        return io == IO.OUT;
     }
 
     /**

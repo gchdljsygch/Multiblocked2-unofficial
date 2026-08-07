@@ -15,12 +15,19 @@ import org.apache.commons.lang3.math.NumberUtils;
  */
 public class SerializerDouble implements IContentSerializer<Double> {
 
+    /** Largest integral value that a double represents exactly. */
     public static SerializerDouble INSTANCE = new SerializerDouble();
 
     /**
      * Singleton serializer; use {@link #INSTANCE}.
      */
     private SerializerDouble() {
+    }
+
+    @Override
+    public long getMaxOutputAmount() {
+        // Every integer up to 2^53 is exactly representable by an IEEE-754 double.
+        return 1L << 53;
     }
 
     /**

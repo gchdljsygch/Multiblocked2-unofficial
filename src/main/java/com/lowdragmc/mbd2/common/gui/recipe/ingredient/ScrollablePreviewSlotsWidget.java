@@ -296,7 +296,8 @@ public class ScrollablePreviewSlotsWidget extends DraggableScrollableWidgetGroup
     private static void bindXEIWidget(PreviewSlot slot, Widget widget, IngredientIO ingredientIO) {
         slot.capability.bindXEIWidget(widget, slot.content, ingredientIO);
         var tooltips = new ArrayList<Component>();
-        slot.content.appendTooltip(tooltips);
+        slot.content.appendTooltip(tooltips,
+                slot.capability.supportsOutputRange(slot.content.minOutput, slot.content.maxOutput));
         if (!tooltips.isEmpty()) {
             widget.appendHoverTooltips(tooltips);
         }

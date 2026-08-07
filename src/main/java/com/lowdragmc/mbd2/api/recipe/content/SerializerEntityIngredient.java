@@ -25,6 +25,11 @@ public class SerializerEntityIngredient implements IContentSerializer<EntityIngr
      */
     private SerializerEntityIngredient() {}
 
+    @Override
+    public long getMaxOutputAmount() {
+        return Integer.MAX_VALUE;
+    }
+
     /**
      * Writes an entity ingredient to the network buffer.
      *

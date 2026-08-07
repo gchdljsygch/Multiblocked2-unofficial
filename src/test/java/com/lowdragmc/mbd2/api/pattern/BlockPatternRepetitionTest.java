@@ -109,6 +109,25 @@ class BlockPatternRepetitionTest {
     }
 
     @Test
+    void fixedAislesMatchWithoutBacktrackingAndPublishConfiguredCounts() {
+        TraceabilityPredicate first = new TraceabilityPredicate();
+        TraceabilityPredicate controller = new TraceabilityPredicate().setController();
+        BlockPattern pattern = new BlockPattern(new TraceabilityPredicate[][][]{
+                {{first}},
+                {{controller}}
+        }, structureDirections(), new int[][]{{1, 1}, {1, 1}}, new int[]{0, 0, 1, 1, 1});
+        InMemoryMatchState state = new InMemoryMatchState();
+        state.setCommitSuccessfulMatches(false);
+
+        assertTrue(pattern.checkPatternAt(state, BlockPos.ZERO, Direction.NORTH, false,
+                (worldState, predicate) -> {
+                    int z = ((InMemoryMatchState) worldState).currentPos.getZ();
+                    return predicate == first ? z == 1 : predicate == controller && z == 0;
+                }));
+        assertArrayEquals(new int[]{1, 1}, state.getMatchedAisleRepetitions());
+    }
+
+    @Test
     void retainsCommittedActualRepeatCountsAndReturnsDefensiveCopies() {
         BlockPattern pattern = createPattern();
         MultiblockState state = new MultiblockState(null, BlockPos.ZERO);

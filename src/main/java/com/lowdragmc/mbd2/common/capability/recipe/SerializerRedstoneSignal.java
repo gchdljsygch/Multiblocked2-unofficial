@@ -31,6 +31,11 @@ public class SerializerRedstoneSignal implements IContentSerializer<RedstoneSign
     private SerializerRedstoneSignal() {
     }
 
+    @Override
+    public long getMaxOutputAmount() {
+        return Integer.MAX_VALUE;
+    }
+
     /**
      * Writes strength, max strength, and duration to the network.
      *

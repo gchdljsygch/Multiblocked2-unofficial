@@ -219,5 +219,26 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('test').configure {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'performance'
+    }
+}
+
+tasks.register('stressTest', Test) {
+    group = 'verification'
+    description = 'Runs the opt-in 100k MBD runtime stress suite and writes CSV/Markdown reports.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxParallelForks = 1
+    outputs.upToDateWhen { false }
+    useJUnitPlatform {
+        includeTags 'performance'
+    }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+    }
+    doFirst {
+        delete layout.buildDirectory.dir('reports/mbd2-stress')
+    }
 }

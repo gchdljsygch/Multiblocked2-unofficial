@@ -100,8 +100,8 @@ public class SerializerFluidIngredient implements IContentSerializer<FluidIngred
      * Copies a fluid ingredient and applies a numeric modifier to its amount.
      *
      * <p>Side effects: none on the source ingredient. Empty ingredients are
-     * copied without applying the modifier. Non-empty amounts are truncated to
-     * {@code int}, matching the current fluid recipe handling path.</p>
+     * copied without applying the modifier. Fluid amounts are retained as
+     * {@code long} values so large output ranges remain valid.</p>
      *
      * @param content  source ingredient
      * @param modifier amount transform to apply
@@ -111,7 +111,7 @@ public class SerializerFluidIngredient implements IContentSerializer<FluidIngred
     public FluidIngredient copyWithModifier(FluidIngredient content, ContentModifier modifier) {
         if (content.isEmpty()) return content.copy();
         FluidIngredient copy = content.copy();
-        copy.setAmount(modifier.apply(copy.getAmount()).intValue());
+        copy.setAmount(modifier.apply(copy.getAmount()).longValue());
         return copy;
     }
 

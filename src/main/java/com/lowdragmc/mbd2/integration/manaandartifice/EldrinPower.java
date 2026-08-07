@@ -42,6 +42,12 @@ public record EldrinPower(Affinity affinity, float amount) {
         public static final IContentSerializer<EldrinPower> INSTANCE = new SerializerEldrinPower();
 
         @Override
+        public long getMaxOutputAmount() {
+            // The primary Eldrin amount is a float; keep every integral roll exact.
+            return 1L << 24;
+        }
+
+        @Override
         public EldrinPower fromJson(JsonElement json) {
             if (json.isJsonPrimitive()) {
                 return new EldrinPower(Affinity.ARCANE, json.getAsFloat());

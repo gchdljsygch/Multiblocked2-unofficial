@@ -24,6 +24,11 @@ public class SerializerInteger implements IContentSerializer<Integer> {
     private SerializerInteger() {
     }
 
+    @Override
+    public long getMaxOutputAmount() {
+        return Integer.MAX_VALUE;
+    }
+
     /**
      * Writes the integer as a fixed-width network value.
      *

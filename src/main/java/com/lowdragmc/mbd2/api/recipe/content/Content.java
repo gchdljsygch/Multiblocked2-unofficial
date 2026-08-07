@@ -27,6 +27,12 @@ import java.util.List;
  * owns them.</p>
  */
 public class Content {
+    /**
+     * Sentinel used by {@link #minOutput} and {@link #maxOutput} when an output
+     * should keep its fixed recipe amount.
+     */
+    public static final long OUTPUT_RANGE_DISABLED = -1L;
+
     @Getter
     public Object content;
     @Configurable(name = "editor.machine.recipe_type.content.per_tick", tips = "editor.machine.recipe_type.content.per_tick.tooltip")
@@ -40,6 +46,12 @@ public class Content {
     })
     @NumberRange(range = {0f, 1f})
     public float tierChanceBoost;
+    @Configurable(name = "editor.machine.recipe_type.content.min_output", tips = "editor.machine.recipe_type.content.min_output.tooltip")
+    @NumberRange(range = {-1, Long.MAX_VALUE}, wheel = 1)
+    public long minOutput;
+    @Configurable(name = "editor.machine.recipe_type.content.max_output", tips = "editor.machine.recipe_type.content.max_output.tooltip")
+    @NumberRange(range = {-1, Long.MAX_VALUE}, wheel = 1)
+    public long maxOutput;
     @Configurable(name = "editor.machine.recipe_type.content.slot_name", tips = "editor.machine.recipe_type.content.slot_name.tooltip")
     @Nonnull
     public String slotName;
@@ -63,13 +75,50 @@ public class Content {
      * @param uiName          optional template widget id override; {@code null} is
      *                        normalized to an empty string
      */
-    public Content(Object content, boolean perTick, float chance, float tierChanceBoost, @Nullable String slotName, @Nullable String uiName) {
+    public Content(Object content, boolean perTick, float chance, float tierChanceBoost,
+                   @Nullable String slotName, @Nullable String uiName) {
+        this(content, perTick, chance, tierChanceBoost, OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED, slotName, uiName);
+    }
+
+    /**
+     * Creates a content wrapper with an optional absolute output range.
+     *
+     * <p>The range is active only when both bounds are non-negative and the
+     * maximum is at least the minimum. Either bound set to
+     * {@link #OUTPUT_RANGE_DISABLED} preserves the legacy fixed-output
+     * behavior.</p>
+     *
+     * @param content         capability-specific value
+     * @param perTick         {@code true} when this content is consumed or produced every
+     *                        recipe tick instead of at setup/finish
+     * @param chance          chance in {@code [0, 1]}
+     * @param tierChanceBoost additional chance per holder tier
+     * @param minOutput       inclusive absolute lower output bound, or {@code -1} to disable
+     * @param maxOutput       inclusive absolute upper output bound, or {@code -1} to disable
+     * @param slotName        optional recipe slot route
+     * @param uiName          optional template widget id override
+     */
+    public Content(Object content, boolean perTick, float chance, float tierChanceBoost,
+                   long minOutput, long maxOutput, @Nullable String slotName, @Nullable String uiName) {
         this.content = content;
         this.perTick = perTick;
         this.chance = chance;
         this.tierChanceBoost = tierChanceBoost;
+        this.minOutput = minOutput;
+        this.maxOutput = maxOutput;
         this.slotName = slotName == null ? "" : slotName;
         this.uiName = uiName == null ? "" : uiName;
+    }
+
+    /**
+     * Compatibility overload with routing names before the output range. This
+     * mirrors the ordering of the legacy constructor and keeps integrations
+     * that append range metadata source-compatible.
+     */
+    public Content(Object content, boolean perTick, float chance, float tierChanceBoost,
+                   @Nullable String slotName, @Nullable String uiName,
+                   long minOutput, long maxOutput) {
+        this(content, perTick, chance, tierChanceBoost, minOutput, maxOutput, slotName, uiName);
     }
 
     /**
@@ -86,6 +135,21 @@ public class Content {
     }
 
     /**
+     * Creates a content wrapper with an output range and no slot/UI names.
+     */
+    public Content(Object content, boolean perTick, float chance, float tierChanceBoost,
+                   long minOutput, long maxOutput) {
+        this(content, perTick, chance, tierChanceBoost, minOutput, maxOutput, "", "");
+    }
+
+    /**
+     * Returns whether this content has a valid enabled output range.
+     */
+    public boolean hasOutputRange() {
+        return minOutput >= 0 && maxOutput >= minOutput;
+    }
+
+    /**
      * Copies this wrapper using the capability's normal copy semantics.
      *
      * <p>Side effects: none on this instance. The modifier is skipped when
@@ -96,10 +160,13 @@ public class Content {
      * @return copied content wrapper
      */
     public Content copy(RecipeCapability<?> capability, @Nullable ContentModifier modifier) {
+        long[] copiedRange = copyOutputRange(capability, modifier, modifier != null && chance != 0);
         if (modifier == null || chance == 0) {
-            return new Content(capability.copyContent(content), perTick, chance, tierChanceBoost, slotName, uiName);
+            return new Content(capability.copyContent(content), perTick, chance, tierChanceBoost,
+                    copiedRange[0], copiedRange[1], slotName, uiName);
         } else {
-            return new Content(capability.copyContent(content, modifier), perTick, chance, tierChanceBoost, slotName, uiName);
+            return new Content(capability.copyContent(content, modifier), perTick, chance, tierChanceBoost,
+                    copiedRange[0], copiedRange[1], slotName, uiName);
         }
     }
 
@@ -115,11 +182,48 @@ public class Content {
      * @return deep-copied content wrapper
      */
     public Content deepCopy(RecipeCapability<?> capability, @Nullable ContentModifier modifier) {
+        long[] copiedRange = copyOutputRange(capability, modifier, modifier != null && chance != 0);
         if (modifier == null || chance == 0) {
-            return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost, slotName, uiName);
+            return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost,
+                    copiedRange[0], copiedRange[1], slotName, uiName);
         } else {
-            return new Content(capability.deepCopyContent(content, modifier), perTick, chance, tierChanceBoost, slotName, uiName);
+            return new Content(capability.deepCopyContent(content, modifier), perTick, chance, tierChanceBoost,
+                    copiedRange[0], copiedRange[1], slotName, uiName);
         }
+    }
+
+    /**
+     * Validates and (when requested) scales range metadata for a copied wrapper.
+     * Invalid active ranges are normalized to the disabled sentinel so a narrow
+     * serializer can never receive an unrepresentable roll later.
+     */
+    private long[] copyOutputRange(RecipeCapability<?> capability, @Nullable ContentModifier modifier,
+                                   boolean applyModifier) {
+        if (!hasOutputRange()) {
+            return minOutput == OUTPUT_RANGE_DISABLED && maxOutput == OUTPUT_RANGE_DISABLED
+                    ? new long[]{minOutput, maxOutput}
+                    : new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
+        }
+        if (!capability.supportsOutputRange(minOutput, maxOutput)) {
+            return new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
+        }
+        long copiedMin = minOutput;
+        long copiedMax = maxOutput;
+        if (applyModifier) {
+            copiedMin = applyRangeModifier(copiedMin, modifier);
+            copiedMax = applyRangeModifier(copiedMax, modifier);
+            if (!capability.supportsOutputRange(copiedMin, copiedMax)) {
+                return new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
+            }
+        }
+        return new long[]{copiedMin, copiedMax};
+    }
+
+    private static long applyRangeModifier(long value, ContentModifier modifier) {
+        if (value < 0 || modifier.isIdentity()) {
+            return value;
+        }
+        return Math.max(0, modifier.apply(value).longValue());
     }
 
     /**
@@ -129,6 +233,15 @@ public class Content {
      * effects only
      */
     public IGuiTexture createOverlay() {
+        return createOverlay(true);
+    }
+
+    /**
+     * Creates an overlay and optionally includes output-range metadata.
+     * Callers that know the owning capability should pass its
+     * {@code supportsOutputRange()} value.
+     */
+    public IGuiTexture createOverlay(boolean showOutputRange) {
         return new IGuiTexture() {
             @Override
             @OnlyIn(Dist.CLIENT)
@@ -142,6 +255,10 @@ public class Content {
                 if (perTick) {
                     drawSmallString(graphics, x, y, width, height, row++,
                             LocalizationUtils.format("mbd2.gui.content.tips.per_tick_short"), 0xFFFF00);
+                }
+                if (showOutputRange && hasOutputRange()) {
+                    drawSmallString(graphics, x, y, width, height, row++,
+                            "%d-%d".formatted(minOutput, maxOutput), 0x55FF55);
                 }
             }
         };
@@ -188,6 +305,13 @@ public class Content {
      * @param tooltips mutable tooltip list to append to
      */
     public void appendTooltip(List<Component> tooltips) {
+        appendTooltip(tooltips, true);
+    }
+
+    /**
+     * Appends content metadata tooltips, optionally including output range.
+     */
+    public void appendTooltip(List<Component> tooltips, boolean showOutputRange) {
         if (chance != 1) {
             if (chance == 0) {
                 tooltips.add(Component.translatable("mbd2.gui.content.chance_0"));
@@ -200,6 +324,9 @@ public class Content {
         }
         if (perTick) {
             tooltips.add(Component.translatable("mbd2.gui.content.per_tick"));
+        }
+        if (showOutputRange && hasOutputRange()) {
+            tooltips.add(Component.translatable("mbd2.gui.content.output_range", minOutput, maxOutput));
         }
         if (!slotName.isEmpty()) {
             tooltips.add(Component.translatable("mbd2.gui.content.slot_name", slotName));

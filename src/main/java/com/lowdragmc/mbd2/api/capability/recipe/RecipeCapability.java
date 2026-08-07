@@ -155,6 +155,74 @@ public abstract class RecipeCapability<T> {
     }
 
     /**
+     * Whether this capability can replace an output's amount for a configured
+     * min/max output range. Event-like capabilities may expose content that has
+     * no amount field even though their serializer accepts generic modifiers;
+     * those capabilities should override this to return {@code false}.
+     *
+     * @return {@code true} when output range metadata can be applied
+     */
+    public boolean supportsOutputRange() {
+        return true;
+    }
+
+    /**
+     * Returns the largest non-negative integral output amount this capability
+     * can represent exactly. The value is delegated to the capability
+     * serializer because the serializer owns the concrete amount type.
+     *
+     * @return inclusive maximum representable output amount
+     */
+    public long getMaxOutputAmount() {
+        return serializer.getMaxOutputAmount();
+    }
+
+    /**
+     * Tests whether one concrete output amount can be represented by this
+     * capability without overflow or precision loss.
+     *
+     * @param amount candidate output amount
+     * @return {@code true} when the capability can carry the amount exactly
+     */
+    public boolean supportsOutputAmount(long amount) {
+        return serializer.supportsOutputAmount(amount);
+    }
+
+    /**
+     * Checks whether a concrete inclusive output range is representable by this
+     * capability. Invalid ranges are deliberately rejected rather than
+     * truncated by a narrower serializer.
+     *
+     * @param minOutput inclusive lower bound
+     * @param maxOutput inclusive upper bound
+     * @return {@code true} when the range can be applied without overflow or
+     *         loss of integral precision
+     */
+    public boolean supportsOutputRange(long minOutput, long maxOutput) {
+        return supportsOutputRange()
+                && supportsOutputAmount(minOutput)
+                && maxOutput >= minOutput
+                && supportsOutputAmount(maxOutput);
+    }
+
+    /**
+     * Copies content with its primary produced amount replaced by a concrete
+     * output-range result.
+     *
+     * <p>Most capabilities have one amount-like field and can reuse their
+     * normal modifier path. Capabilities with additional independent numeric
+     * fields should override this method so those fields are not changed by a
+     * recipe output range.</p>
+     *
+     * @param content source content object
+     * @param amount concrete amount selected from the output range
+     * @return copied content carrying the selected primary amount
+     */
+    public T copyContentWithOutputAmount(Object content, long amount) {
+        return copyContent(content, ContentModifier.value(amount));
+    }
+
+    /**
      * create a preview widget for the content of this capability.
      *
      * <p>Business goal: show one content value in the UI editor. Implementations

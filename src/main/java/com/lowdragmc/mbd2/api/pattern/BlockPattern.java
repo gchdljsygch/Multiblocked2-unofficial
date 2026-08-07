@@ -63,7 +63,7 @@ import java.util.function.BiPredicate;
 public class BlockPattern {
 
     public static final int MAX_AISLE_REPETITION = 4096;
-    public static final long MAX_EXPANDED_PATTERN_BLOCKS = 1_000_000L;
+    public static final long MAX_EXPANDED_PATTERN_BLOCKS = Integer.MAX_VALUE;
     public static final long MAX_REPETITION_COMBINATIONS = 4096L;
     static Direction[] FACINGS = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST, Direction.UP, Direction.DOWN};
     static Direction[] FACINGS_H = {Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST};
@@ -82,6 +82,8 @@ public class BlockPattern {
     protected final int thumbLength; //y size
     protected final int palmLength; //x size
     protected final int[] centerOffset; // x, y, z, minZ, maxZ
+    private final Direction[][] actualStructureDirections;
+    private final int[] fixedAisleRepetitions;
     private Direction mbd2$baseFacing = Direction.NORTH;
 
     /** Configured repeat range for one non-default aisle. */
@@ -145,6 +147,8 @@ public class BlockPattern {
         this.centerOffset = centerOffset.clone();
         validateCenterOffset();
         validateControllerPosition();
+        this.actualStructureDirections = resolveStructureDirections(this.structureDir);
+        this.fixedAisleRepetitions = findFixedAisleRepetitions(this.aisleRepetitionRanges);
     }
 
     private static RelativeDirection[] validateAndCopyStructureDirections(RelativeDirection[] directions) {
@@ -161,6 +165,20 @@ public class BlockPattern {
             throw new IllegalArgumentException("Pattern structure directions must cover three different axes");
         }
         return directions.clone();
+    }
+
+    private static Direction[][] resolveStructureDirections(RelativeDirection[] directions) {
+        Direction[] facings = Direction.values();
+        Direction[][] resolved = new Direction[facings.length][directions.length];
+        for (Direction facing : facings) {
+            if (facing.getAxis() == Direction.Axis.Y) {
+                continue;
+            }
+            for (int axis = 0; axis < directions.length; axis++) {
+                resolved[facing.ordinal()][axis] = directions[axis].getActualFacing(facing);
+            }
+        }
+        return resolved;
     }
 
     private static void validatePredicateGrid(TraceabilityPredicate[][][] predicates, int height, int width) {
@@ -217,6 +235,18 @@ public class BlockPattern {
             throw new IllegalArgumentException("Expanded pattern exceeds " + MAX_EXPANDED_PATTERN_BLOCKS + " blocks");
         }
         return copy;
+    }
+
+    private static int[] findFixedAisleRepetitions(int[][] repetitions) {
+        int[] fixed = new int[repetitions.length];
+        for (int aisle = 0; aisle < repetitions.length; aisle++) {
+            int min = repetitions[aisle][0];
+            if (min != repetitions[aisle][1]) {
+                return null;
+            }
+            fixed[aisle] = min;
+        }
+        return fixed;
     }
 
     private static int[][] copyRepetitionRanges(int[][] repetitions) {
@@ -587,35 +617,46 @@ public class BlockPattern {
         worldState.setMatchedPattern(null);
         worldState.setPatternContext(facing, mbd2$getBaseFacing());
         worldState.setError(null);
-        var failureTracker = new MatchFailureTracker();
-        var transaction = new AisleRepeatMatcher.Transaction<MultiblockState.MatchSnapshot>() {
-            @Override
-            public MultiblockState.MatchSnapshot snapshot() {
-                return worldState.createMatchSnapshot();
+        int[] repetitions;
+        if (fixedAisleRepetitions != null && fixedAisleRepetitions.length > 0) {
+            if (!matchFixedAisles(worldState, centerPos, facing, savePredicate, predicateMatcher)) {
+                if (!worldState.hasError()) {
+                    worldState.setError(new PatternError());
+                }
+                return false;
             }
+            repetitions = fixedAisleRepetitions;
+        } else {
+            var failureTracker = new MatchFailureTracker();
+            var transaction = new AisleRepeatMatcher.Transaction<MultiblockState.MatchSnapshot>() {
+                @Override
+                public MultiblockState.MatchSnapshot snapshot() {
+                    return worldState.createMatchSnapshot();
+                }
 
-            @Override
-            public void restore(MultiblockState.MatchSnapshot snapshot) {
-                worldState.restoreMatchSnapshot(snapshot);
-            }
+                @Override
+                public void restore(MultiblockState.MatchSnapshot snapshot) {
+                    worldState.restoreMatchSnapshot(snapshot);
+                }
 
-            @Override
-            public boolean matchSlice(int aisleIndex, int aisleOffset) {
-                return matchAisleSlice(worldState, centerPos, facing, savePredicate, predicateMatcher,
-                        failureTracker, aisleIndex, aisleOffset);
-            }
+                @Override
+                public boolean matchSlice(int aisleIndex, int aisleOffset) {
+                    return matchAisleSlice(worldState, centerPos, facing, savePredicate, predicateMatcher,
+                            failureTracker, aisleIndex, aisleOffset);
+                }
 
-            @Override
-            public boolean validateComplete() {
-                return validateGlobalCounts(worldState, failureTracker);
+                @Override
+                public boolean validateComplete() {
+                    return validateGlobalCounts(worldState, failureTracker);
+                }
+            };
+            repetitions = AisleRepeatMatcher.findMatch(aisleRepetitionRanges, centerOffset[2], transaction);
+            if (repetitions == null) {
+                if (!failureTracker.restoreBest(worldState)) {
+                    worldState.setError(new PatternError());
+                }
+                return false;
             }
-        };
-        int[] repetitions = AisleRepeatMatcher.findMatch(aisleRepetitionRanges, centerOffset[2], transaction);
-        if (repetitions == null) {
-            if (!failureTracker.restoreBest(worldState)) {
-                worldState.setError(new PatternError());
-            }
-            return false;
         }
 
         worldState.setError(null);
@@ -625,6 +666,23 @@ public class BlockPattern {
             worldState.commitCache();
         }
         return true;
+    }
+
+    private boolean matchFixedAisles(MultiblockState worldState,
+                                     BlockPos centerPos,
+                                     Direction facing,
+                                     boolean savePredicate,
+                                     BiPredicate<MultiblockState, TraceabilityPredicate> predicateMatcher) {
+        int aisleOffset = -centerOffset[3];
+        for (int aisle = 0; aisle < fixedAisleRepetitions.length; aisle++) {
+            for (int repetition = 0; repetition < fixedAisleRepetitions[aisle]; repetition++, aisleOffset++) {
+                if (!matchAisleSlice(worldState, centerPos, facing, savePredicate, predicateMatcher,
+                        null, aisle, aisleOffset)) {
+                    return false;
+                }
+            }
+        }
+        return validateGlobalCounts(worldState, null);
     }
 
     private boolean matchAisleSlice(MultiblockState worldState,
@@ -638,30 +696,39 @@ public class BlockPattern {
         PatternMatchContext matchContext = worldState.getMatchContext();
         Map<SimplePredicate, Integer> layerCount = worldState.getLayerCount();
         Set<IMultiPart> parts = matchContext.getOrCreate("parts", HashSet::new);
+        Long2ObjectOpenHashMap<TraceabilityPredicate> predicateCache = null;
+        LongOpenHashSet partPositions = null;
+        Long2ObjectOpenHashMap<IO> ioMap = null;
+        long controllerPos = worldState.controllerPos.asLong();
+        int centerX = centerPos.getX();
+        int centerY = centerPos.getY();
+        int centerZ = centerPos.getZ();
         layerCount.clear();
 
         int cellIndex = 0;
         for (int row = 0, y = -centerOffset[1]; row < thumbLength; row++, y++) {
             for (int column = 0, x = -centerOffset[0]; column < palmLength; column++, x++, cellIndex++) {
                 TraceabilityPredicate predicate = blockMatches[aisle][row][column];
-                BlockPos pos = setActualRelativeOffset(x, y, aisleOffset, facing)
-                        .offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
-                BlockPos immutablePos = pos.immutable();
+                BlockPos pos = setActualOffset(x, y, aisleOffset, facing, centerX, centerY, centerZ);
                 if (!worldState.update(pos, predicate)) {
-                    failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                    captureFailure(failureTracker, worldState, failureScore(aisle, aisleOffset, cellIndex));
                     return false;
                 }
 
+                long packedPos = pos.asLong();
+                boolean cachePosition = predicate.addCache();
                 boolean canPartShared = true;
                 IMultiPart matchedPart = null;
-                var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
-                if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part
-                        && part.isPartEnabled() && !immutablePos.equals(worldState.controllerPos) && !predicate.isAny()) {
-                    if (part.isAttachedToController() && !part.canShared() && !part.hasController(worldState.controllerPos)) {
-                        canPartShared = false;
-                        worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
-                    } else {
-                        matchedPart = part;
+                if (cachePosition && packedPos != controllerPos) {
+                    var machineOptional = IMachine.ofMachine(worldState.getTileEntity());
+                    if (machineOptional.isPresent() && machineOptional.orElseThrow() instanceof IMultiPart part
+                            && part.isPartEnabled()) {
+                        if (part.isAttachedToController() && !part.canShared() && !part.hasController(worldState.controllerPos)) {
+                            canPartShared = false;
+                            worldState.setError(new PatternStringError("multiblocked.pattern.error.share"));
+                        } else {
+                            matchedPart = part;
+                        }
                     }
                 }
 
@@ -669,29 +736,39 @@ public class BlockPattern {
                     if (!worldState.hasError()) {
                         worldState.setError(new PatternError());
                     }
-                    failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                    captureFailure(failureTracker, worldState, failureScore(aisle, aisleOffset, cellIndex));
                     return false;
                 }
 
                 if (matchedPart != null) {
                     parts.add(matchedPart);
-                    matchContext.getOrCreate("partPositions", LongOpenHashSet::new).add(immutablePos.asLong());
+                    if (partPositions == null) {
+                        partPositions = matchContext.getOrCreate("partPositions", LongOpenHashSet::new);
+                    }
+                    partPositions.add(packedPos);
                 }
-                if (predicate.addCache()) {
-                    worldState.addPosCache(immutablePos);
+                if (cachePosition) {
+                    worldState.addPosCache(packedPos);
                     if (savePredicate) {
-                        matchContext.getOrCreate("predicates", HashMap::new).put(immutablePos, predicate);
+                        if (predicateCache == null) {
+                            predicateCache = matchContext.getOrCreate("predicates", Long2ObjectOpenHashMap::new);
+                        }
+                        predicateCache.put(packedPos, predicate);
                     }
                 }
-                matchContext.getOrCreate("ioMap", Long2ObjectOpenHashMap::new)
-                        .put(immutablePos.asLong(), worldState.io);
+                if (worldState.io != IO.BOTH) {
+                    if (ioMap == null) {
+                        ioMap = matchContext.getOrCreate("ioMap", Long2ObjectOpenHashMap::new);
+                    }
+                    ioMap.put(packedPos, worldState.io);
+                }
             }
         }
 
         for (Map.Entry<SimplePredicate, Integer> entry : layerCount.entrySet()) {
             if (entry.getKey().minLayerCount >= 0 && entry.getValue() < entry.getKey().minLayerCount) {
                 worldState.setError(new SinglePredicateError(entry.getKey(), 3));
-                failureTracker.capture(worldState, failureScore(aisle, aisleOffset, cellIndex));
+                captureFailure(failureTracker, worldState, failureScore(aisle, aisleOffset, cellIndex));
                 return false;
             }
         }
@@ -702,11 +779,17 @@ public class BlockPattern {
         for (Map.Entry<SimplePredicate, Integer> entry : worldState.getGlobalCount().entrySet()) {
             if (entry.getKey().minCount >= 0 && entry.getValue() < entry.getKey().minCount) {
                 worldState.setError(new SinglePredicateError(entry.getKey(), 1));
-                failureTracker.capture(worldState, Long.MAX_VALUE);
+                captureFailure(failureTracker, worldState, Long.MAX_VALUE);
                 return false;
             }
         }
         return true;
+    }
+
+    private static void captureFailure(MatchFailureTracker failureTracker, MultiblockState worldState, long score) {
+        if (failureTracker != null) {
+            failureTracker.capture(worldState, score);
+        }
     }
 
     private static long failureScore(int aisle, int aisleOffset, int cellIndex) {
@@ -1335,17 +1418,26 @@ public class BlockPattern {
      * @return relative block offset from the controller/anchor position
      */
     private BlockPos setActualRelativeOffset(int x, int y, int z, Direction facing) {
-        int[] c0 = new int[]{x, y, z}, c1 = new int[3];
-        for (int i = 0; i < 3; i++) {
-            switch (structureDir[i].getActualFacing(facing)) {
-                case UP -> c1[1] = c0[i];
-                case DOWN -> c1[1] = -c0[i];
-                case WEST -> c1[0] = -c0[i];
-                case EAST -> c1[0] = c0[i];
-                case NORTH -> c1[2] = -c0[i];
-                case SOUTH -> c1[2] = c0[i];
+        return setActualOffset(x, y, z, facing, 0, 0, 0);
+    }
+
+    private BlockPos setActualOffset(int x, int y, int z, Direction facing, int originX, int originY, int originZ) {
+        int actualX = originX;
+        int actualY = originY;
+        int actualZ = originZ;
+        Direction[] directions = actualStructureDirections[facing.ordinal()];
+        for (int axis = 0; axis < 3; axis++) {
+            int coordinate = axis == 0 ? x : axis == 1 ? y : z;
+            Direction direction = directions[axis] == null ? structureDir[axis].getActualFacing(facing) : directions[axis];
+            switch (direction) {
+                case UP -> actualY = originY + coordinate;
+                case DOWN -> actualY = originY - coordinate;
+                case WEST -> actualX = originX - coordinate;
+                case EAST -> actualX = originX + coordinate;
+                case NORTH -> actualZ = originZ - coordinate;
+                case SOUTH -> actualZ = originZ + coordinate;
             }
         }
-        return new BlockPos(c1[0], c1[1], c1[2]);
+        return new BlockPos(actualX, actualY, actualZ);
     }
 }

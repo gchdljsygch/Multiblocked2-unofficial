@@ -97,6 +97,12 @@ public interface MBDRecipeSchema {
         public float chance = 1;
         @Setter
         public float tierChanceBoost = 0;
+        /** Inclusive lower output amount; {@code -1} disables this bound. */
+        @Setter
+        public long minOutput = -1;
+        /** Inclusive upper output amount; {@code -1} disables this bound. */
+        @Setter
+        public long maxOutput = -1;
         @Nullable
         private final MBDRecipeType recipeType;
 
@@ -188,6 +194,35 @@ public interface MBDRecipeSchema {
             return this;
         }
 
+        /** Sets the inclusive absolute amount range for subsequently added outputs. */
+        public MBDRecipeJS outputRange(long minOutput, long maxOutput) {
+            this.minOutput = minOutput;
+            this.maxOutput = maxOutput;
+            return this;
+        }
+
+        /** Applies an output range only while the callback adds outputs. */
+        public MBDRecipeJS outputRange(long minOutput, long maxOutput, RecipeBuilder builder) {
+            var lastMinOutput = this.minOutput;
+            var lastMaxOutput = this.maxOutput;
+            this.minOutput = minOutput;
+            this.maxOutput = maxOutput;
+            try {
+                builder.accept(this);
+            } finally {
+                this.minOutput = lastMinOutput;
+                this.maxOutput = lastMaxOutput;
+            }
+            return this;
+        }
+
+        /** Clears the range used for subsequently added outputs. */
+        public MBDRecipeJS clearOutputRange() {
+            this.minOutput = -1;
+            this.maxOutput = -1;
+            return this;
+        }
+
         public MBDRecipeJS slotName(String slotName, RecipeBuilder builder) {
             var lastSlotName = this.slotName;
             this.slotName = slotName;
@@ -210,16 +245,19 @@ public interface MBDRecipeSchema {
             inputs.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                     .filter(Objects::nonNull)
                     .map(capability::of)
-                    .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                    .map(o -> new Content(o, perTick, chance, tierChanceBoost, -1, -1, slotName, uiName)).toList());
             save();
             return this;
         }
 
         public MBDRecipeJS outputs(RecipeCapability<?> capability, Object... obj) {
+            boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
+            long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
+            long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
             outputs.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                     .filter(Objects::nonNull)
                     .map(capability::of)
-                    .map(o -> new Content(o, perTick, chance, tierChanceBoost, slotName, uiName)).toList());
+                    .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
             save();
             return this;
         }

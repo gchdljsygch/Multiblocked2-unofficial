@@ -6,6 +6,7 @@ import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.lowdragmc.mbd2.api.block.RotationState;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.common.MachineInteractionHelper;
+import com.lowdragmc.mbd2.common.blockentity.MachineBlockEntityTicker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.definition.MBDMachineDefinition;
 import lombok.Getter;
@@ -120,8 +121,8 @@ public class MBDMachineBlock extends Block implements EntityBlock, IBlockRendere
      * Provides the per-tick bridge from vanilla block entity ticking into {@link MBDMachine}.
      *
      * <p>The ticker is only returned for the definition's exact block entity type. On each tick it resolves the machine
-     * from the block entity and calls {@link MBDMachine#clientTick()} on the logical client or
-     * {@link MBDMachine#serverTick()} on the logical server. No work is performed for non-MBD holders.</p>
+     * from the block entity and calls {@link IMachine#clientTick()} on the logical client or
+     * {@link IMachine#serverTick()} on the logical server.</p>
      *
      * @param level           level that owns the block entity
      * @param state           current block state
@@ -133,15 +134,7 @@ public class MBDMachineBlock extends Block implements EntityBlock, IBlockRendere
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> blockEntityType) {
         if (blockEntityType == getDefinition().blockEntityType()) {
-            return (world, pos, state1, blockEntity) -> {
-                IMachine.ofMachine(blockEntity).filter(MBDMachine.class::isInstance).map(MBDMachine.class::cast).ifPresent(machine -> {
-                    if (world.isClientSide) {
-                        machine.clientTick();
-                    } else {
-                        machine.serverTick();
-                    }
-                });
-            };
+            return (world, pos, state1, blockEntity) -> MachineBlockEntityTicker.tick(world.isClientSide, blockEntity);
         }
         return null;
     }

@@ -51,6 +51,12 @@ public class MultiblockWorldSavedData extends SavedData {
      */
     public final Long2ObjectOpenHashMap<Set<MultiblockState>> structureCachePosMapping;
     /**
+     * Reverse index from a controller to the positions it contributed to
+     * {@link #structureCachePosMapping}. Removing a controller must touch only
+     * its own cached positions instead of walking every loaded multiblock.
+     */
+    private final Map<BlockPos, LongOpenHashSet> structureCachePositionsByController;
+    /**
      * Pos Cache of multiblock.
      */
     public final LongOpenHashSet posCache = new LongOpenHashSet();
@@ -64,6 +70,7 @@ public class MultiblockWorldSavedData extends SavedData {
         this.serverLevel = serverLevel;
         this.mapping = new Object2ObjectOpenHashMap<>();
         this.structureCachePosMapping = new Long2ObjectOpenHashMap<>();
+        this.structureCachePositionsByController = new Object2ObjectOpenHashMap<>();
     }
 
     /**
@@ -101,9 +108,13 @@ public class MultiblockWorldSavedData extends SavedData {
     public void addMapping(MultiblockState state) {
         removeMapping(state.controllerPos);
         this.mapping.put(state.controllerPos, state);
+        var cachedPositions = new LongOpenHashSet();
         for (var blockPos : state.getCache()) {
-            structureCachePosMapping.computeIfAbsent(blockPos.asLong(), c -> new HashSet<>()).add(state);
+            long packedPos = blockPos.asLong();
+            structureCachePosMapping.computeIfAbsent(packedPos, c -> new HashSet<>()).add(state);
+            cachedPositions.add(packedPos);
         }
+        structureCachePositionsByController.put(state.controllerPos, cachedPositions);
     }
 
     /**
@@ -118,12 +129,32 @@ public class MultiblockWorldSavedData extends SavedData {
     }
 
     private void removeMapping(BlockPos controllerPos) {
-        this.mapping.remove(controllerPos);
+        var removedState = this.mapping.remove(controllerPos);
+        var cachedPositions = structureCachePositionsByController.remove(controllerPos);
+        if (cachedPositions != null) {
+            for (long packedPos : cachedPositions) {
+                var states = structureCachePosMapping.get(packedPos);
+                if (states == null) continue;
+                if (removedState == null || !states.remove(removedState)) {
+                    states.removeIf(state -> state.controllerPos.equals(controllerPos));
+                }
+                if (states.isEmpty()) {
+                    structureCachePosMapping.remove(packedPos);
+                }
+            }
+            return;
+        }
+        if (removedState == null) {
+            return;
+        }
+        // Legacy/fallback path for mappings that predate the reverse index.
         var iterator = structureCachePosMapping.long2ObjectEntrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
             var stateSet = entry.getValue();
-            stateSet.removeIf(state -> state.controllerPos.equals(controllerPos));
+            if (!stateSet.remove(removedState)) {
+                stateSet.removeIf(state -> state.controllerPos.equals(controllerPos));
+            }
             if (stateSet.isEmpty()) {
                 iterator.remove();
             }

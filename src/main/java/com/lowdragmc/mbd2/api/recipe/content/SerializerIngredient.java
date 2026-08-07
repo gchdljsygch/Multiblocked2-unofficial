@@ -26,6 +26,11 @@ public class SerializerIngredient implements IContentSerializer<Ingredient> {
      */
     private SerializerIngredient() {}
 
+    @Override
+    public long getMaxOutputAmount() {
+        return Integer.MAX_VALUE;
+    }
+
     /**
      * Writes the ingredient using Minecraft's ingredient network format.
      *

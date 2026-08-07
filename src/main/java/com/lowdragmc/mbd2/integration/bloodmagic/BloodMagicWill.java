@@ -66,6 +66,12 @@ public record BloodMagicWill(EnumDemonWillType type, double amount, double maxOu
         public static final IContentSerializer<BloodMagicWill> INSTANCE = new SerializerBloodMagicWill();
 
         @Override
+        public long getMaxOutputAmount() {
+            // The primary Will amount is a double; keep every integral roll exact.
+            return 1L << 53;
+        }
+
+        @Override
         public BloodMagicWill fromJson(JsonElement json) {
             if (json.isJsonPrimitive()) {
                 return BloodMagicWill.of(EnumDemonWillType.DEFAULT, json.getAsDouble());

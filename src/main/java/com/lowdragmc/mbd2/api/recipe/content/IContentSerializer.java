@@ -23,6 +23,35 @@ import net.minecraftforge.common.crafting.CraftingHelper;
 public interface IContentSerializer<T> {
 
     /**
+     * Returns the largest non-negative integral amount that this serializer can
+     * represent exactly when an output range selects it.
+     *
+     * <p>Output ranges are stored as {@code long} bounds, but the primary amount
+     * carried by a capability may be narrower (for example an {@code int}) or
+     * may be a floating-point value.  The default keeps the historical
+     * long-valued behavior; serializers with a narrower or inexact amount type
+     * should override this value.  For floating-point serializers this is the
+     * largest integer for which every value in the interval {@code [0, max]}
+     * remains exact.</p>
+     *
+     * @return inclusive maximum exactly representable output amount
+     */
+    default long getMaxOutputAmount() {
+        return Long.MAX_VALUE;
+    }
+
+    /**
+     * Tests whether one non-negative integral output amount is representable
+     * without overflow or loss of precision.
+     *
+     * @param amount candidate output amount
+     * @return {@code true} when the serializer can carry the amount exactly
+     */
+    default boolean supportsOutputAmount(long amount) {
+        return amount >= 0 && amount <= getMaxOutputAmount();
+    }
+
+    /**
      * Writes one content value to a network buffer.
      *
      * <p>Default side effects: serializes the JSON form as a UTF string.</p>
@@ -134,6 +163,8 @@ public interface IContentSerializer<T> {
         buf.writeBoolean(content.perTick);
         buf.writeFloat(content.chance);
         buf.writeFloat(content.tierChanceBoost);
+        buf.writeLong(content.minOutput);
+        buf.writeLong(content.maxOutput);
         buf.writeBoolean(!content.slotName.isEmpty());
         if (!content.slotName.isEmpty()) {
             buf.writeUtf(content.slotName);
@@ -156,6 +187,8 @@ public interface IContentSerializer<T> {
         var perTick = buf.readBoolean();
         float chance = buf.readFloat();
         float tierChanceBoost = buf.readFloat();
+        long minOutput = buf.readLong();
+        long maxOutput = buf.readLong();
         String slotName = null;
         if (buf.readBoolean()) {
             slotName = buf.readUtf();
@@ -164,7 +197,7 @@ public interface IContentSerializer<T> {
         if (buf.readBoolean()) {
             uiName = buf.readUtf();
         }
-        return new Content(inner, perTick, chance, tierChanceBoost, slotName, uiName);
+        return new Content(inner, perTick, chance, tierChanceBoost, minOutput, maxOutput, slotName, uiName);
     }
 
     /**
@@ -180,6 +213,12 @@ public interface IContentSerializer<T> {
         json.addProperty("perTick", content.perTick);
         json.addProperty("chance", content.chance);
         json.addProperty("tierChanceBoost", content.tierChanceBoost);
+        if (content.minOutput != Content.OUTPUT_RANGE_DISABLED) {
+            json.addProperty("minOutput", content.minOutput);
+        }
+        if (content.maxOutput != Content.OUTPUT_RANGE_DISABLED) {
+            json.addProperty("maxOutput", content.maxOutput);
+        }
         if (!content.slotName.isEmpty())
             json.addProperty("slotName", content.slotName);
         if (!content.uiName.isEmpty())
@@ -199,17 +238,27 @@ public interface IContentSerializer<T> {
         var perTick = jsonObject.has("perTick") && jsonObject.get("perTick").getAsBoolean();
         float chance = jsonObject.has("chance") ? jsonObject.get("chance").getAsFloat() : 1;
         float tierChanceBoost = jsonObject.has("tierChanceBoost") ? jsonObject.get("tierChanceBoost").getAsFloat() : 0;
+        long minOutput = jsonObject.has("minOutput")
+                ? jsonObject.get("minOutput").getAsLong()
+                : jsonObject.has("min_output")
+                ? jsonObject.get("min_output").getAsLong()
+                : jsonObject.has("min") ? jsonObject.get("min").getAsLong() : Content.OUTPUT_RANGE_DISABLED;
+        long maxOutput = jsonObject.has("maxOutput")
+                ? jsonObject.get("maxOutput").getAsLong()
+                : jsonObject.has("max_output")
+                ? jsonObject.get("max_output").getAsLong()
+                : jsonObject.has("max") ? jsonObject.get("max").getAsLong() : Content.OUTPUT_RANGE_DISABLED;
         String slotName = jsonObject.has("slotName") ? jsonObject.get("slotName").getAsString() : null;
         String uiName = jsonObject.has("uiName") ? jsonObject.get("uiName").getAsString() : null;
-        return new Content(inner, perTick, chance, tierChanceBoost, slotName, uiName);
+        return new Content(inner, perTick, chance, tierChanceBoost, minOutput, maxOutput, slotName, uiName);
     }
 
     /**
      * Converts a legacy/editor NBT content wrapper to runtime content.
      *
      * @param tag compound containing {@code content}, {@code per_tick},
-     *            {@code chance}, {@code tier_chance_boost}, {@code slot_name}, and
-     *            {@code ui_name}
+     *            {@code chance}, {@code tier_chance_boost}, {@code min_output},
+     *            {@code max_output}, {@code slot_name}, and {@code ui_name}
      * @return decoded content wrapper
      */
     default Content fromNBT(CompoundTag tag) {
@@ -217,9 +266,17 @@ public interface IContentSerializer<T> {
         boolean perTick = tag.getBoolean("per_tick");
         float chance = tag.getFloat("chance");
         float tierChanceBoost = tag.getFloat("tier_chance_boost");
+        // Missing range fields identify legacy fixed-output content. CompoundTag#getLong
+        // returns zero for a missing key, so check presence before reading it.
+        long minOutput = tag.contains("min_output")
+                ? tag.getLong("min_output")
+                : tag.contains("minOutput") ? tag.getLong("minOutput") : Content.OUTPUT_RANGE_DISABLED;
+        long maxOutput = tag.contains("max_output")
+                ? tag.getLong("max_output")
+                : tag.contains("maxOutput") ? tag.getLong("maxOutput") : Content.OUTPUT_RANGE_DISABLED;
         String slotName = tag.getString("slot_name");
         String uiName = tag.getString("ui_name");
-        return new Content(content, perTick, chance, tierChanceBoost, slotName, uiName);
+        return new Content(content, perTick, chance, tierChanceBoost, minOutput, maxOutput, slotName, uiName);
     }
 
     /**
@@ -234,6 +291,12 @@ public interface IContentSerializer<T> {
         tag.putBoolean("per_tick", content.perTick);
         tag.putFloat("chance", content.chance);
         tag.putFloat("tier_chance_boost", content.tierChanceBoost);
+        if (content.minOutput != Content.OUTPUT_RANGE_DISABLED) {
+            tag.putLong("min_output", content.minOutput);
+        }
+        if (content.maxOutput != Content.OUTPUT_RANGE_DISABLED) {
+            tag.putLong("max_output", content.maxOutput);
+        }
         tag.putString("slot_name", content.slotName);
         tag.putString("ui_name", content.uiName);
         return tag;

@@ -22,6 +22,12 @@ public record PressureAir(boolean isAir, float value) {
         public static final IContentSerializer<PressureAir> INSTANCE = new SerializerPressureAir();
 
         @Override
+        public long getMaxOutputAmount() {
+            // Pressure/air values are floats; keep every integral roll exact.
+            return 1L << 24;
+        }
+
+        @Override
         public PressureAir fromJson(JsonElement json) {
             var isAir = GsonHelper.getAsBoolean(json.getAsJsonObject(), "isAir");
             var value = GsonHelper.getAsFloat(json.getAsJsonObject(), "value");

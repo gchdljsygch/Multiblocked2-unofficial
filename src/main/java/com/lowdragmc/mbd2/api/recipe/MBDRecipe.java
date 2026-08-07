@@ -496,21 +496,30 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                                      Map<RecipeCapability<?>, List<Content>> contents, boolean calculateExpectingRate,
                                      @Nullable RecipeGroupMatchContext recipeGroupContext) {
         for (Map.Entry<RecipeCapability<?>, List<Content>> entry : contents.entrySet()) {
-            Set<IRecipeHandler<?>> used = new HashSet<>();
-            List content = new ArrayList<>();
+            RecipeCapability capability = entry.getKey();
+            Set<IRecipeHandler<?>> used = needsUsedHandlerSet(capabilityProxies, io, capability) ? new HashSet<>() : null;
+            List content = new ArrayList<>(entry.getValue().size());
             Map<String, List> contentSlot = new HashMap<>();
             for (Content cont : entry.getValue()) {
                 if (cont.perTick != perTick) continue;
+                // Output ranges are matched against their upper bound so the
+                // machine has enough capacity for the value that can actually
+                // be produced. Inputs keep their configured value unchanged.
+                Object matchContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                        ? copyOutputContent(capability, cont, true)
+                        : cont.content;
                 if (cont.slotName.isEmpty()) {
-                    content.add(cont.content);
+                    content.add(capability.copyContent(matchContent));
                 } else {
-                    contentSlot.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(cont.content);
+                    contentSlot.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(matchContent);
                 }
             }
-            RecipeCapability<?> capability = entry.getKey();
-            content = content.stream().map(capability::copyContent).toList();
             if (content.isEmpty() && contentSlot.isEmpty()) continue;
-            if (content.isEmpty()) content = null;
+            if (content.isEmpty()) {
+                content = null;
+            } else {
+                content = Collections.unmodifiableList(content);
+            }
 
             var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, content, contentSlot, true, recipeGroupContext);
             if (result.getA() == null && result.getB().isEmpty()) continue;
@@ -643,30 +652,39 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                                  Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
                                  Map<RecipeCapability<?>, List<Content>> contents, @Nullable RecipeGroupMatchContext recipeGroupContext) {
         for (Map.Entry<RecipeCapability<?>, List<Content>> entry : contents.entrySet()) {
-            Set<IRecipeHandler<?>> used = new HashSet<>();
-            List content = new ArrayList<>();
+            RecipeCapability capability = entry.getKey();
+            Set<IRecipeHandler<?>> used = needsUsedHandlerSet(capabilityProxies, io, capability) ? new HashSet<>() : null;
+            List content = new ArrayList<>(entry.getValue().size());
             Map<String, List> contentSlot = new HashMap<>();
-            List contentSearch = new ArrayList<>();
+            List contentSearch = new ArrayList<>(entry.getValue().size());
             Map<String, List> contentSlotSearch = new HashMap<>();
             for (Content cont : entry.getValue()) {
                 if (cont.perTick != perTick) continue;
+                Object searchContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                        ? copyOutputContent(capability, cont, true)
+                        : cont.content;
                 if (cont.slotName.isEmpty()) {
-                    contentSearch.add(cont.content);
+                    contentSearch.add(searchContent);
                 } else {
-                    contentSlotSearch.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(cont.content);
+                    contentSlotSearch.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(searchContent);
                 }
                 if (cont.chance >= 1 || MBD2.RND.nextFloat() < (cont.chance + holder.getChanceTier() * cont.tierChanceBoost)) { // chance input
+                    Object selectedContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                            ? copyOutputContent(capability, cont, false)
+                            : cont.content;
                     if (cont.slotName.isEmpty()) {
-                        content.add(cont.content);
+                        content.add(capability.copyContent(selectedContent));
                     } else {
-                        contentSlot.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(cont.content);
+                        contentSlot.computeIfAbsent(cont.slotName, s -> new ArrayList<>()).add(selectedContent);
                     }
                 }
             }
-            RecipeCapability<?> capability = entry.getKey();
-            content = content.stream().map(capability::copyContent).toList();
             if (content.isEmpty() && contentSlot.isEmpty()) continue;
-            if (content.isEmpty()) content = null;
+            if (content.isEmpty()) {
+                content = null;
+            } else {
+                content = Collections.unmodifiableList(content);
+            }
 
             var result = handlerContentsInternal(io, io, capabilityProxies, capability, used, content, contentSlot, contentSearch, contentSlotSearch, false, recipeGroupContext);
             if (result.getA() == null && result.getB().isEmpty()) continue;
@@ -680,14 +698,73 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         return true;
     }
 
+    /**
+     * Copies one output content, optionally replacing its amount with a range
+     * endpoint or a freshly rolled value. Range metadata is intentionally kept
+     * on the wrapper rather than the capability payload so the recipe object
+     * remains immutable while a machine is handling it.
+     *
+     * @param capability capability that owns the content value
+     * @param content    wrapper to copy
+     * @param maximum    {@code true} to use the upper bound for simulation,
+     *                   {@code false} to roll an inclusive value
+     * @return copied capability payload
+     */
+    private static Object copyOutputContent(RecipeCapability capability, Content content, boolean maximum) {
+        if (!capability.supportsOutputRange(content.minOutput, content.maxOutput)) {
+            return capability.copyContent(content.content);
+        }
+        long min = content.minOutput;
+        long max = content.maxOutput;
+        long amount = maximum ? max : nextInclusiveLong(min, max);
+        return capability.copyContentWithOutputAmount(content.content, amount);
+    }
+
+    /**
+     * Returns a uniformly distributed inclusive long range without overflowing
+     * when the configured interval spans most of the long domain.
+     */
+    private static long nextInclusiveLong(long min, long max) {
+        if (min > max) {
+            throw new IllegalArgumentException("Minimum output amount cannot exceed its maximum");
+        }
+        if (min == max) return min;
+        long size = max - min + 1;
+        if (size > 0) {
+            return min + MBD2.RND.nextLong(size);
+        }
+        if (min == 0 && max == Long.MAX_VALUE) {
+            return MBD2.RND.nextLong() & Long.MAX_VALUE;
+        }
+        // The cardinality overflowed a signed long, so the interval contains
+        // at least half of the long domain. Rejection sampling stays uniform
+        // and accepts in at most two draws on average.
+        long value;
+        do {
+            value = MBD2.RND.nextLong();
+        } while (value < min || value > max);
+        return value;
+    }
+
     private Tuple<List, Map<String, List>> handlerContentsInternal(
             IO capIO, IO io, Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
             RecipeCapability<?> capability, Set<IRecipeHandler<?>> used,
             List content, Map<String, List> contentSlot,
             List contentSearch, Map<String, List> contentSlotSearch,
             boolean simulate, @Nullable RecipeGroupMatchContext recipeGroupContext) {
-        if (capabilityProxies.contains(capIO, capability)) {
-            var handlers = capabilityProxies.get(capIO, capability);
+        var handlers = capabilityProxies.get(capIO, capability);
+        if (handlers != null && !handlers.isEmpty()) {
+            if (content != null && contentSlot.isEmpty() && handlers.size() == 1) {
+                IRecipeHandler<?> handler = handlers.get(0);
+                if (!handler.isDistinct()
+                        && (recipeGroupContext == null || recipeGroupContext.isCompatible(handler))
+                        && (used == null || !used.contains(handler))) {
+                    if (used != null) {
+                        used.add(handler);
+                    }
+                    return new Tuple<>(handleRecipeWithGroup(handler, io, content, null, simulate, recipeGroupContext), contentSlot);
+                }
+            }
             // handle distinct first
             for (IRecipeHandler<?> handler : handlers) {
                 if (recipeGroupContext != null && !recipeGroupContext.isCompatible(handler)) continue;
@@ -729,8 +806,10 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                 // handle undistinct later
                 for (IRecipeHandler<?> proxy : handlers) {
                     if (recipeGroupContext != null && !recipeGroupContext.isCompatible(proxy)) continue;
-                    if (used.contains(proxy) || proxy.isDistinct()) continue;
-                    used.add(proxy);
+                    if ((used != null && used.contains(proxy)) || proxy.isDistinct()) continue;
+                    if (used != null) {
+                        used.add(proxy);
+                    }
                     if (content != null) {
                         content = handleRecipeWithGroup(proxy, io, content, null, simulate, recipeGroupContext);
                     }
@@ -752,6 +831,19 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             }
         }
         return new Tuple<>(content, contentSlot);
+    }
+
+    private static boolean needsUsedHandlerSet(Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
+                                               IO io, RecipeCapability<?> capability) {
+        if (io == IO.BOTH) {
+            return true;
+        }
+        List<IRecipeHandler<?>> directHandlers = capabilityProxies.get(io, capability);
+        List<IRecipeHandler<?>> sharedHandlers = capabilityProxies.get(IO.BOTH, capability);
+        return (directHandlers != null && directHandlers.size() > 1)
+                || (sharedHandlers != null && sharedHandlers.size() > 1)
+                || (directHandlers != null && !directHandlers.isEmpty()
+                && sharedHandlers != null && !sharedHandlers.isEmpty());
     }
 
     private List handleRecipeWithGroup(IRecipeHandler<?> handler, IO io, List<?> left, @Nullable String slotName,
@@ -779,8 +871,9 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
 
     private void collectRecipeGroups(Set<String> groups, Table<IO, RecipeCapability<?>, List<IRecipeHandler<?>>> capabilityProxies,
                                      IO io, RecipeCapability<?> capability) {
-        if (!capabilityProxies.contains(io, capability)) return;
-        for (IRecipeHandler<?> handler : capabilityProxies.get(io, capability)) {
+        var handlers = capabilityProxies.get(io, capability);
+        if (handlers == null || handlers.isEmpty()) return;
+        for (IRecipeHandler<?> handler : handlers) {
             for (var handlerGroup : handler.getRecipeGroups()) {
                 handlerGroup = RecipeGroup.normalizeOrDefault(handlerGroup);
                 if (!RecipeGroup.ANY.equals(handlerGroup)) {

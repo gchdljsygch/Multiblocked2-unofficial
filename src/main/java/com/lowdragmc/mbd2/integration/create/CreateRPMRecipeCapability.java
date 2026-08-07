@@ -28,6 +28,16 @@ public class CreateRPMRecipeCapability extends RecipeCapability<Float> {
         super("create_rpm", SerializerFloat.INSTANCE);
     }
 
+    /**
+     * Create generator scheduling caches the simulated RPM amount before the
+     * recipe commits, so a per-operation random output amount cannot be applied
+     * without changing that scheduling lifecycle.
+     */
+    @Override
+    public boolean supportsOutputRange() {
+        return false;
+    }
+
     @Override
     public Float createDefaultContent() {
         return 16f;

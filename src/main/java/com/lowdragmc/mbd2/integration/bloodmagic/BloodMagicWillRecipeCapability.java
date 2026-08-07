@@ -37,6 +37,16 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
         super("bloodmagic_will", BloodMagicWill.SerializerBloodMagicWill.INSTANCE);
     }
 
+    /**
+     * Replaces only the produced Will amount. The payload's max-output value
+     * is an independent ambient cap and must survive output-range rolls.
+     */
+    @Override
+    public BloodMagicWill copyContentWithOutputAmount(Object content, long amount) {
+        BloodMagicWill will = (BloodMagicWill) content;
+        return new BloodMagicWill(will.type(), amount, will.maxOutput());
+    }
+
     @Override
     public BloodMagicWill createDefaultContent() {
         return BloodMagicWill.of(EnumDemonWillType.DEFAULT, 100);

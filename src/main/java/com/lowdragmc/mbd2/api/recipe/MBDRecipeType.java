@@ -54,7 +54,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Defines one MBD recipe family, including recipe lookup, proxy conversion,
@@ -375,8 +374,8 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
      * Searches non-fuel recipes that can currently run against a holder.
      *
      * <p>Business goal: provide the candidate list consumed by
-     * {@link RecipeLogic}. Preconditions: capability matching must be safe for
-     * parallel execution because the recipe stream uses {@code parallelStream()}.
+     * {@link RecipeLogic}. Matching runs on the caller's thread so a large
+     * number of machine searches does not contend for the shared ForkJoin pool.
      * Side effects should be limited to simulated matching.</p>
      *
      * @param recipeManager manager containing recipes for this type
@@ -386,9 +385,12 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
      */
     public List<MBDRecipe> searchRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
         if (!holder.hasProxies()) return Collections.emptyList();
-        List<MBDRecipe> matches = recipeManager.getAllRecipesFor(this).parallelStream()
-                .filter(recipe -> !recipe.isFuel && recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess())
-                .collect(Collectors.toList());
+        List<MBDRecipe> matches = new ArrayList<>();
+        for (MBDRecipe recipe : recipeManager.getAllRecipesFor(this)) {
+            if (!recipe.isFuel && recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess()) {
+                matches.add(recipe);
+            }
+        }
         matches.sort(Comparator.comparingInt(r -> r.priority));
         return matches;
     }
@@ -729,7 +731,7 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
                         default -> IngredientIO.RENDER_ONLY;
                     });
                     var tooltips = new ArrayList<Component>();
-                    content.appendTooltip(tooltips);
+                    content.appendTooltip(tooltips, cap.supportsOutputRange(content.minOutput, content.maxOutput));
                     if (!tooltips.isEmpty()) {
                         widget.appendHoverTooltips(tooltips);
                     }

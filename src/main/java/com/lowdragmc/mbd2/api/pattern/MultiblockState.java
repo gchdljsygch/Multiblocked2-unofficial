@@ -10,6 +10,7 @@ import com.lowdragmc.mbd2.api.pattern.error.PatternError;
 import com.lowdragmc.mbd2.api.pattern.error.PatternStringError;
 import com.lowdragmc.mbd2.api.pattern.predicates.SimplePredicate;
 import com.lowdragmc.mbd2.api.pattern.util.PatternMatchContext;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -113,9 +114,21 @@ public class MultiblockState {
      */
     protected void clean() {
         this.matchContext.reset();
-        this.globalCount = new HashMap<>();
-        this.layerCount = new HashMap<>();
-        cache = new LongOpenHashSet();
+        if (this.globalCount == null) {
+            this.globalCount = new HashMap<>();
+        } else {
+            this.globalCount.clear();
+        }
+        if (this.layerCount == null) {
+            this.layerCount = new HashMap<>();
+        } else {
+            this.layerCount.clear();
+        }
+        if (cache == null) {
+            cache = new LongOpenHashSet();
+        } else {
+            cache.clear();
+        }
     }
 
     /**
@@ -401,10 +414,20 @@ public class MultiblockState {
      * @param pos matched structure position to track for future invalidation
      */
     public void addPosCache(BlockPos pos) {
+        addPosCache(pos.asLong());
+    }
+
+    /**
+     * Adds a packed position to the structure cache without allocating a
+     * temporary {@link BlockPos}.
+     *
+     * @param pos packed block position to track for future invalidation
+     */
+    public void addPosCache(long pos) {
         if (cache == null) {
             cache = new LongOpenHashSet();
         }
-        cache.add(pos.asLong());
+        cache.add(pos);
     }
 
     /**
@@ -565,12 +588,30 @@ public class MultiblockState {
             Object value = entry.getValue();
             result.set(entry.getKey(), switch (entry.getKey()) {
                 case "parts" -> new HashSet<>((Set<IMultiPart>) value);
-                case "predicates" -> new HashMap<>((Map<BlockPos, TraceabilityPredicate>) value);
+                case "predicates" -> copyPredicateMap(value);
                 case "ioMap" -> new Long2ObjectOpenHashMap<>((Map<Long, IO>) value);
                 case "slots" -> copySlots((Map<Long, Set<String>>) value);
                 case "renderMask", "openUIMask", "partPositions" -> new LongOpenHashSet((LongSet) value);
                 default -> value;
             });
+        }
+        return result;
+    }
+
+    private Long2ObjectOpenHashMap<TraceabilityPredicate> copyPredicateMap(Object value) {
+        var result = new Long2ObjectOpenHashMap<TraceabilityPredicate>();
+        if (value instanceof Long2ObjectMap<?> predicates) {
+            for (var entry : predicates.long2ObjectEntrySet()) {
+                result.put(entry.getLongKey(), (TraceabilityPredicate) entry.getValue());
+            }
+            return result;
+        }
+        if (value instanceof Map<?, ?> predicates) {
+            for (var entry : predicates.entrySet()) {
+                if (entry.getKey() instanceof BlockPos pos && entry.getValue() instanceof TraceabilityPredicate predicate) {
+                    result.put(pos.asLong(), predicate);
+                }
+            }
         }
         return result;
     }

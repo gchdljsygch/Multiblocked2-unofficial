@@ -3,6 +3,7 @@ package com.lowdragmc.mbd2.api.capability.recipe;
 import com.lowdragmc.lowdraglib.gui.editor.Icons;
 import com.lowdragmc.lowdraglib.gui.texture.IGuiTexture;
 import lombok.Getter;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Direction marker for recipe capability handlers and recipe content.
@@ -34,7 +35,7 @@ public enum IO {
 
     IO(String name) {
         this.name = name;
-        this.icon = Icons.borderText(getTooltip());
+        this.icon = new DeferredTooltipTexture(getTooltip());
     }
 
     /**
@@ -58,6 +59,31 @@ public enum IO {
         if (io == this) return true;
         if (io == NONE) return false;
         return this == BOTH;
+    }
+
+    /**
+     * Defers editor-only texture creation until the texture is rendered. Recipe
+     * runtime code uses this enum on dedicated servers before client registries
+     * are available, so enum initialization itself must not create UI objects.
+     */
+    private static final class DeferredTooltipTexture implements IGuiTexture {
+
+        private final String tooltip;
+        private volatile IGuiTexture delegate;
+
+        private DeferredTooltipTexture(String tooltip) {
+            this.tooltip = tooltip;
+        }
+
+        @Override
+        public void draw(GuiGraphics graphics, int mouseX, int mouseY, float x, float y, int width, int height) {
+            var texture = delegate;
+            if (texture == null) {
+                texture = Icons.borderText(tooltip);
+                delegate = texture;
+            }
+            texture.draw(graphics, mouseX, mouseY, x, y, width, height);
+        }
     }
 
 }

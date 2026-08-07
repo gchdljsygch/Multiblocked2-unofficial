@@ -29,7 +29,6 @@ public class ContentModifier implements IConfigurable {
     @Configurable(name = "content_modifier.addition", tips = "content_modifier.addition.tips")
     @NumberRange(range = {0, Double.MAX_VALUE}, wheel = 1f)
     private double addition;
-
     /**
      * Returns whether this modifier leaves values unchanged.
      *
@@ -69,6 +68,51 @@ public class ContentModifier implements IConfigurable {
      */
     public static ContentModifier addition(double addition) {
         return new ContentModifier(1, addition);
+    }
+
+    /**
+     * Creates a modifier that replaces a numeric amount with a fixed value.
+     * Capability serializers apply the formula as {@code value * 0 + amount},
+     * which lets output-range handling use absolute amounts without knowing the
+     * concrete capability type.
+     *
+     * @param amount replacement amount
+     * @return modifier that produces {@code amount}
+     */
+    public static ContentModifier value(double amount) {
+        return new ContentModifier(0, amount);
+    }
+
+    /**
+     * Creates an exact integral replacement without routing the amount through
+     * a double. This matters for long-valued capabilities above {@code 2^53}.
+     *
+     * @param amount replacement amount
+     * @return modifier that preserves the full long value
+     */
+    public static ContentModifier value(long amount) {
+        return new FixedValueModifier(amount);
+    }
+
+    /** Modifier subtype used for exact integral replacements. */
+    private static final class FixedValueModifier extends ContentModifier {
+        private final long value;
+
+        private FixedValueModifier(long value) {
+            super(0, value);
+            this.value = value;
+        }
+
+        @Override
+        public Number apply(Number number) {
+            if (number instanceof BigDecimal) {
+                return BigDecimal.valueOf(value);
+            }
+            if (number instanceof BigInteger) {
+                return BigInteger.valueOf(value);
+            }
+            return value;
+        }
     }
 
     /**

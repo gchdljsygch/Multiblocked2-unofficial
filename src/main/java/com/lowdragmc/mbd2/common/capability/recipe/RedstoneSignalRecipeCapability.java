@@ -70,6 +70,16 @@ public class RedstoneSignalRecipeCapability extends RecipeCapability<RedstoneSig
     }
 
     /**
+     * Redstone pulses are event-like signals rather than amount-bearing
+     * content, so min/max output metadata must not rewrite their strength or
+     * duration.
+     */
+    @Override
+    public boolean supportsOutputRange() {
+        return false;
+    }
+
+    /**
      * Creates an editor preview with a redstone torch icon and strength overlay.
      *
      * @param content signal to preview

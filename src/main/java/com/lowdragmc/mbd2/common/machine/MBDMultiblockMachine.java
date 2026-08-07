@@ -29,6 +29,7 @@ import com.lowdragmc.mbd2.common.machine.definition.config.ConfigPartSettings;
 import com.lowdragmc.mbd2.common.machine.definition.config.event.*;
 import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -217,13 +218,13 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
      */
     private boolean validateFormedStructureBatch(ServerLevel serverLevel) {
         var state = getMultiblockState();
-        Map<BlockPos, TraceabilityPredicate> predicateMap = state.getFormedMatchContext().get("predicates");
+        Long2ObjectMap<TraceabilityPredicate> predicateMap = state.getFormedMatchContext().get("predicates");
         Direction patternFacing = state.getPatternFacing();
         Direction patternBaseFacing = state.getPatternBaseFacing();
         int end = Math.min(formedValidationPositions.length, formedValidationIndex + FORMED_VALIDATION_BATCH_SIZE);
         for (; formedValidationIndex < end; formedValidationIndex++) {
             BlockPos pos = formedValidationPositions[formedValidationIndex];
-            TraceabilityPredicate predicate = predicateMap == null ? null : predicateMap.get(pos);
+            TraceabilityPredicate predicate = predicateMap == null ? null : predicateMap.get(pos.asLong());
             if (predicate == null) {
                 formedValidationPositions = new BlockPos[0];
                 formedValidationIndex = 0;

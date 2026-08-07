@@ -18,6 +18,7 @@ import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.emi.emi.screen.RecipeScreen;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -474,7 +475,14 @@ public class PatternPreviewWidget extends WidgetGroup {
         Map<BlockPos, TraceabilityPredicate> predicateMap = new HashMap<>();
         if (controllerBase != null) {
             loadControllerFormed(predicateMap.keySet(), controllerBase);
-            predicateMap = controllerBase.getMultiblockState().getMatchContext().get("predicates");
+            Long2ObjectMap<TraceabilityPredicate> cachedPredicates = controllerBase.getMultiblockState()
+                    .getMatchContext().get("predicates");
+            if (cachedPredicates != null) {
+                predicateMap = new HashMap<>(cachedPredicates.size());
+                for (var entry : cachedPredicates.long2ObjectEntrySet()) {
+                    predicateMap.put(BlockPos.of(entry.getLongKey()), entry.getValue());
+                }
+            }
         }
         return controllerBase == null ? null : new MBPattern(blockMap, parts.values().stream().sorted((one, two) -> {
             if (one.isController) return -1;
