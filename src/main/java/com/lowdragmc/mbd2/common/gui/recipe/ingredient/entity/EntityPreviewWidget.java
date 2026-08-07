@@ -265,7 +265,7 @@ public class EntityPreviewWidget extends Widget implements IRecipeIngredientSlot
         var offset = (System.currentTimeMillis() % 3600) / 3600f;
         Quaternionf quaternionf = (new Quaternionf()).rotateXYZ(0, (float) Math.PI * 2 * offset, (float) Math.PI);
         pGuiGraphics.pose().pushPose();
-        pGuiGraphics.pose().translate(x, y, 0);
+        pGuiGraphics.pose().translate(x, y, 50);
         pGuiGraphics.pose().mulPoseMatrix((new Matrix4f()).scaling((float) pScale, (float) pScale, (float) (-pScale)));
         pGuiGraphics.pose().translate(0, entity.getBbHeight() / 2, 0);
         pGuiGraphics.pose().mulPose(quaternionf);

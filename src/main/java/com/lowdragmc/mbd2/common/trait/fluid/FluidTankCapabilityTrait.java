@@ -2,7 +2,6 @@ package com.lowdragmc.mbd2.common.trait.fluid;
 
 import com.google.common.base.Predicates;
 import com.lowdragmc.lowdraglib.misc.FluidStorage;
-import com.lowdragmc.lowdraglib.misc.FluidTransferList;
 import com.lowdragmc.lowdraglib.side.fluid.*;
 import com.lowdragmc.lowdraglib.side.fluid.forge.FluidHelperImpl;
 import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
@@ -137,6 +136,18 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
     }
 
     /**
+     * Returns tanks eligible to accept a fluid under this trait's duplicate-fluid policy.
+     *
+     * @param resource fluid to insert
+     * @return all tanks, or the existing matching tank when duplicates are disallowed
+     */
+    protected FluidStorage[] getFillableStorages(FluidStack resource) {
+        if (getDefinition().isAllowSameFluids()) return storages;
+        var existingStorage = FluidHandlerWrapper.findStorageWithFluid(storages, resource);
+        return existingStorage == null ? storages : new FluidStorage[]{existingStorage};
+    }
+
+    /**
      * Returns whether all tanks are empty.
      *
      * <p>Side effects: lazily computes and caches the answer until
@@ -187,7 +198,7 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
                         var block = state.getBlock();
                         if (block instanceof LiquidBlock liquidBlock && state.getFluidState().isSource()) {
                             var toFilled = FluidStack.create(liquidBlock.getFluid().getSource(), 1000);
-                            for (FluidStorage storage : storages) {
+                            for (FluidStorage storage : getFillableStorages(toFilled)) {
                                 if (storage.fill(toFilled, true) == 1000) {
                                     storage.fill(toFilled, false);
                                     leftBlocks--;
@@ -276,13 +287,14 @@ public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements I
      */
     @Override
     public void handleAutoIO(BlockPos port, Direction side, IO io) {
+        var transfer = new FluidStorageTransferList(storages, getDefinition().isAllowSameFluids());
         if (io.support(IO.IN)) {
-            FluidTransferHelper.importToTarget(new FluidTransferList(storages), Integer.MAX_VALUE,
+            FluidTransferHelper.importToTarget(transfer, Integer.MAX_VALUE,
                     getDefinition().getFluidFilterSettings().isEnable() ? getDefinition().getFluidFilterSettings() : Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
         if (io.support(IO.OUT)) {
-            FluidTransferHelper.exportToTarget(new FluidTransferList(storages), Integer.MAX_VALUE, Predicates.alwaysTrue(),
+            FluidTransferHelper.exportToTarget(transfer, Integer.MAX_VALUE, Predicates.alwaysTrue(),
                     getMachine().getLevel(), port.relative(side), side.getOpposite());
         }
     }

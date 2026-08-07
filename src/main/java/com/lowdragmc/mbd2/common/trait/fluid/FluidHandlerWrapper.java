@@ -6,6 +6,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Side-filtered Forge fluid handler view over one or more internal
@@ -131,20 +132,50 @@ public class FluidHandlerWrapper implements IFluidHandler {
      * @return amount accepted
      */
     public long fillInternal(com.lowdragmc.lowdraglib.side.fluid.FluidStack resource, boolean simulate) {
-        if (resource.isEmpty()) return 0;
-        var copied = resource.copy();
-        FluidStorage existingStorage = null;
-        if (!allowSameFluids) {
-            for (var storage : storages) {
-                if (!storage.getFluid().isEmpty() && storage.getFluid().isFluidEqual(resource)) {
-                    existingStorage = storage;
-                    break;
-                }
+        return fillStorages(storages, allowSameFluids, resource, simulate, !simulate);
+    }
+
+    /**
+     * Finds the storage that already contains the given fluid.
+     *
+     * @param storages storages to inspect
+     * @param resource fluid to find
+     * @return matching non-empty storage, or {@code null} when none exists
+     */
+    @Nullable
+    public static FluidStorage findStorageWithFluid(FluidStorage[] storages,
+                                                     com.lowdragmc.lowdraglib.side.fluid.FluidStack resource) {
+        for (var storage : storages) {
+            if (!storage.getFluid().isEmpty() && storage.getFluid().isFluidEqual(resource)) {
+                return storage;
             }
         }
+        return null;
+    }
+
+    /**
+     * Fills storages while honoring the duplicate-fluid policy.
+     *
+     * <p>When duplicates are disallowed, a matching occupied storage is the
+     * only candidate; otherwise the first accepting storage receives the
+     * resource. This is shared by Forge capability IO and machine auto IO.</p>
+     *
+     * @param storages storages to fill
+     * @param allowSameFluids whether the resource may span multiple storages
+     * @param resource fluid to insert
+     * @param simulate whether to simulate instead of mutating
+     * @param notifyChanges whether storage mutations notify listeners
+     * @return amount accepted
+     */
+    public static long fillStorages(FluidStorage[] storages, boolean allowSameFluids,
+                                    com.lowdragmc.lowdraglib.side.fluid.FluidStack resource,
+                                    boolean simulate, boolean notifyChanges) {
+        if (resource.isEmpty()) return 0;
+        var copied = resource.copy();
+        var existingStorage = allowSameFluids ? null : findStorageWithFluid(storages, resource);
         if (existingStorage == null) {
             for (var storage : storages) {
-                var filled = storage.fill(copied.copy(), simulate);
+                var filled = storage.fill(copied.copy(), simulate, notifyChanges);
                 if (filled > 0) {
                     copied.shrink(filled);
                     if (!allowSameFluids) {
@@ -154,7 +185,7 @@ public class FluidHandlerWrapper implements IFluidHandler {
                 if (copied.isEmpty()) break;
             }
         } else {
-            copied.shrink(existingStorage.fill(copied.copy(), simulate));
+            copied.shrink(existingStorage.fill(copied.copy(), simulate, notifyChanges));
         }
         return resource.getAmount() - copied.getAmount();
     }
