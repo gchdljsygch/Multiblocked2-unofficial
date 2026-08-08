@@ -376,12 +376,7 @@ public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridC
                 drops.add(stack);
             }
         }
-        for (int i = 0; i < itemStorage.getSlots(); i++) {
-            var stack = itemStorage.getStackInSlot(i);
-            if (!stack.isEmpty()) {
-                drops.add(stack);
-            }
-        }
+        // inputBuffer derives its visible contents from the typed item and fluid buffers.
         var stacks = new KeyCounter();
         inputBuffer.getAvailableStacks(stacks);
         for (var stack : stacks) {
