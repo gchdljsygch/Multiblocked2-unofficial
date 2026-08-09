@@ -1,10 +1,11 @@
-package com.lowdragmc.mbd2.core.mixins.lowdraglib;
+package com.lowdragmc.mbd2.utils;
 
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
-class WidgetSlotItemTransferMixinTest {
+class WidgetSlotItemTransferLimitsTest {
 
     @Test
     void configuredSlotLimitCapsVanillaInsertion() {
@@ -21,5 +22,11 @@ class WidgetSlotItemTransferMixinTest {
     @Test
     void invalidNegativeSlotLimitAllowsNoInsertion() {
         assertEquals(0, WidgetSlotItemTransferLimits.effectiveStackLimit(-1, 64));
+    }
+
+    @Test
+    void helperIsOutsideTheMixinPackage() {
+        assertFalse(WidgetSlotItemTransferLimits.class.getPackageName()
+                .startsWith("com.lowdragmc.mbd2.core.mixins"));
     }
 }

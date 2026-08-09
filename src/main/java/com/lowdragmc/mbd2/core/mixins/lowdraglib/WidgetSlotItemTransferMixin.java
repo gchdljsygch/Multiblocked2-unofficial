@@ -2,6 +2,7 @@ package com.lowdragmc.mbd2.core.mixins.lowdraglib;
 
 import com.lowdragmc.lowdraglib.gui.widget.SlotWidget.WidgetSlotItemTransfer;
 import com.lowdragmc.lowdraglib.side.item.IItemTransfer;
+import com.lowdragmc.mbd2.utils.WidgetSlotItemTransferLimits;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;

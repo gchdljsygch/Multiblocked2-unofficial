@@ -26,6 +26,7 @@ import com.lowdragmc.mbd2.common.item.MBDMachineItem;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.machine.MBDPartMachine;
 import com.lowdragmc.mbd2.common.machine.definition.config.*;
+import com.lowdragmc.mbd2.common.trait.ITrait;
 import com.lowdragmc.mbd2.common.trait.IUIProviderTrait;
 import com.lowdragmc.mbd2.integration.emi.MBDRecipeTypeEmiCategory;
 import com.lowdragmc.mbd2.integration.jei.MBDRecipeTypeCategory;
@@ -441,13 +442,7 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                         }
                     }
                 }));
-        for (var traitDefinition : machineSettings.traitDefinitions()) {
-            if (traitDefinition instanceof IUIProviderTrait provider) {
-                var trait = machine.getTraitByDefinition(traitDefinition);
-                if (trait != null)
-                    provider.initTraitUI(trait, ui);
-            }
-        }
+        bindLoadedTraitUIs(machine.getAdditionalTraits(), ui);
         // proxy controller ui
         if (partSettings != null && partSettings.isEnable() && machine instanceof MBDPartMachine partMachine) {
             var prefix = "controller:";
@@ -470,6 +465,24 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Binds the UI providers owned by the machine's live trait instances.
+     *
+     * <p>Definition reloads replace the configured definition objects while existing machines retain their already
+     * constructed traits. Binding from the live traits keeps an openable UI attached to those traits until the machine
+     * itself is rebuilt.</p>
+     *
+     * @param traits live traits attached to the machine
+     * @param ui     instantiated widget tree to bind
+     */
+    static void bindLoadedTraitUIs(Iterable<? extends ITrait> traits, WidgetGroup ui) {
+        for (ITrait trait : traits) {
+            if (trait.getDefinition() instanceof IUIProviderTrait provider) {
+                provider.initTraitUI(trait, ui);
             }
         }
     }

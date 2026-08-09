@@ -6,18 +6,15 @@ import com.lowdragmc.lowdraglib.client.scene.forge.WorldSceneRendererImpl;
 import com.lowdragmc.lowdraglib.client.utils.RenderUtils;
 import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
-import com.lowdragmc.mbd2.api.block.RotationState;
+import com.lowdragmc.mbd2.MBD2;
 import com.lowdragmc.mbd2.api.blockentity.IMachineBlockEntity;
 import com.lowdragmc.mbd2.api.machine.IMultiController;
 import com.lowdragmc.mbd2.client.MultiblockDebugOverlay;
+import com.lowdragmc.mbd2.client.MultiblockPreviewLayout;
 import com.lowdragmc.mbd2.client.renderer.OverlayRenderUtil;
-import com.lowdragmc.mbd2.common.block.MBDMachineBlock;
 import com.lowdragmc.mbd2.common.machine.MBDMultiblockMachine;
-import com.lowdragmc.mbd2.common.machine.definition.MultiblockMachineDefinition;
-import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import lombok.Getter;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -32,7 +29,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
@@ -43,9 +39,11 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.opengl.GL11;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 import static net.minecraft.world.level.block.RenderShape.INVISIBLE;
 
@@ -57,10 +55,9 @@ import static net.minecraft.world.level.block.RenderShape.INVISIBLE;
  * short-lived debug overlays for invalid pattern positions. The business goal is to let players inspect expected
  * multiblock layouts in the real world without placing the preview blocks.</p>
  *
- * <p>Most state is static because only one preview is shown at a time. Public methods are intended for the Minecraft
- * client thread; {@link #prepareBuffers(TrackedDummyWorld, Collection, int)} starts a worker thread for CPU-side buffer
- * construction and schedules GPU uploads through {@link RenderSystem#recordRenderCall}. Calling {@link #cleanPreview()}
- * invalidates the current cache and lets the next preview rebuild it.</p>
+ * <p>Only one preview is shown at a time. CPU-side compilation is serialized on a daemon worker, while every queued GPU
+ * upload is guarded by a monotonically increasing epoch. This prevents cancelled work from replacing a newer preview.
+ * Calling {@link #cleanPreview()} invalidates the active epoch and cancels any pending compilation.</p>
  */
 @OnlyIn(Dist.CLIENT)
 public class MultiblockInWorldPreviewRenderer {
@@ -83,23 +80,27 @@ public class MultiblockInWorldPreviewRenderer {
         COMPILED
     }
 
-    @Getter(lazy = true)
-    private final static VertexBuffer[] BUFFERS = initBuffers();
+    private static final Object PREVIEW_LOCK = new Object();
+    private static final ExecutorService PREVIEW_COMPILER = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "MBD2 Multiblock Preview Compiler");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final AtomicLong PREVIEW_EPOCH = new AtomicLong();
     @Nullable
-    private static TrackedDummyWorld LEVEL = null;
+    private static VertexBuffer[] BUFFERS;
+    private static volatile PreviewSnapshot PREVIEW = PreviewSnapshot.unused(0);
     @Nullable
-    private static Thread THREAD = null;
+    private static Future<?> compilationFuture;
+    private static volatile int previewTicksRemaining = -1;
     @Nullable
-    private static Set<BlockPos> BLOCK_ENTITIES;
-    private final static AtomicInteger PREVIEW_LEFT_TICK = new AtomicInteger(-1);
-    @Nullable
-    private static BlockPos PATTERN_ERROR_POS = null;
-    private final static AtomicInteger PATTERN_ERROR_LEFT_TICK = new AtomicInteger(-1);
+    private static volatile BlockPos patternErrorPos;
+    private static volatile int patternErrorTicksRemaining = -1;
 
     /**
      * Allocates one static vertex buffer for each chunk render layer.
      *
-     * <p>The result is cached by Lombok's lazy getter and reused until Minecraft invalidates the buffers.</p>
+     * <p>Must run on the render thread. Invalid buffers are closed and rebuilt before the next upload.</p>
      *
      * @return render-layer-aligned vertex-buffer array
      */
@@ -112,29 +113,100 @@ public class MultiblockInWorldPreviewRenderer {
         return buffers;
     }
 
-    private final static AtomicReference<CacheState> CACHE_STATE = new AtomicReference<>(CacheState.UNUSED);
+    private static VertexBuffer[] ensureVertexBuffers() {
+        RenderSystem.assertOnRenderThread();
+        if (hasInvalidVertexBuffers(BUFFERS)) {
+            closeVertexBuffers(BUFFERS);
+            BUFFERS = initBuffers();
+        }
+        return BUFFERS;
+    }
+
+    private static boolean hasInvalidVertexBuffers(@Nullable VertexBuffer[] buffers) {
+        if (buffers == null || buffers.length != RenderType.chunkBufferLayers().size()) {
+            return true;
+        }
+        for (VertexBuffer buffer : buffers) {
+            if (buffer == null || buffer.isInvalid()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void closeVertexBuffers(@Nullable VertexBuffer[] buffers) {
+        if (buffers == null) return;
+        for (VertexBuffer buffer : buffers) {
+            if (buffer != null) {
+                buffer.close();
+            }
+        }
+    }
 
     @Nullable
-    private static BlockPos LAST_POS = null;
-    private static int LAST_LAYER = -1;
-    private static int LAST_PATTERN = -1;
-    private static int NEXT_PATTERN = -1;
+    private static BlockPos lastPos;
+    private static int lastLayer = -1;
+    private static int lastPattern = -1;
+    private static int nextPattern = -1;
+
+    private record PreviewKey(BlockPos controllerPos, MBDMultiblockMachine controller, int patternIndex, int layer,
+                              Direction controllerFacing, BlockPos patternControllerPos,
+                              Direction patternControllerFacing) {
+    }
+
+    private record PreviewSnapshot(long epoch, CacheState cacheState, @Nullable PreviewKey key,
+                                   @Nullable TrackedDummyWorld level, List<BlockPos> renderedBlocks,
+                                   Set<BlockPos> blockEntityPositions, int duration) {
+        private static PreviewSnapshot unused(long epoch) {
+            return new PreviewSnapshot(epoch, CacheState.UNUSED, null, null, List.of(), Set.of(), -1);
+        }
+
+        private static PreviewSnapshot compiling(long epoch, PreviewKey key, TrackedDummyWorld level,
+                                                 List<BlockPos> renderedBlocks, int duration) {
+            return new PreviewSnapshot(epoch, CacheState.COMPILING, key, level, renderedBlocks, Set.of(), duration);
+        }
+
+        private boolean matches(PreviewKey key) {
+            return this.key != null && this.key.equals(key);
+        }
+
+        private PreviewSnapshot withDuration(int duration) {
+            return new PreviewSnapshot(epoch, cacheState, key, level, renderedBlocks, blockEntityPositions, duration);
+        }
+
+        private PreviewSnapshot compiled(Set<BlockPos> blockEntityPositions) {
+            return new PreviewSnapshot(epoch, CacheState.COMPILED, key, level, renderedBlocks,
+                    Set.copyOf(blockEntityPositions), duration);
+        }
+    }
+
+    private record PreparedBuffer(int layerIndex, BufferBuilder.RenderedBuffer buffer) {
+    }
 
     /**
      * Clears the current preview world, buffer-cache state, layer selection, and pattern cycling state.
      *
-     * <p>This does not delete the lazily created {@link VertexBuffer} objects; it marks their contents unused and resets
-     * the state that decides whether rendering should occur.</p>
+     * <p>The cached vertex buffers remain allocated for the next preview, but all in-flight CPU and GPU work is made
+     * obsolete before the shared snapshot is cleared.</p>
      */
     public static void cleanPreview() {
-        CACHE_STATE.set(CacheState.UNUSED);
-        LEVEL = null;
-        BLOCK_ENTITIES = null;
-        PREVIEW_LEFT_TICK.set(-1);
-        LAST_POS = null;
-        LAST_LAYER = -1;
-        LAST_PATTERN = -1;
-        NEXT_PATTERN = -1;
+        synchronized (PREVIEW_LOCK) {
+            invalidatePreviewLocked();
+            previewTicksRemaining = -1;
+        }
+        lastPos = null;
+        lastLayer = -1;
+        lastPattern = -1;
+        nextPattern = -1;
+    }
+
+    private static void invalidatePreviewLocked() {
+        PREVIEW_EPOCH.incrementAndGet();
+        if (compilationFuture != null) {
+            compilationFuture.cancel(true);
+            compilationFuture = null;
+        }
+        PREVIEW = PreviewSnapshot.unused(PREVIEW_EPOCH.get());
     }
 
     /**
@@ -143,7 +215,7 @@ public class MultiblockInWorldPreviewRenderer {
      * @param pos controller position whose preview should be removed
      */
     public static void removePreview(BlockPos pos) {
-        if (LAST_POS != null && LAST_POS.equals(pos)) {
+        if (lastPos != null && lastPos.equals(pos)) {
             cleanPreview();
         }
     }
@@ -152,8 +224,8 @@ public class MultiblockInWorldPreviewRenderer {
      * Clears the highlighted invalid pattern block and its countdown timer.
      */
     public static void clearPatternError() {
-        PATTERN_ERROR_POS = null;
-        PATTERN_ERROR_LEFT_TICK.set(-1);
+        patternErrorPos = null;
+        patternErrorTicksRemaining = -1;
     }
 
     /**
@@ -163,8 +235,8 @@ public class MultiblockInWorldPreviewRenderer {
      * @param duration number of client ticks to keep the overlay; non-positive values expire on the next tick path
      */
     public static void showPatternErrorPos(BlockPos pos, int duration) {
-        PATTERN_ERROR_POS = pos;
-        PATTERN_ERROR_LEFT_TICK.set(duration);
+        patternErrorPos = pos;
+        patternErrorTicksRemaining = duration;
     }
 
     /**
@@ -180,116 +252,53 @@ public class MultiblockInWorldPreviewRenderer {
      * @param duration   preview lifetime in client ticks after the buffers finish compiling
      */
     public static void showPreview(BlockPos pos, MBDMultiblockMachine controller, int duration) {
+        if (duration <= 0) {
+            cleanPreview();
+            return;
+        }
         var front = controller.getFrontFacing().orElse(Direction.NORTH);
         int patternIndex = getPreviewPatternIndex(pos, controller);
         var shapeInfos = controller.getDefinition().getPatternShapeInfos(controller, patternIndex);
         if (shapeInfos.length == 0) return;
         var shapeInfo = shapeInfos[0];
-        LAST_PATTERN = patternIndex;
-
-        Map<BlockPos, BlockInfo> blockMap = new HashMap<>();
-        IMultiController controllerBase = null;
-        LEVEL = new TrackedDummyWorld();
-
         var blocks = shapeInfo.getBlocks();
-        BlockPos controllerPatternPos = null;
-        var controllerPatternFront = Direction.NORTH;
-        var maxY = 0;
-
-        // find the pos of controller
-        for (int x = 0; x < blocks.length; x++) {
-            BlockInfo[][] aisle = blocks[x];
-            maxY = Math.max(maxY, aisle.length);
-            for (int y = 0; y < aisle.length; y++) {
-                BlockInfo[] column = aisle[y];
-                for (int z = 0; z < column.length; z++) {
-                    // if its controller record its position offset.
-                    if (column[z] instanceof ControllerBlockInfo info) {
-                        controllerPatternPos = new BlockPos(x, y, z);
-                        controllerPatternFront = info.getFacing();
-                    } else {
-                        var blockState = column[z].getBlockState();
-                        if (blockState != null && blockState.getBlock() instanceof MBDMachineBlock machineBlock &&
-                                machineBlock.getDefinition() instanceof MultiblockMachineDefinition definition) {
-                            controllerPatternPos = new BlockPos(x, y, z);
-                            if (definition.blockProperties().rotationState().property.isPresent()) {
-                                controllerPatternFront = blockState.getValue(definition.blockProperties().rotationState().property.get());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (controllerPatternPos == null) { // if there is no controller found
+        var controllerMarker = MultiblockPreviewLayout.findControllerMarker(blocks);
+        if (controllerMarker == null) {
             return;
         }
 
-        if (LAST_POS != null && LAST_POS.equals(pos)) {
-            LAST_LAYER++;
-            if (LAST_LAYER >= maxY) {
-                LAST_LAYER = -1;
-                NEXT_PATTERN = getNextPatternIndex(controller, patternIndex);
-            }
-        } else {
-            LAST_LAYER = -1;
-            NEXT_PATTERN = patternIndex;
-        }
-        LAST_POS = pos;
+        int maxY = Arrays.stream(blocks).mapToInt(aisle -> aisle.length).max().orElse(0);
+        int layer = advancePreviewLayer(pos, controller, patternIndex, maxY);
+        PreviewKey key = new PreviewKey(pos, controller, patternIndex, layer, front,
+                controllerMarker.patternPosition(), controllerMarker.patternFacing());
+        if (refreshCachedPreview(key, duration)) return;
+
+        Map<BlockPos, BlockInfo> blockMap = new HashMap<>();
+        IMultiController controllerBase = null;
+        TrackedDummyWorld previewLevel = new TrackedDummyWorld();
 
         for (int x = 0; x < blocks.length; x++) {
             BlockInfo[][] aisle = blocks[x];
             for (int y = 0; y < aisle.length; y++) {
                 BlockInfo[] column = aisle[y];
-                if (LAST_LAYER != -1 && LAST_LAYER != y) {
+                if (layer != -1 && layer != y) {
                     continue;
                 }
                 for (int z = 0; z < column.length; z++) {
-                    var blockState = column[z].getBlockState();
-                    var offset = new BlockPos(x, y, z).subtract(controllerPatternPos);
-                    if (blockState == null || offset.equals(new BlockPos(0, 0, 0))) continue;
+                    BlockInfo blockInfo = column[z];
+                    if (blockInfo == null) continue;
+                    BlockState blockState = blockInfo.getBlockState();
+                    if (blockState == null) continue;
 
-                    // rotation
-                    offset = switch (controllerPatternFront) {
-                        case SOUTH -> offset.rotate(Rotation.CLOCKWISE_180);
-                        case EAST -> offset.rotate(Rotation.COUNTERCLOCKWISE_90);
-                        case WEST -> offset.rotate(Rotation.CLOCKWISE_90);
-                        default -> offset.rotate(Rotation.NONE);
-                    };
-                    offset = switch (front) {
-                        case SOUTH -> offset.rotate(Rotation.CLOCKWISE_180);
-                        case EAST -> offset.rotate(Rotation.COUNTERCLOCKWISE_90);
-                        case WEST -> offset.rotate(Rotation.CLOCKWISE_90);
-                        default -> offset.rotate(Rotation.NONE);
-                    };
-
-
-                    // TODO rotation by front axis in the future
-                    offset = rotateByFrontAxis(offset, front, Rotation.NONE);
-
-                    if (blockState.getBlock() instanceof MBDMachineBlock machineBlock) {
-                        var rotationState = machineBlock.getRotationState();
-                        if (rotationState != RotationState.NONE && rotationState.property.isPresent()) {
-                            var face = blockState.getValue(rotationState.property.get());
-                            if (face.getAxis() != Direction.Axis.Y) {
-                                face = switch (front) {
-                                    case NORTH, UP, DOWN -> front;
-                                    case SOUTH -> face.getOpposite();
-                                    case WEST -> face.getCounterClockWise();
-                                    case EAST -> face.getClockWise();
-                                };
-                            }
-                            if (rotationState.test(face)) {
-                                blockState = blockState.setValue(rotationState.property.get(), face);
-                            }
-                        }
-                    }
+                    BlockPos offset = MultiblockPreviewLayout.offsetFromController(x, y, z, controllerMarker, front);
+                    if (offset.equals(BlockPos.ZERO)) continue;
+                    blockState = MultiblockPreviewLayout.orientMachineState(blockState, front);
 
                     BlockPos realPos = pos.offset(offset);
 
-                    if (column[z].getBlockEntity(realPos) instanceof IMachineBlockEntity holder &&
+                    if (blockInfo.getBlockEntity(realPos) instanceof IMachineBlockEntity holder &&
                             holder.getMetaMachine() instanceof IMultiController cont) {
-                        holder.getSelf().setLevel(LEVEL);
+                        holder.getSelf().setLevel(previewLevel);
                         controllerBase = cont;
                     } else {
                         blockMap.put(realPos, BlockInfo.fromBlockState(blockState));
@@ -298,12 +307,40 @@ public class MultiblockInWorldPreviewRenderer {
             }
         }
 
-        LEVEL.addBlocks(blockMap);
+        previewLevel.addBlocks(blockMap);
         if (controllerBase != null) {
-            LEVEL.setInnerBlockEntity(controllerBase.getHolder());
+            previewLevel.setInnerBlockEntity(controllerBase.getHolder());
         }
 
-        prepareBuffers(LEVEL, blockMap.keySet(), duration);
+        prepareBuffers(previewLevel, blockMap.keySet(), duration, key);
+    }
+
+    private static int advancePreviewLayer(BlockPos pos, MBDMultiblockMachine controller, int patternIndex, int maxY) {
+        if (lastPos != null && lastPos.equals(pos)) {
+            lastLayer++;
+            if (lastLayer >= maxY) {
+                lastLayer = -1;
+                nextPattern = getNextPatternIndex(controller, patternIndex);
+            }
+        } else {
+            lastLayer = -1;
+            nextPattern = patternIndex;
+        }
+        lastPos = pos;
+        lastPattern = patternIndex;
+        return lastLayer;
+    }
+
+    private static boolean refreshCachedPreview(PreviewKey key, int duration) {
+        synchronized (PREVIEW_LOCK) {
+            PreviewSnapshot current = PREVIEW;
+            if (!current.matches(key)) return false;
+            PREVIEW = current.withDuration(duration);
+            if (current.cacheState() == CacheState.COMPILED) {
+                previewTicksRemaining = duration;
+            }
+            return true;
+        }
     }
 
     /**
@@ -319,15 +356,10 @@ public class MultiblockInWorldPreviewRenderer {
     public static int getPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
         int patternCount = controller.getDefinition().getPatterns(controller).length;
         if (patternCount <= 1) return 0;
-        int matched = controller.getMultiblockState().getMatchedPatternIndex();
-        if (matched >= 0 && matched < patternCount) return matched;
-        if (LAST_POS != null && LAST_POS.equals(pos) && NEXT_PATTERN >= 0 && NEXT_PATTERN < patternCount) {
-            return NEXT_PATTERN;
-        }
-        if (LAST_POS != null && LAST_POS.equals(pos) && LAST_PATTERN >= 0 && LAST_PATTERN < patternCount) {
-            return LAST_PATTERN;
-        }
-        return 0;
+        int matched = getMatchedPatternIndex(controller, patternCount);
+        if (matched >= 0) return matched;
+        int cached = getCachedPatternIndex(pos, patternCount, true);
+        return cached >= 0 ? cached : 0;
     }
 
     /**
@@ -340,66 +372,34 @@ public class MultiblockInWorldPreviewRenderer {
     public static int getCurrentPreviewPatternIndex(BlockPos pos, MBDMultiblockMachine controller) {
         int patternCount = controller.getDefinition().getPatterns(controller).length;
         if (patternCount <= 1) return 0;
-        int matched = controller.getMultiblockState().getMatchedPatternIndex();
-        if (matched >= 0 && matched < patternCount) return matched;
-        if (LAST_POS != null && LAST_POS.equals(pos) && LAST_PATTERN >= 0 && LAST_PATTERN < patternCount) {
-            return LAST_PATTERN;
-        }
+        int matched = getMatchedPatternIndex(controller, patternCount);
+        if (matched >= 0) return matched;
+        int cached = getCachedPatternIndex(pos, patternCount, false);
+        if (cached >= 0) return cached;
         return getPreviewPatternIndex(pos, controller);
     }
 
     private static int getNextPatternIndex(MBDMultiblockMachine controller, int current) {
         int patternCount = controller.getDefinition().getPatterns(controller).length;
         if (patternCount <= 1) return 0;
-        int matched = controller.getMultiblockState().getMatchedPatternIndex();
-        if (matched >= 0 && matched < patternCount) return matched;
+        int matched = getMatchedPatternIndex(controller, patternCount);
+        if (matched >= 0) return matched;
         return (current + 1) % patternCount;
     }
 
-    /**
-     * Rotates a pattern offset around the axis represented by the controller front.
-     *
-     * @param pos      unrotated controller-relative offset
-     * @param front    controller front direction that defines the rotation axis
-     * @param rotation additional rotation around that axis
-     * @return transformed offset in controller-relative coordinates
-     */
-    private static BlockPos rotateByFrontAxis(BlockPos pos, Direction front, Rotation rotation) {
-        if (front.getAxis() == Direction.Axis.X) {
-            return switch (rotation) {
-                case CLOCKWISE_90 -> new BlockPos(-pos.getX(), -front.getAxisDirection().getStep() * pos.getZ(),
-                        front.getAxisDirection().getStep() * -pos.getY());
-                case CLOCKWISE_180 -> new BlockPos(-pos.getX(), -pos.getY(), pos.getZ());
-                case COUNTERCLOCKWISE_90 -> new BlockPos(-pos.getX(), front.getAxisDirection().getStep() * pos.getZ(),
-                        front.getAxisDirection().getStep() * pos.getY());
-                default -> new BlockPos(-pos.getX(), pos.getY(), -pos.getZ());
-            };
-        } else if (front.getAxis() == Direction.Axis.Y) {
-            return switch (rotation) {
-                case CLOCKWISE_90 -> new BlockPos(pos.getY(),
-                        -front.getAxisDirection().getStep() * pos.getZ(),
-                        -front.getAxisDirection().getStep() * pos.getX());
-                case CLOCKWISE_180 -> new BlockPos(front.getAxisDirection().getStep() * pos.getX(),
-                        -front.getAxisDirection().getStep() * pos.getZ(),
-                        pos.getY());
-                case COUNTERCLOCKWISE_90 -> new BlockPos(-pos.getY(),
-                        -front.getAxisDirection().getStep() * pos.getZ(),
-                        front.getAxisDirection().getStep() * pos.getX());
-                default -> new BlockPos(-front.getAxisDirection().getStep() * pos.getX(),
-                        -front.getAxisDirection().getStep() * pos.getZ(),
-                        -pos.getY());
-            };
-        } else if (front.getAxis() == Direction.Axis.Z) {
-            return switch (rotation) {
-                case CLOCKWISE_90 -> new BlockPos(front.getAxisDirection().getStep() * pos.getY(),
-                        -front.getAxisDirection().getStep() * pos.getX(), pos.getZ());
-                case CLOCKWISE_180 -> new BlockPos(-pos.getX(), -pos.getY(), pos.getZ());
-                case COUNTERCLOCKWISE_90 -> new BlockPos(front.getAxisDirection().getStep() * -pos.getY(),
-                        front.getAxisDirection().getStep() * pos.getX(), pos.getZ());
-                default -> pos;
-            };
-        }
-        return pos;
+    private static int getMatchedPatternIndex(MBDMultiblockMachine controller, int patternCount) {
+        int matched = controller.getMultiblockState().getMatchedPatternIndex();
+        return isValidPatternIndex(matched, patternCount) ? matched : -1;
+    }
+
+    private static int getCachedPatternIndex(BlockPos pos, int patternCount, boolean includeNext) {
+        if (lastPos == null || !lastPos.equals(pos)) return -1;
+        if (includeNext && isValidPatternIndex(nextPattern, patternCount)) return nextPattern;
+        return isValidPatternIndex(lastPattern, patternCount) ? lastPattern : -1;
+    }
+
+    private static boolean isValidPatternIndex(int index, int patternCount) {
+        return index >= 0 && index < patternCount;
     }
 
     /**
@@ -409,15 +409,11 @@ public class MultiblockInWorldPreviewRenderer {
      * debug overlay so its positions remain synchronized with preview rendering.</p>
      */
     public static void onClientTick() {
-        if (PREVIEW_LEFT_TICK.get() > 0) {
-            if (PREVIEW_LEFT_TICK.decrementAndGet() <= 0) {
-                cleanPreview();
-            }
+        if (previewTicksRemaining > 0 && --previewTicksRemaining <= 0) {
+            cleanPreview();
         }
-        if (PATTERN_ERROR_LEFT_TICK.get() > 0) {
-            if (PATTERN_ERROR_LEFT_TICK.decrementAndGet() <= 0) {
-                clearPatternError();
-            }
+        if (patternErrorTicksRemaining > 0 && --patternErrorTicksRemaining <= 0) {
+            clearPatternError();
         }
         MultiblockDebugOverlay.tick();
     }
@@ -450,7 +446,8 @@ public class MultiblockInWorldPreviewRenderer {
 
             poseStack.popPose();
         }
-        if (PATTERN_ERROR_POS != null) {
+        BlockPos currentPatternErrorPos = patternErrorPos;
+        if (currentPatternErrorPos != null) {
             poseStack.pushPose();
             Vec3 projectedView = camera.getPosition();
             poseStack.translate(-projectedView.x, -projectedView.y, -projectedView.z);
@@ -458,14 +455,29 @@ public class MultiblockInWorldPreviewRenderer {
             RenderSystem.disableDepthTest();
             RenderSystem.depthMask(false);
 
-            RenderUtils.renderBlockOverLay(poseStack, PATTERN_ERROR_POS, 0.6f, 0, 0, 1.01f);
+            RenderUtils.renderBlockOverLay(poseStack, currentPatternErrorPos, 0.6f, 0, 0, 1.01f);
 
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
 
             poseStack.popPose();
         }
-        if (CACHE_STATE.get() == CacheState.COMPILED && LEVEL != null) {
+        PreviewSnapshot preview = PREVIEW;
+        TrackedDummyWorld previewLevel = preview.level();
+        if (preview.cacheState() != CacheState.COMPILED || previewLevel == null) {
+            return;
+        }
+        VertexBuffer[] vertexBuffers = BUFFERS;
+        if (hasInvalidVertexBuffers(vertexBuffers)) {
+            PreviewKey key = preview.key();
+            if (key != null) {
+                int duration = previewTicksRemaining > 0 ? previewTicksRemaining : preview.duration();
+                prepareBuffers(previewLevel, preview.renderedBlocks(), duration, key);
+            }
+            return;
+        }
+
+        {
             poseStack.pushPose();
             Vec3 projectedView = camera.getPosition();
             poseStack.translate(-projectedView.x, -projectedView.y, -projectedView.z);
@@ -473,10 +485,10 @@ public class MultiblockInWorldPreviewRenderer {
             for (int i = 0; i < RenderType.chunkBufferLayers().size(); i++) {
                 var layer = RenderType.chunkBufferLayers().get(i);
                 // render TESR before translucent
-                if (layer == RenderType.translucent() && BLOCK_ENTITIES != null) { // render tesr before translucent
+                if (layer == RenderType.translucent() && !preview.blockEntityPositions().isEmpty()) {
                     var buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-                    for (BlockPos pos : BLOCK_ENTITIES) {
-                        BlockEntity tile = LEVEL.getBlockEntity(pos);
+                    for (BlockPos pos : preview.blockEntityPositions()) {
+                        BlockEntity tile = previewLevel.getBlockEntity(pos);
                         if (tile != null) {
                             poseStack.pushPose();
                             poseStack.translate(pos.getX(), pos.getY(), pos.getZ());
@@ -494,8 +506,7 @@ public class MultiblockInWorldPreviewRenderer {
                     buffers.endBatch();
                 }
 
-                VertexBuffer vertexbuffer = getBUFFERS()[i];
-                // some of stupid mod doesn't check if the buffer is invalid
+                VertexBuffer vertexbuffer = vertexBuffers[i];
                 if (vertexbuffer.isInvalid() || vertexbuffer.getFormat() == null) continue;
 
                 // render cache vbo
@@ -575,73 +586,166 @@ public class MultiblockInWorldPreviewRenderer {
     }
 
     /**
-     * Rebuilds the shared preview buffers for a dummy-world block set.
+     * Starts a new preview-buffer generation for a dummy-world block set.
      *
-     * <p>Any existing worker thread is interrupted before a new one starts. CPU-side block geometry is built off the
-     * render thread, while VBO uploads are scheduled on the render thread. On successful completion this records
-     * block-entity renderer positions, marks the cache compiled, and starts the preview lifetime countdown.</p>
+     * <p>CPU-side work is serialized by the compiler executor. Both the worker and the render-thread upload verify the
+     * generation epoch, so cancellation cannot publish stale buffers or block-entity positions.</p>
      *
      * @param level          dummy world containing preview blocks and block entities
      * @param renderedBlocks world positions to include in the preview
      * @param duration       preview lifetime in client ticks after compilation completes
+     * @param key            identity of the preview geometry being compiled
      */
-    private static void prepareBuffers(TrackedDummyWorld level, Collection<BlockPos> renderedBlocks, int duration) {
-        if (THREAD != null) {
-            THREAD.interrupt();
+    private static void prepareBuffers(TrackedDummyWorld level, Collection<BlockPos> renderedBlocks, int duration,
+                                       PreviewKey key) {
+        List<BlockPos> copiedBlocks = List.copyOf(renderedBlocks);
+        synchronized (PREVIEW_LOCK) {
+            if (compilationFuture != null) {
+                compilationFuture.cancel(true);
+            }
+            long epoch = PREVIEW_EPOCH.incrementAndGet();
+            PREVIEW = PreviewSnapshot.compiling(epoch, key, level, copiedBlocks, duration);
+            previewTicksRemaining = -1;
+            compilationFuture = PREVIEW_COMPILER.submit(() -> compileBuffers(epoch, level, copiedBlocks));
         }
-        CACHE_STATE.set(CacheState.COMPILING);
-        // call it to init the buffers
-        getBUFFERS();
-        THREAD = new Thread(() -> {
+    }
+
+    private static void compileBuffers(long epoch, TrackedDummyWorld level, List<BlockPos> renderedBlocks) {
+        List<PreparedBuffer> preparedBuffers = new ArrayList<>(RenderType.chunkBufferLayers().size());
+        boolean queuedForUpload = false;
+        try {
+            if (isCompilationCancelled(epoch)) return;
             var dispatcher = Minecraft.getInstance().getBlockRenderer();
-            ModelBlockRenderer.enableCaching();
             PoseStack poseStack = new PoseStack();
             var randomSource = RandomSource.createNewThreadLocalInstance();
-            for (int i = 0; i < RenderType.chunkBufferLayers().size(); i++) {
-                if (Thread.interrupted())
-                    return;
-                var layer = RenderType.chunkBufferLayers().get(i);
-                var buffer = new BufferBuilder(layer.bufferSize());
-                buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
-                renderBlocks(level, poseStack, dispatcher, layer, new WorldSceneRenderer.VertexConsumerWrapper(buffer),
-                        renderedBlocks, randomSource);
-                var builder = buffer.end();
-                var vertexBuffer = getBUFFERS()[i];
-                Runnable toUpload = () -> {
-                    if (!vertexBuffer.isInvalid()) {
-                        vertexBuffer.bind();
-                        vertexBuffer.upload(builder);
-                        VertexBuffer.unbind();
+            ModelBlockRenderer.enableCaching();
+            try {
+                for (int i = 0; i < RenderType.chunkBufferLayers().size(); i++) {
+                    if (isCompilationCancelled(epoch)) return;
+                    var layer = RenderType.chunkBufferLayers().get(i);
+                    var buffer = new BufferBuilder(layer.bufferSize());
+                    buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+                    if (!renderBlocks(level, poseStack, dispatcher, layer,
+                            new WorldSceneRenderer.VertexConsumerWrapper(buffer), renderedBlocks, randomSource,
+                            () -> isCompilationCancelled(epoch))) {
+                        buffer.end().release();
+                        return;
                     }
-                };
-                CompletableFuture.runAsync(toUpload, runnable -> {
-                    RenderSystem.recordRenderCall(runnable::run);
-                });
-
-            }
-            ModelBlockRenderer.clearCache();
-
-            // record all BlockEntities having TESR.
-            Set<BlockPos> poses = new HashSet<>();
-            for (BlockPos pos : renderedBlocks) {
-                if (Thread.interrupted())
-                    return;
-                BlockEntity tile = level.getBlockEntity(pos);
-                if (tile != null) {
-                    if (Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(tile) != null) {
-                        poses.add(pos);
-                    }
+                    preparedBuffers.add(new PreparedBuffer(i, buffer.end()));
                 }
+            } finally {
+                ModelBlockRenderer.clearCache();
             }
 
-            if (Thread.interrupted())
+            Set<BlockPos> blockEntityPositions = collectBlockEntityPositions(epoch, level, renderedBlocks);
+            if (blockEntityPositions == null || isCompilationCancelled(epoch)) return;
+
+            RenderSystem.recordRenderCall(() -> uploadCompiledBuffers(epoch, preparedBuffers, blockEntityPositions));
+            queuedForUpload = true;
+        } catch (Throwable throwable) {
+            if (!isCompilationCancelled(epoch)) {
+                MBD2.LOGGER.error("Failed to compile multiblock preview buffers", throwable);
+                RenderSystem.recordRenderCall(() -> failCompilation(epoch));
+            }
+        } finally {
+            if (!queuedForUpload) {
+                releasePreparedBuffers(preparedBuffers);
+            }
+        }
+    }
+
+    @Nullable
+    private static Set<BlockPos> collectBlockEntityPositions(long epoch, TrackedDummyWorld level,
+                                                              Collection<BlockPos> renderedBlocks) {
+        Set<BlockPos> positions = new HashSet<>();
+        for (BlockPos pos : renderedBlocks) {
+            if (isCompilationCancelled(epoch)) return null;
+            BlockEntity tile = level.getBlockEntity(pos);
+            if (tile != null && Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(tile) != null) {
+                positions.add(pos);
+            }
+        }
+        return positions;
+    }
+
+    private static void uploadCompiledBuffers(long epoch, List<PreparedBuffer> preparedBuffers,
+                                              Set<BlockPos> blockEntityPositions) {
+        try {
+            if (!isCurrentEpoch(epoch)) return;
+            VertexBuffer[] vertexBuffers = ensureVertexBuffers();
+            while (!preparedBuffers.isEmpty()) {
+                if (!isCurrentEpoch(epoch)) return;
+                PreparedBuffer preparedBuffer = preparedBuffers.remove(0);
+                uploadBuffer(vertexBuffers[preparedBuffer.layerIndex()], preparedBuffer.buffer());
+            }
+            if (isCurrentEpoch(epoch)) {
+                completeCompilation(epoch, blockEntityPositions);
+            }
+        } catch (Throwable throwable) {
+            if (isCurrentEpoch(epoch)) {
+                MBD2.LOGGER.error("Failed to upload multiblock preview buffers", throwable);
+                failCompilation(epoch);
+            }
+        } finally {
+            releasePreparedBuffers(preparedBuffers);
+        }
+    }
+
+    private static void uploadBuffer(VertexBuffer vertexBuffer, BufferBuilder.RenderedBuffer buffer) {
+        boolean ownershipTransferred = false;
+        try {
+            if (vertexBuffer.isInvalid()) return;
+            vertexBuffer.bind();
+            ownershipTransferred = true;
+            vertexBuffer.upload(buffer);
+        } finally {
+            if (ownershipTransferred) {
+                VertexBuffer.unbind();
+            } else {
+                buffer.release();
+            }
+        }
+    }
+
+    private static void completeCompilation(long epoch, Set<BlockPos> blockEntityPositions) {
+        synchronized (PREVIEW_LOCK) {
+            PreviewSnapshot current = PREVIEW;
+            if (current.epoch() != epoch || current.cacheState() != CacheState.COMPILING || !isCurrentEpoch(epoch)) {
                 return;
-            BLOCK_ENTITIES = poses;
-            CACHE_STATE.set(CacheState.COMPILED);
-            THREAD = null;
-            PREVIEW_LEFT_TICK.set(duration);
-        });
-        THREAD.start();
+            }
+            compilationFuture = null;
+            if (current.duration() <= 0) {
+                invalidatePreviewLocked();
+                previewTicksRemaining = -1;
+                return;
+            }
+            PREVIEW = current.compiled(blockEntityPositions);
+            previewTicksRemaining = current.duration();
+        }
+    }
+
+    private static void failCompilation(long epoch) {
+        synchronized (PREVIEW_LOCK) {
+            if (PREVIEW.epoch() == epoch && isCurrentEpoch(epoch)) {
+                invalidatePreviewLocked();
+                previewTicksRemaining = -1;
+            }
+        }
+    }
+
+    private static boolean isCompilationCancelled(long epoch) {
+        return Thread.currentThread().isInterrupted() || !isCurrentEpoch(epoch);
+    }
+
+    private static boolean isCurrentEpoch(long epoch) {
+        return PREVIEW_EPOCH.get() == epoch;
+    }
+
+    private static void releasePreparedBuffers(List<PreparedBuffer> preparedBuffers) {
+        for (PreparedBuffer preparedBuffer : preparedBuffers) {
+            preparedBuffer.buffer().release();
+        }
+        preparedBuffers.clear();
     }
 
     /**
@@ -654,31 +758,41 @@ public class MultiblockInWorldPreviewRenderer {
      * @param wrapperBuffer  vertex consumer wrapper receiving geometry
      * @param renderedBlocks block positions to compile
      * @param randomSource   thread-local random source for model rendering
+     * @param cancelled      returns whether the active preview generation has been cancelled
+     * @return {@code false} when compilation was cancelled before the layer completed
      */
-    private static void renderBlocks(TrackedDummyWorld level, PoseStack poseStack, BlockRenderDispatcher dispatcher,
-                                     RenderType layer, WorldSceneRenderer.VertexConsumerWrapper wrapperBuffer,
-                                     Collection<BlockPos> renderedBlocks, RandomSource randomSource) {
+    private static boolean renderBlocks(TrackedDummyWorld level, PoseStack poseStack, BlockRenderDispatcher dispatcher,
+                                        RenderType layer, WorldSceneRenderer.VertexConsumerWrapper wrapperBuffer,
+                                        Collection<BlockPos> renderedBlocks, RandomSource randomSource,
+                                        BooleanSupplier cancelled) {
         for (BlockPos pos : renderedBlocks) {
+            if (cancelled.getAsBoolean()) return false;
             BlockState state = level.getBlockState(pos);
             FluidState fluidState = state.getFluidState();
             Block block = state.getBlock();
-            BlockEntity te = level.getBlockEntity(pos);
 
             if (block == Blocks.AIR) continue;
 
             // render blocks
             if (state.getRenderShape() != INVISIBLE && WorldSceneRendererImpl.canRenderInLayer(dispatcher, state, pos, level, layer, randomSource)) {
                 poseStack.pushPose();
-                poseStack.translate(pos.getX(), pos.getY(), pos.getZ());
+                try {
+                    poseStack.translate(pos.getX(), pos.getY(), pos.getZ());
 
-                poseStack.translate(0.5, 0.5, 0.5);
-                poseStack.scale(0.8f, 0.8f, 0.8f);
-                poseStack.translate(-0.5, -0.5, -0.5);
+                    poseStack.translate(0.5, 0.5, 0.5);
+                    poseStack.scale(0.8f, 0.8f, 0.8f);
+                    poseStack.translate(-0.5, -0.5, -0.5);
 
-                level.setRenderFilter(p -> p.equals(pos));
-                WorldSceneRendererImpl.renderBlocksForge(dispatcher, state, pos, level, poseStack, wrapperBuffer, randomSource, layer);
-                level.setRenderFilter(p -> true);
-                poseStack.popPose();
+                    level.setRenderFilter(p -> p.equals(pos));
+                    try {
+                        WorldSceneRendererImpl.renderBlocksForge(dispatcher, state, pos, level, poseStack, wrapperBuffer,
+                                randomSource, layer);
+                    } finally {
+                        level.setRenderFilter(p -> true);
+                    }
+                } finally {
+                    poseStack.popPose();
+                }
             }
 
             // render fluids
@@ -691,5 +805,6 @@ public class MultiblockInWorldPreviewRenderer {
             wrapperBuffer.clerOffset();
             wrapperBuffer.clearColor();
         }
+        return true;
     }
 }
