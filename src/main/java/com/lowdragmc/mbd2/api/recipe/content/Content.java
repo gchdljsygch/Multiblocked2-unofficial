@@ -160,8 +160,27 @@ public class Content {
      * @return copied content wrapper
      */
     public Content copy(RecipeCapability<?> capability, @Nullable ContentModifier modifier) {
-        long[] copiedRange = copyOutputRange(capability, modifier, modifier != null && chance != 0);
-        if (modifier == null || chance == 0) {
+        return copy(capability, modifier, false);
+    }
+
+    /**
+     * Copies this wrapper and optionally scales non-consumable content.
+     *
+     * <p>Non-consumable recipe inputs ({@code chance == 0}) normally act as
+     * catalysts and keep their original amount during recipe parallelization.
+     * Callers that explicitly require one catalyst per parallel operation may
+     * set {@code scaleNonConsumable} to {@code true}. This option should only
+     * be used for input content.</p>
+     *
+     * @param capability             capability that knows how to copy the wrapped content
+     * @param modifier               optional content modifier for size-like fields
+     * @param scaleNonConsumable     whether {@code chance == 0} content receives the modifier
+     * @return copied content wrapper
+     */
+    public Content copy(RecipeCapability<?> capability, @Nullable ContentModifier modifier, boolean scaleNonConsumable) {
+        boolean applyModifier = modifier != null && (chance != 0 || scaleNonConsumable);
+        long[] copiedRange = copyOutputRange(capability, modifier, applyModifier);
+        if (!applyModifier) {
             return new Content(capability.copyContent(content), perTick, chance, tierChanceBoost,
                     copiedRange[0], copiedRange[1], slotName, uiName);
         } else {

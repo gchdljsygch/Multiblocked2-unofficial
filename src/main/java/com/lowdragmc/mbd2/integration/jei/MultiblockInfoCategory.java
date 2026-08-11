@@ -45,7 +45,7 @@ public class MultiblockInfoCategory extends ModularUIRecipeCategory<MultiblockIn
             super(entry.createWidget());
             this.entry = entry;
             this.definition = definition;
-            setShouldRenderTooltips(true);
+            setShouldRenderTooltips(false);
         }
     }
 

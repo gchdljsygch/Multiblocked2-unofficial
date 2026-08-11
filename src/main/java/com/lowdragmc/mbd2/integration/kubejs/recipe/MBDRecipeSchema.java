@@ -87,6 +87,7 @@ public interface MBDRecipeSchema {
         public int priority;
         public boolean isFuel;
         public boolean isXEIHidden;
+        public boolean isForceParallelCatalyst;
         // runtime
         public boolean perTick;
         @Setter
@@ -135,6 +136,19 @@ public interface MBDRecipeSchema {
 
         public MBDRecipeJS isXEIHidden(boolean xEIHidden) {
             isXEIHidden = xEIHidden;
+            save();
+            return this;
+        }
+
+        /**
+         * Configures whether automatic parallelization requires one
+         * non-consumable catalyst per parallel operation.
+         *
+         * @param forceParallelCatalyst {@code true} to scale non-consumable input catalysts
+         * @return this builder
+         */
+        public MBDRecipeJS isForceParallelCatalyst(boolean forceParallelCatalyst) {
+            isForceParallelCatalyst = forceParallelCatalyst;
             save();
             return this;
         }
@@ -764,12 +778,13 @@ public interface MBDRecipeSchema {
             priority = mbdRecipe.priority;
             isFuel = mbdRecipe.isFuel;
             isXEIHidden = mbdRecipe.isXEIHidden;
+            isForceParallelCatalyst = mbdRecipe.isForceParallelCatalyst;
         }
 
         @Override
         public void serialize() {
             json = MBDRecipeSerializer.SERIALIZER.toJson(
-                    new MBDRecipe(getRecipeType(), getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority)
+                    new MBDRecipe(getRecipeType(), getOrCreateId(), inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, null, isForceParallelCatalyst)
             );
         }
 
@@ -784,7 +799,9 @@ public interface MBDRecipeSchema {
                     duration,
                     isFuel,
                     isXEIHidden,
-                    priority
+                    priority,
+                    null,
+                    isForceParallelCatalyst
             );
         }
     }

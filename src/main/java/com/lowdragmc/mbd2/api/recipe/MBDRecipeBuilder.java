@@ -80,6 +80,8 @@ public class MBDRecipeBuilder {
     @Setter
     public boolean isXEIHidden = false;
     @Setter
+    public boolean isForceParallelCatalyst = false;
+    @Setter
     public int priority = 0;
     @Setter
     public BiConsumer<MBDRecipeBuilder, Consumer<FinishedRecipe>> onSave;
@@ -116,6 +118,8 @@ public class MBDRecipeBuilder {
         this.duration = toCopy.duration;
         this.isFuel = toCopy.isFuel;
         this.isXEIHidden = toCopy.isXEIHidden;
+        this.isForceParallelCatalyst = toCopy.isForceParallelCatalyst;
+        this.priority = toCopy.priority;
     }
 
     /**
@@ -172,6 +176,9 @@ public class MBDRecipeBuilder {
         copy.maxOutput = this.maxOutput;
         copy.perTick = this.perTick;
         copy.isFuel = this.isFuel;
+        copy.isXEIHidden = this.isXEIHidden;
+        copy.isForceParallelCatalyst = this.isForceParallelCatalyst;
+        copy.priority = this.priority;
         copy.uiName = this.uiName;
         copy.slotName = this.slotName;
         copy.onSave = this.onSave;
@@ -1001,7 +1008,7 @@ public class MBDRecipeBuilder {
      * @return runtime recipe representation
      */
     public MBDRecipe buildRawRecipe() {
-        return new MBDRecipe(recipeType, id, input, output, conditions, data, duration, isFuel, isXEIHidden, priority);
+        return new MBDRecipe(recipeType, id, input, output, conditions, data, duration, isFuel, isXEIHidden, priority, null, isForceParallelCatalyst);
     }
 
 }

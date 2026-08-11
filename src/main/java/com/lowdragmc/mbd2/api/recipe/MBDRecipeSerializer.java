@@ -69,8 +69,8 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
      * Decodes a datapack recipe JSON object into an {@link MBDRecipe}.
      *
      * <p>Required field: {@code type}. Optional fields include duration, data,
-     * inputs, outputs, recipeConditions, isFuel, isXEIHidden, priority, and
-     * recipeGroup. Side effects: reads built-in recipe type registry and MBD
+     * inputs, outputs, recipeConditions, isFuel, isXEIHidden,
+     * isForceParallelCatalyst, priority, and recipeGroup. Side effects: reads built-in recipe type registry and MBD
      * condition/capability registries.</p>
      *
      * @param id   recipe id assigned by Minecraft's recipe manager
@@ -102,9 +102,10 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         }
         boolean isFuel = GsonHelper.getAsBoolean(json, "isFuel", false);
         boolean isXEIHidden = GsonHelper.getAsBoolean(json, "isXEIHidden", false);
+        boolean isForceParallelCatalyst = GsonHelper.getAsBoolean(json, "isForceParallelCatalyst", false);
         int priority = GsonHelper.getAsInt(json, "priority", 0);
         String recipeGroup = json.has("recipeGroup") ? RecipeGroup.normalize(GsonHelper.getAsString(json, "recipeGroup")) : null;
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
     }
 
     /**
@@ -162,6 +163,9 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         }
         if (recipe.isXEIHidden) {
             json.addProperty("isXEIHidden", true);
+        }
+        if (recipe.isForceParallelCatalyst) {
+            json.addProperty("isForceParallelCatalyst", true);
         }
         if (recipe.priority != 0) {
             json.addProperty("priority", recipe.priority);
@@ -265,7 +269,8 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         boolean isXEIHidden = buf.readBoolean();
         int priority = buf.readVarInt();
         String recipeGroup = RecipeGroup.normalizeOptional(buf.readUtf());
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+        boolean isForceParallelCatalyst = buf.readBoolean();
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
     }
 
     /**
@@ -289,6 +294,7 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         buf.writeBoolean(recipe.isXEIHidden);
         buf.writeVarInt(recipe.priority);
         buf.writeUtf(recipe.recipeGroup == null ? "" : RecipeGroup.normalize(recipe.recipeGroup));
+        buf.writeBoolean(recipe.isForceParallelCatalyst);
     }
 
     /**
@@ -341,9 +347,10 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         CompoundTag data = nbt.getCompound("data");
         boolean isFuel = nbt.getBoolean("isFuel");
         boolean isXEIHidden = nbt.getBoolean("isXEIHidden");
+        boolean isForceParallelCatalyst = nbt.getBoolean("isForceParallelCatalyst");
         int priority = nbt.getInt("priority");
         String recipeGroup = nbt.contains("recipeGroup", Tag.TAG_STRING) ? RecipeGroup.normalize(nbt.getString("recipeGroup")) : null;
-        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+        return new MBDRecipe((MBDRecipeType) BuiltInRegistries.RECIPE_TYPE.get(new ResourceLocation(recipeType)), id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
     }
 
     /**
@@ -390,6 +397,7 @@ public class MBDRecipeSerializer implements RecipeSerializer<MBDRecipe> {
         nbt.put("data", recipe.data);
         nbt.putBoolean("isFuel", recipe.isFuel);
         nbt.putBoolean("isXEIHidden", recipe.isXEIHidden);
+        nbt.putBoolean("isForceParallelCatalyst", recipe.isForceParallelCatalyst);
         nbt.putInt("priority", recipe.priority);
         if (RecipeGroup.hasGroup(recipe.recipeGroup)) {
             nbt.putString("recipeGroup", RecipeGroup.normalize(recipe.recipeGroup));

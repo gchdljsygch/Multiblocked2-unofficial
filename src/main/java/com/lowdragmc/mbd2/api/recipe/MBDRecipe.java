@@ -58,6 +58,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     public int priority;
     public boolean isFuel;
     public boolean isXEIHidden;
+    /**
+     * Whether non-consumable input catalysts must be supplied once for every
+     * automatically parallelized operation.
+     */
+    public boolean isForceParallelCatalyst;
     @Nullable
     public String recipeGroup;
     private Boolean hasTick;
@@ -81,7 +86,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      *                    handled by the recipe type
      */
     public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority) {
-        this(recipeType, id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, null);
+        this(recipeType, id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, null, false);
     }
 
     /**
@@ -108,6 +113,32 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      *                    {@link IllegalArgumentException}
      */
     public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority, @Nullable String recipeGroup) {
+        this(recipeType, id, inputs, outputs, conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, false);
+    }
+
+    /**
+     * Creates a recipe with optional recipe-group routing and a catalyst
+     * parallelization policy.
+     *
+     * <p>When {@code isForceParallelCatalyst} is enabled, non-consumable
+     * inputs ({@code chance == 0}) are scaled while automatic parallelization
+     * searches for a matching recipe. The inputs remain non-consumable when
+     * recipe IO is committed.</p>
+     *
+     * @param recipeType               owning MBD recipe type; must be non-null for normal runtime use
+     * @param id                       unique recipe id inside the recipe manager
+     * @param inputs                   capability input map keyed by capability
+     * @param outputs                  capability output map keyed by capability
+     * @param conditions               conditions that gate recipe execution
+     * @param data                     custom NBT payload for recipe-specific metadata
+     * @param duration                 base processing duration in ticks
+     * @param isFuel                   {@code true} when this is a fuel recipe
+     * @param isXEIHidden              {@code true} when recipe viewers should hide it
+     * @param priority                 ordering hint used by recipe lookup
+     * @param recipeGroup              optional four-character group; {@code null} or empty means automatic group matching
+     * @param isForceParallelCatalyst whether automatic parallelization scales non-consumable input catalysts
+     */
+    public MBDRecipe(MBDRecipeType recipeType, ResourceLocation id, Map<RecipeCapability<?>, List<Content>> inputs, Map<RecipeCapability<?>, List<Content>> outputs, List<RecipeCondition> conditions, CompoundTag data, int duration, boolean isFuel, boolean isXEIHidden, int priority, @Nullable String recipeGroup, boolean isForceParallelCatalyst) {
         this.recipeType = recipeType;
         this.id = id;
         this.inputs = inputs;
@@ -117,6 +148,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
         this.duration = duration;
         this.isFuel = isFuel;
         this.isXEIHidden = isXEIHidden;
+        this.isForceParallelCatalyst = isForceParallelCatalyst;
         this.priority = priority;
         this.recipeGroup = RecipeGroup.normalizeOptional(recipeGroup);
     }
@@ -136,6 +168,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      * @return new mutable map containing copied content lists
      */
     public Map<RecipeCapability<?>, List<Content>> copyContents(Map<RecipeCapability<?>, List<Content>> contents, boolean deep, @Nullable ContentModifier modifier) {
+        return copyContents(contents, deep, modifier, false);
+    }
+
+    private Map<RecipeCapability<?>, List<Content>> copyContents(Map<RecipeCapability<?>, List<Content>> contents, boolean deep,
+                                                                   @Nullable ContentModifier modifier, boolean scaleNonConsumable) {
         Map<RecipeCapability<?>, List<Content>> copyContents = new HashMap<>();
         for (var entry : contents.entrySet()) {
             var contentList = entry.getValue();
@@ -146,7 +183,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                     if (deep) {
                         contentsCopy.add(content.deepCopy(cap, modifier));
                     } else {
-                        contentsCopy.add(content.copy(cap, modifier));
+                        contentsCopy.add(content.copy(cap, modifier, scaleNonConsumable));
                     }
                 }
                 copyContents.put(entry.getKey(), contentsCopy);
@@ -163,7 +200,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      * but copies input/output content wrappers
      */
     public MBDRecipe copy(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, false, null), copyContents(outputs, false, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
     }
 
     /**
@@ -173,7 +210,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      * @return recipe copy with deep-copied input/output content payloads
      */
     public MBDRecipe deepCopied(ResourceLocation id) {
-        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+        return new MBDRecipe(recipeType, id, copyContents(inputs, true, null), copyContents(outputs, true, null), conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
     }
 
     /**
@@ -223,9 +260,9 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      */
     public MBDRecipe copy(ContentModifier modifier, boolean modifyDuration, IO io) {
         var copied = new MBDRecipe(recipeType, id,
-                (io == IO.BOTH || io == IO.IN) ? copyContents(inputs, false, modifier) : inputs,
+                (io == IO.BOTH || io == IO.IN) ? copyContents(inputs, false, modifier, isForceParallelCatalyst) : inputs,
                 (io == IO.BOTH || io == IO.OUT) ? copyContents(outputs, false, modifier) : outputs,
-                conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup);
+                conditions, data, duration, isFuel, isXEIHidden, priority, recipeGroup, isForceParallelCatalyst);
         if (modifyDuration) {
             copied.duration = modifier.apply(this.duration).intValue();
         }
@@ -248,6 +285,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                 .duration(duration)
                 .isFuel(isFuel)
                 .isXEIHidden(isXEIHidden)
+                .isForceParallelCatalyst(isForceParallelCatalyst)
                 .priority(priority);
         builder.data = data.copy();
         builder.input.putAll(copyContents(inputs, true, null));
@@ -272,6 +310,8 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             builder.id(id);
             builder.duration(duration);
             builder.isFuel(isFuel);
+            builder.isXEIHidden(isXEIHidden);
+            builder.isForceParallelCatalyst(isForceParallelCatalyst);
             builder.priority(priority);
             builder.data = data.copy();
             builder.inputs.putAll(copyContents(inputs, true, null));

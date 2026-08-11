@@ -703,6 +703,8 @@
   "recipe.priority.tooltip": "配方优先级。如果有几个配方满足要求，最低的将首先处理。",
   "recipe.xei_hidden": "在 XEI 中隐藏",
   "recipe.xei_hidden.tooltip": "是否在配方查看器中显示该配方。",
+  "recipe.force_parallel_catalyst": "强制并行催化剂",
+  "recipe.force_parallel_catalyst.tooltip": "是否在配方并行时按并行次数要求非消耗催化剂。",
   "recipe_type.fuel": "%s 燃料",
   "ldlib.gui.editor.register.editor.machine.sm": "单方块机器项目",
   "ldlib.gui.editor.register.editor.machine.mb": "多方块机器项目",

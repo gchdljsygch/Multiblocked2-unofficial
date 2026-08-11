@@ -704,6 +704,8 @@
   "recipe.priority.tooltip": "recipe priority. If there are several recipes meet requires, the lowest one will be processed first.",
   "recipe.xei_hidden": "xei hidden",
   "recipe.xei_hidden.tooltip": "Whether the recipe should be shown in the recipe viewer.",
+  "recipe.force_parallel_catalyst": "force parallel catalysts",
+  "recipe.force_parallel_catalyst.tooltip": "Whether non-consumable inputs must be supplied once per parallel recipe.",
   "recipe_type.fuel": "%s fuel",
   "ldlib.gui.editor.register.editor.machine.sm": "Single Machine Project",
   "ldlib.gui.editor.register.editor.machine.mb": "Multiblock Project",

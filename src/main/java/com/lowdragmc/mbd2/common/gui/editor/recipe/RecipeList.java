@@ -114,23 +114,32 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                         inputs.set(createContents(recipe.inputs, 0, 20));
                         selectableWidgetGroup.addWidget(inputs.get());
                     }, IO.IN));
+            var recipeSettingWidth = Math.max(1, w / 4);
+            var recipeSettingsWidth = recipeSettingWidth * 4;
+            var recipeSettingsX = (w - recipeSettingsWidth) / 2;
             var durationWidget = new NumberConfigurator("recipe.duration", () -> recipe.duration, v -> recipe.duration = v.intValue(), 100, true);
             durationWidget.setRange(1, Integer.MAX_VALUE);
             durationWidget.setTips(isFuel ? "recipe.duration.fuel.tooltip" : "recipe.duration.common.tooltip");
-            durationWidget.init(100);
-            durationWidget.setSelfPosition((w - 300) / 2, h / 2 - 7);
+            durationWidget.init(recipeSettingWidth);
+            durationWidget.setSelfPosition(recipeSettingsX, h / 2 - 7);
             container.addWidget(durationWidget);
             var priorityWidget = new NumberConfigurator("recipe.priority", () -> recipe.priority, v -> recipe.priority = v.intValue(), 0, true);
             priorityWidget.setRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
             priorityWidget.setTips("recipe.priority.tooltip");
-            priorityWidget.init(100);
-            priorityWidget.setSelfPosition((w - 300) / 2 + 100, h / 2 - 7);
+            priorityWidget.init(recipeSettingWidth);
+            priorityWidget.setSelfPosition(recipeSettingsX + recipeSettingWidth, h / 2 - 7);
             container.addWidget(priorityWidget);
             var xeiHiddenWidget = new BooleanConfigurator("recipe.xei_hidden", () -> recipe.isXEIHidden, v -> recipe.isXEIHidden = v, false, true);
             xeiHiddenWidget.setTips("recipe.xei_hidden.tooltip");
-            xeiHiddenWidget.init(100);
-            xeiHiddenWidget.setSelfPosition((w - 300) / 2 + 200, h / 2 - 7);
+            xeiHiddenWidget.init(recipeSettingWidth);
+            xeiHiddenWidget.setSelfPosition(recipeSettingsX + recipeSettingWidth * 2, h / 2 - 7);
             container.addWidget(xeiHiddenWidget);
+            var forceParallelCatalystWidget = new BooleanConfigurator("recipe.force_parallel_catalyst", () -> recipe.isForceParallelCatalyst,
+                    v -> recipe.isForceParallelCatalyst = v, false, true);
+            forceParallelCatalystWidget.setTips("recipe.force_parallel_catalyst.tooltip");
+            forceParallelCatalystWidget.init(recipeSettingWidth);
+            forceParallelCatalystWidget.setSelfPosition(recipeSettingsX + recipeSettingWidth * 3, h / 2 - 7);
+            container.addWidget(forceParallelCatalystWidget);
             if (!isFuel) {
                 container.addWidget(new ImageWidget(0, h / 2 + 8, w, 10, new TextTexture(IO.OUT.getTooltip()).setWidth(w)))
                         .addWidget(outputsContainer = new ContentContainer(0, h / 2 + 18, w, h / 2 - 18, recipe.outputs, () -> {
