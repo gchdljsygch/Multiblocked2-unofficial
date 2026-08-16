@@ -25,7 +25,12 @@ import com.lowdragmc.mbd2.common.gui.widget.ThreadProgressDigitsLabelWidget;
 import com.lowdragmc.mbd2.common.gui.widget.ThreadStatusLabelWidget;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Definition for the multi-lane recipe thread trait.
@@ -75,6 +80,9 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
 
     @Persisted
     private final java.util.List<String> threadBlacklistEntries = new java.util.ArrayList<>();
+
+    private transient long recipeFilterRevision;
+    private transient long threadConfigRevision;
 
     /**
      * Creates the runtime recipe-thread trait after normalizing per-thread config list sizes.
@@ -292,7 +300,11 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
      * @param text     localization key/literal text; {@code null} or blank becomes an empty string
      */
     public void setThreadIdleText(int threadId, String text) {
-        threadIdleTexts.set(threadId, normalizeTextOrEmpty(text));
+        String normalized = normalizeTextOrEmpty(text);
+        if (!Objects.equals(threadIdleTexts.get(threadId), normalized)) {
+            threadIdleTexts.set(threadId, normalized);
+            threadConfigRevision++;
+        }
     }
 
     /**
@@ -312,7 +324,11 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
      * @param text     localization key/literal text; {@code null} or blank becomes an empty string
      */
     public void setThreadRunningText(int threadId, String text) {
-        threadRunningTexts.set(threadId, normalizeTextOrEmpty(text));
+        String normalized = normalizeTextOrEmpty(text);
+        if (!Objects.equals(threadRunningTexts.get(threadId), normalized)) {
+            threadRunningTexts.set(threadId, normalized);
+            threadConfigRevision++;
+        }
     }
 
     /**
@@ -332,7 +348,11 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
      * @param text     localization key/literal text; {@code null} or blank becomes an empty string
      */
     public void setThreadWaitingText(int threadId, String text) {
-        threadWaitingTexts.set(threadId, normalizeTextOrEmpty(text));
+        String normalized = normalizeTextOrEmpty(text);
+        if (!Objects.equals(threadWaitingTexts.get(threadId), normalized)) {
+            threadWaitingTexts.set(threadId, normalized);
+            threadConfigRevision++;
+        }
     }
 
     /**
@@ -363,6 +383,62 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
         return result;
     }
 
+    long getRecipeFilterRevision() {
+        return recipeFilterRevision;
+    }
+
+    long getThreadConfigRevision() {
+        return threadConfigRevision;
+    }
+
+    List<RecipeThreadFilter> createThreadRecipeFilters(int requestedThreadCount) {
+        int threadCount = Math.max(1, requestedThreadCount);
+        List<Set<String>> whitelists = createMutableFilterSets(threadCount);
+        List<Set<String>> blacklists = createMutableFilterSets(threadCount);
+        collectFilterEntries(threadWhitelistEntries, whitelists);
+        collectFilterEntries(threadBlacklistEntries, blacklists);
+
+        List<RecipeThreadFilter> filters = new ArrayList<>(threadCount);
+        for (int threadId = 0; threadId < threadCount; threadId++) {
+            Set<String> whitelist = whitelists.get(threadId);
+            Set<String> blacklist = blacklists.get(threadId);
+            filters.add(whitelist.isEmpty() && blacklist.isEmpty()
+                    ? RecipeThreadFilter.ALLOW_ALL
+                    : new RecipeThreadFilter(whitelist, blacklist));
+        }
+        return List.copyOf(filters);
+    }
+
+    private static List<Set<String>> createMutableFilterSets(int threadCount) {
+        List<Set<String>> filters = new ArrayList<>(threadCount);
+        for (int threadId = 0; threadId < threadCount; threadId++) {
+            filters.add(new HashSet<>());
+        }
+        return filters;
+    }
+
+    private static void collectFilterEntries(List<String> entries, List<Set<String>> filtersByThread) {
+        for (String entry : entries) {
+            if (entry == null) continue;
+            String trimmed = entry.trim();
+            int separator = trimmed.indexOf('|');
+            if (separator <= 0 || separator == trimmed.length() - 1) continue;
+
+            int threadId;
+            try {
+                threadId = Integer.parseInt(trimmed.substring(0, separator).trim());
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            if (threadId < 0 || threadId >= filtersByThread.size()) continue;
+
+            ResourceLocation recipeId = ResourceLocation.tryParse(trimmed.substring(separator + 1).trim());
+            if (recipeId != null) {
+                filtersByThread.get(threadId).add(recipeId.toString().toLowerCase(Locale.ROOT));
+            }
+        }
+    }
+
     private java.util.List<ResourceLocation> getThreadWhitelist(int threadId) {
         java.util.List<ResourceLocation> list = new java.util.ArrayList<>();
         String prefix = threadId + "|";
@@ -385,6 +461,8 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
             if (id == null) continue;
             threadWhitelistEntries.add(prefix + id);
         }
+        recipeFilterRevision++;
+        threadConfigRevision++;
     }
 
     private java.util.List<ResourceLocation> getThreadBlacklist(int threadId) {
@@ -409,6 +487,8 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
             if (id == null) continue;
             threadBlacklistEntries.add(prefix + id);
         }
+        recipeFilterRevision++;
+        threadConfigRevision++;
     }
 
     private void syncThreadConfigCount() {
@@ -439,6 +519,8 @@ public class RecipeThreadTraitDefinition extends TraitDefinition implements IUIP
             }
             return true;
         });
+        recipeFilterRevision++;
+        threadConfigRevision++;
     }
 
     private static String normalizeTextOrEmpty(String text) {

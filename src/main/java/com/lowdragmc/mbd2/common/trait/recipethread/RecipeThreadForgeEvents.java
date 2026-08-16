@@ -84,7 +84,6 @@ public final class RecipeThreadForgeEvents {
         if (trait == null) return;
         if (event.getOldStatus() == com.lowdragmc.mbd2.api.recipe.RecipeLogic.Status.WORKING) {
             trait.markRecipeAssignmentDirty();
-            trait.ensureRecipeAssignment();
         }
     }
 }

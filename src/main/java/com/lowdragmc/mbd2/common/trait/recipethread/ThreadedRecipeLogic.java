@@ -5,6 +5,7 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,9 +32,13 @@ public class ThreadedRecipeLogic extends RecipeLogic {
     @Persisted
     private final Set<String> blacklist = new HashSet<>();
 
-    private final Set<String> externalRecipeBlocklist = new HashSet<>();
-    private final Set<String> externalRecipeAllowlist = new HashSet<>();
-    private boolean externalRecipeAllowlistEnabled;
+    private volatile Set<String> externalRecipeBlocklist = Set.of();
+    private volatile Set<String> externalRecipeAllowlist = Set.of();
+    private volatile Set<ResourceLocation> externalRecipeAllowlistIds = Set.of();
+    private volatile boolean externalRecipeAllowlistEnabled;
+    private volatile boolean unassignedSearchSuppressed;
+    private volatile boolean forceExhaustiveSearch;
+    private volatile SearchCoverage lastSearchCoverage = SearchCoverage.EXHAUSTIVE;
 
     @DropSaved
     @Persisted
@@ -88,6 +93,13 @@ public class ThreadedRecipeLogic extends RecipeLogic {
         return blacklist;
     }
 
+    void replaceConfiguredRecipeFilters(RecipeThreadFilter filter) {
+        whitelist.clear();
+        whitelist.addAll(filter.whitelist());
+        blacklist.clear();
+        blacklist.addAll(filter.blacklist());
+    }
+
     /**
      * Replaces the transient blocklist supplied by the coordinator.
      *
@@ -97,10 +109,9 @@ public class ThreadedRecipeLogic extends RecipeLogic {
      * @param recipeIdsLowercase lower-case recipe ids to reject during search
      */
     public void setExternalRecipeBlocklist(Set<String> recipeIdsLowercase) {
-        externalRecipeBlocklist.clear();
-        if (recipeIdsLowercase != null) {
-            externalRecipeBlocklist.addAll(recipeIdsLowercase);
-        }
+        externalRecipeBlocklist = recipeIdsLowercase == null || recipeIdsLowercase.isEmpty()
+                ? Set.of()
+                : Set.copyOf(recipeIdsLowercase);
     }
 
     /**
@@ -117,8 +128,9 @@ public class ThreadedRecipeLogic extends RecipeLogic {
             return;
         }
         externalRecipeAllowlistEnabled = true;
-        externalRecipeAllowlist.clear();
-        externalRecipeAllowlist.addAll(recipeIdsLowercase);
+        unassignedSearchSuppressed = false;
+        externalRecipeAllowlist = Set.copyOf(recipeIdsLowercase);
+        externalRecipeAllowlistIds = parseRecipeIds(recipeIdsLowercase);
     }
 
     /**
@@ -126,7 +138,28 @@ public class ThreadedRecipeLogic extends RecipeLogic {
      */
     public void disableExternalRecipeAllowlist() {
         externalRecipeAllowlistEnabled = false;
-        externalRecipeAllowlist.clear();
+        unassignedSearchSuppressed = false;
+        externalRecipeAllowlist = Set.of();
+        externalRecipeAllowlistIds = Set.of();
+    }
+
+    void setAssignedRecipeId(String recipeIdLowercase) {
+        setAssignedRecipeId(recipeIdLowercase, true);
+    }
+
+    void setAssignedRecipeId(String recipeIdLowercase, boolean discoverWhenUnassigned) {
+        if (recipeIdLowercase == null || recipeIdLowercase.isEmpty()) {
+            externalRecipeAllowlistEnabled = false;
+            unassignedSearchSuppressed = !discoverWhenUnassigned;
+            externalRecipeAllowlist = Set.of();
+            externalRecipeAllowlistIds = Set.of();
+            return;
+        }
+        externalRecipeAllowlistEnabled = true;
+        unassignedSearchSuppressed = false;
+        externalRecipeAllowlist = Set.of(recipeIdLowercase);
+        ResourceLocation recipeId = ResourceLocation.tryParse(recipeIdLowercase);
+        externalRecipeAllowlistIds = recipeId == null ? Set.of() : Set.of(recipeId);
     }
 
     /**
@@ -209,29 +242,70 @@ public class ThreadedRecipeLogic extends RecipeLogic {
     }
 
     /**
-     * Searches recipes and filters candidates for this lane.
+     * Searches the assigned recipe first and falls back to one exhaustive discovery search when the assignment no
+     * longer matches machine contents.
      *
-     * <p>Filtering order is external allowlist, persisted blacklist, external blocklist, then persisted whitelist.
-     * Recipe ids are compared as lower-case strings. The returned list is newly allocated and safe for
-     * {@link RecipeLogic} to mutate.</p>
+     * <p>The assigned-id predicate runs before capability simulation, so a stable lane matches at most its assigned
+     * recipe instead of every recipe in the machine's recipe types. Immutable allowlist snapshots keep this path safe
+     * when the base logic performs searching asynchronously.</p>
      *
-     * @return recipe candidates allowed for this lane
+     * @return raw matches for the assigned recipe, or exhaustive matches during discovery
      */
     @Override
     protected List<MBDRecipe> searchRecipe() {
-        var allRecipes = super.searchRecipe();
+        if (!externalRecipeAllowlistEnabled && unassignedSearchSuppressed) {
+            lastSearchCoverage = SearchCoverage.SKIPPED;
+            return List.of();
+        }
+        Set<ResourceLocation> assignmentSnapshot = externalRecipeAllowlistIds;
+        boolean recoveringAssignment = forceExhaustiveSearch;
+        boolean restrictToAssignment = externalRecipeAllowlistEnabled
+                && !assignmentSnapshot.isEmpty()
+                && !recoveringAssignment;
+        forceExhaustiveSearch = false;
 
-        List<MBDRecipe> candidates = new ArrayList<>();
+        if (restrictToAssignment) {
+            List<MBDRecipe> assignedMatches = searchRecipesById(assignmentSnapshot);
+            if (!assignedMatches.isEmpty()) {
+                lastSearchCoverage = SearchCoverage.ASSIGNED;
+                return assignedMatches;
+            }
+            recoveringAssignment = true;
+        }
+
+        lastSearchCoverage = recoveringAssignment
+                ? SearchCoverage.RECOVERY_EXHAUSTIVE
+                : SearchCoverage.EXHAUSTIVE;
+        return super.searchRecipe();
+    }
+
+    @Override
+    protected boolean wasLastRecipeSearchExhaustive() {
+        return lastSearchCoverage == SearchCoverage.EXHAUSTIVE
+                || lastSearchCoverage == SearchCoverage.RECOVERY_EXHAUSTIVE;
+    }
+
+    /**
+     * Applies the latest lane filters after the coordinator has consumed exhaustive search results and refreshed
+     * assignments on the logical server thread.
+     */
+    @Override
+    protected List<MBDRecipe> filterSearchedRecipes(List<MBDRecipe> allRecipes) {
+        Set<String> assignmentSnapshot = externalRecipeAllowlist;
+        Set<String> blocklistSnapshot = externalRecipeBlocklist;
+        boolean assignmentEnabled = externalRecipeAllowlistEnabled && !isRecoveringAssignment();
+
+        List<MBDRecipe> candidates = new ArrayList<>(allRecipes.size());
 
         for (MBDRecipe recipe : allRecipes) {
-            String recipeId = recipe.getId() == null ? "" : recipe.getId().toString().toLowerCase(Locale.ROOT);
-            if (externalRecipeAllowlistEnabled && !externalRecipeAllowlist.contains(recipeId)) {
+            String recipeId = recipeId(recipe);
+            if (assignmentEnabled && !assignmentSnapshot.contains(recipeId)) {
                 continue;
             }
             if (!blacklist.isEmpty() && blacklist.contains(recipeId)) {
                 continue;
             }
-            if (!externalRecipeBlocklist.isEmpty() && externalRecipeBlocklist.contains(recipeId)) {
+            if (!blocklistSnapshot.isEmpty() && blocklistSnapshot.contains(recipeId)) {
                 continue;
             }
             if (!whitelist.isEmpty() && !whitelist.contains(recipeId)) {
@@ -241,6 +315,51 @@ public class ThreadedRecipeLogic extends RecipeLogic {
         }
 
         return candidates;
+    }
+
+    @Override
+    protected void onRecipeSearchHandled(boolean recipeStarted) {
+        SearchCoverage handledCoverage = lastSearchCoverage;
+        if (handledCoverage == SearchCoverage.ASSIGNED && !recipeStarted) {
+            forceExhaustiveSearch = true;
+        } else if (handledCoverage == SearchCoverage.RECOVERY_EXHAUSTIVE && recipeStarted) {
+            RecipeThreadTrait trait = RecipeThreadTrait.get(machine);
+            if (trait != null) {
+                trait.markRecipeAssignmentDirty();
+            }
+        }
+        if (handledCoverage == SearchCoverage.RECOVERY_EXHAUSTIVE) {
+            lastSearchCoverage = SearchCoverage.SKIPPED;
+        }
+    }
+
+    boolean isRecoveringAssignment() {
+        return lastSearchCoverage == SearchCoverage.RECOVERY_EXHAUSTIVE;
+    }
+
+    private static String recipeId(MBDRecipe recipe) {
+        return recipe == null || recipe.getId() == null
+                ? ""
+                : recipe.getId().toString().toLowerCase(Locale.ROOT);
+    }
+
+    private static Set<ResourceLocation> parseRecipeIds(Set<String> recipeIdsLowercase) {
+        if (recipeIdsLowercase == null || recipeIdsLowercase.isEmpty()) return Set.of();
+        Set<ResourceLocation> recipeIds = new HashSet<>(recipeIdsLowercase.size());
+        for (String recipeId : recipeIdsLowercase) {
+            ResourceLocation parsed = ResourceLocation.tryParse(recipeId);
+            if (parsed != null) {
+                recipeIds.add(parsed);
+            }
+        }
+        return recipeIds.isEmpty() ? Set.of() : Set.copyOf(recipeIds);
+    }
+
+    private enum SearchCoverage {
+        SKIPPED,
+        ASSIGNED,
+        EXHAUSTIVE,
+        RECOVERY_EXHAUSTIVE
     }
 
     /**

@@ -21,6 +21,7 @@ import com.lowdragmc.mbd2.api.capability.recipe.*;
 import com.lowdragmc.mbd2.api.machine.IMachine;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeType;
+import com.lowdragmc.mbd2.api.recipe.IRecipeSearchResultListener;
 import com.lowdragmc.mbd2.api.recipe.RecipeConsumption;
 import com.lowdragmc.mbd2.api.recipe.RecipeLogic;
 import com.lowdragmc.mbd2.api.recipe.content.ContentModifier;
@@ -103,7 +104,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * LowDragLib RPCs to tracking clients.
  */
 @Getter
-public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder {
+public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvider, IUIHolder, IRecipeSearchResultListener {
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MBDMachine.class);
     private static final int GAME_DELAY_SYNC_INTERVAL = 20;
     private static final int GAME_DELAY_AVERAGE_WINDOW_SECONDS = 10;
@@ -731,6 +732,20 @@ public class MBDMachine implements IMachine, IEnhancedManaged, ICapabilityProvid
             case SUSPEND -> setMachineState("suspend");
         }
         MinecraftForge.EVENT_BUS.post(new MachineRecipeStatusChangedEvent(this, oldStatus, newStatus).postCustomEvent());
+    }
+
+    /**
+     * Forwards completed recipe-search snapshots to the optional recipe-thread scheduler.
+     *
+     * <p>{@link RecipeLogic} invokes this callback on the logical server thread even when candidate discovery ran on
+     * the background executor. Machines without a recipe-thread trait pay only the trait lookup cost.</p>
+     */
+    @Override
+    public void onRecipeSearchResults(RecipeLogic source, List<MBDRecipe> candidates, boolean exhaustive) {
+        RecipeThreadTrait trait = RecipeThreadTrait.get(this);
+        if (trait != null) {
+            trait.onRecipeSearchResults(source, candidates, exhaustive);
+        }
     }
 
     /**

@@ -20,6 +20,7 @@ import lombok.Setter;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -31,7 +32,9 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
 /**
  * Runtime state machine that finds, starts, ticks, waits, finishes, and
@@ -502,10 +505,70 @@ public class RecipeLogic implements IEnhancedManaged {
      * @return candidate recipes in recipe-type-defined order
      */
     protected List<MBDRecipe> searchRecipe() {
+        return searchRecipes(recipe -> true);
+    }
+
+    /**
+     * Searches recipe types while rejecting known-ineligible candidates before capability simulation.
+     *
+     * <p>This extension point lets specialized recipe logics constrain stable searches by recipe metadata. The
+     * predicate can run on the background executor when asynchronous searching is enabled and must therefore use
+     * thread-safe snapshots.</p>
+     *
+     * @param candidateFilter cheap predicate applied before {@link MBDRecipe#matchRecipe}
+     * @return matching candidates in global priority order
+     */
+    protected List<MBDRecipe> searchRecipes(Predicate<? super MBDRecipe> candidateFilter) {
         return machine.getRecipeTypes().stream()
-                .flatMap(recipeType -> recipeType.searchRecipe(getRecipeManager(), this.machine).stream())
+                .flatMap(recipeType -> recipeType.searchRecipe(getRecipeManager(), this.machine, candidateFilter).stream())
                 .sorted(Comparator.comparingInt(r -> r.priority))
                 .toList();
+    }
+
+    /**
+     * Resolves and matches a small set of known recipe ids without scanning every recipe in each configured type.
+     *
+     * <p>This is the stable scheduling path for assigned recipe lanes. Recipe-manager lookup occurs before capability
+     * simulation, recipes from unrelated types and fuel recipes are rejected, and the remaining matches retain normal
+     * priority ordering.</p>
+     *
+     * @param candidateIds exact recipe ids to resolve
+     * @return currently matching non-fuel MBD recipes owned by this machine's configured recipe types
+     */
+    protected List<MBDRecipe> searchRecipesById(Set<ResourceLocation> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty() || !machine.hasProxies()) return List.of();
+        RecipeManager recipeManager = getRecipeManager();
+        return machine.getRecipeTypes().stream()
+                .flatMap(recipeType -> recipeType.searchRecipesById(recipeManager, machine, candidateIds).stream())
+                .sorted(Comparator.comparingInt(recipe -> recipe.priority))
+                .toList();
+    }
+
+    /**
+     * Reports whether the most recently completed search considered all recipe candidates.
+     *
+     * @return {@code true} for the standard unfiltered recipe logic
+     */
+    protected boolean wasLastRecipeSearchExhaustive() {
+        return true;
+    }
+
+    /**
+     * Applies logic-specific filtering after search observers have consumed the raw result snapshot.
+     *
+     * @param matches raw matching candidates
+     * @return candidates this logic should validate and potentially start
+     */
+    protected List<MBDRecipe> filterSearchedRecipes(List<MBDRecipe> matches) {
+        return matches;
+    }
+
+    /**
+     * Notifies specialized logic after a searched candidate batch has been handled.
+     *
+     * @param recipeStarted {@code true} when one candidate transitioned this logic to working
+     */
+    protected void onRecipeSearchHandled(boolean recipeStarted) {
     }
 
 
@@ -546,9 +609,7 @@ public class RecipeLogic implements IEnhancedManaged {
                     // if searching task is done, try to handle searched recipes.
                     try {
                         var matches = lastFuture.join().stream().filter(match -> match.matchRecipe(machine).isSuccess()).toList();
-                        if (!matches.isEmpty()) {
-                            handleSearchingRecipes(matches);
-                        }
+                        handleSearchingRecipes(matches);
                     } catch (Throwable throwable) {
                         // if error occurred, schedule a new async task.
                         completableFuture = supplyAsyncSearchingTask();
@@ -586,15 +647,23 @@ public class RecipeLogic implements IEnhancedManaged {
      * @param matches candidate recipes from synchronous or asynchronous search
      */
     private void handleSearchingRecipes(List<MBDRecipe> matches) {
-        for (MBDRecipe match : matches) {
+        if (machine instanceof IRecipeSearchResultListener listener) {
+            listener.onRecipeSearchResults(this, matches, wasLastRecipeSearchExhaustive());
+        }
+        boolean recipeStarted = false;
+        for (MBDRecipe match : filterSearchedRecipes(matches)) {
             // try to modify recipe by machine, such as overclock, tier checking.
-            if (checkMatchedRecipeAvailable(match)) break;
+            if (checkMatchedRecipeAvailable(match)) {
+                recipeStarted = true;
+                break;
+            }
             // cache matching recipes.
             if (lastFailedMatches == null) {
                 lastFailedMatches = new ArrayList<>();
             }
             lastFailedMatches.add(match);
         }
+        onRecipeSearchHandled(recipeStarted);
     }
 
     /**

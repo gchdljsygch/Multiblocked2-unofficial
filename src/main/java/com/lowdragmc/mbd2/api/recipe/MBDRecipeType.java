@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -384,14 +385,70 @@ public class MBDRecipeType implements RecipeType<MBDRecipe>, ITagSerializable<Co
      * the holder has no recipe proxies
      */
     public List<MBDRecipe> searchRecipe(RecipeManager recipeManager, IRecipeCapabilityHolder holder) {
+        return searchRecipe(recipeManager, holder, recipe -> true);
+    }
+
+    /**
+     * Searches non-fuel recipes after applying a cheap candidate prefilter.
+     *
+     * <p>The prefilter runs before capability simulation and is intended for schedulers that already know the recipe
+     * ids a logical lane may execute. It must depend only on immutable recipe metadata and thread-safe snapshots when
+     * asynchronous recipe searching is enabled.</p>
+     *
+     * @param recipeManager  manager containing recipes for this type
+     * @param holder         machine or other capability holder used for matching
+     * @param candidateFilter predicate evaluated before expensive recipe matching
+     * @return matching non-fuel recipes sorted by ascending priority
+     */
+    public List<MBDRecipe> searchRecipe(RecipeManager recipeManager,
+                                        IRecipeCapabilityHolder holder,
+                                        Predicate<? super MBDRecipe> candidateFilter) {
         if (!holder.hasProxies()) return Collections.emptyList();
+        Objects.requireNonNull(candidateFilter, "candidateFilter");
         List<MBDRecipe> matches = new ArrayList<>();
         for (MBDRecipe recipe : recipeManager.getAllRecipesFor(this)) {
-            if (!recipe.isFuel && recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess()) {
+            if (!recipe.isFuel
+                    && candidateFilter.test(recipe)
+                    && recipe.matchRecipe(holder).isSuccess()
+                    && recipe.matchTickRecipe(holder).isSuccess()) {
                 matches.add(recipe);
             }
         }
         matches.sort(Comparator.comparingInt(r -> r.priority));
+        return matches;
+    }
+
+    /**
+     * Resolves and matches exact recipe ids for an assigned logical recipe lane.
+     *
+     * <p>Subclasses that expose recipes outside the vanilla recipe-manager index may override this method while
+     * retaining the same non-fuel and simulation-only contract.</p>
+     *
+     * @param recipeManager manager containing recipes for this type
+     * @param holder        machine or other capability holder used for matching
+     * @param candidateIds  exact recipe ids to resolve
+     * @return matching recipes from this type sorted by ascending priority
+     */
+    public List<MBDRecipe> searchRecipesById(RecipeManager recipeManager,
+                                             IRecipeCapabilityHolder holder,
+                                             Set<ResourceLocation> candidateIds) {
+        if (!holder.hasProxies() || candidateIds == null || candidateIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<MBDRecipe> matches = new ArrayList<>(candidateIds.size());
+        for (ResourceLocation candidateId : candidateIds) {
+            if (candidateId == null) continue;
+            Recipe<?> candidate = recipeManager.byKey(candidateId).orElse(null);
+            if (!(candidate instanceof MBDRecipe recipe)
+                    || recipe.isFuel
+                    || recipe.getType() != this) {
+                continue;
+            }
+            if (recipe.matchRecipe(holder).isSuccess() && recipe.matchTickRecipe(holder).isSuccess()) {
+                matches.add(recipe);
+            }
+        }
+        matches.sort(Comparator.comparingInt(recipe -> recipe.priority));
         return matches;
     }
 

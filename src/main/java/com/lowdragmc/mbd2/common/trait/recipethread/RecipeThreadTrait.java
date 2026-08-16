@@ -13,11 +13,9 @@ import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -45,9 +43,16 @@ public class RecipeThreadTrait implements ITrait {
 
     private boolean allowlistDirty = true;
     private boolean lastOriginalWorking;
+    private boolean lastAllowSameRecipe;
     private List<String> assignedRecipeIdLowercaseByThread = List.of();
+    private List<String> candidateRecipeIdsLowercase = List.of();
     private int lastCandidateRecipeCount;
     private boolean tickFailureLogged;
+    private List<RecipeThreadFilter> threadRecipeFilters = List.of();
+    private long cachedRecipeFilterRevision = Long.MIN_VALUE;
+    private long appliedRecipeFilterRevision = Long.MIN_VALUE;
+    private long appliedThreadConfigRevision = Long.MIN_VALUE;
+    private int appliedRecipeFilterThreadCount = -1;
 
     /**
      * Creates a recipe-thread coordinator for one machine and synchronizes its lane count.
@@ -58,6 +63,7 @@ public class RecipeThreadTrait implements ITrait {
     public RecipeThreadTrait(MBDMachine machine, RecipeThreadTraitDefinition definition) {
         this.machine = machine;
         this.definition = definition;
+        this.lastAllowSameRecipe = definition.allowSameRecipe;
         updateThreads();
     }
 
@@ -69,6 +75,34 @@ public class RecipeThreadTrait implements ITrait {
     }
 
     /**
+     * Consumes candidates already found by a real recipe-logic search.
+     *
+     * <p>Only exhaustive searches replace the shared candidate snapshot. Restricted lane searches are deliberately
+     * ignored because they contain at most one assigned id and would otherwise collapse assignments for other lanes.
+     * The assignment is refreshed synchronously so the same candidate batch is filtered with the new lane plan.</p>
+     *
+     * @param source     logic that initiated the search
+     * @param candidates matching recipes produced by that search
+     * @param exhaustive whether every recipe candidate was considered before matching
+     */
+    public void onRecipeSearchResults(RecipeLogic source, List<MBDRecipe> candidates, boolean exhaustive) {
+        if (!exhaustive || !ownsRecipeLogic(source)) return;
+        try {
+            List<String> candidateIds = normalizeCandidateRecipeIds(candidates);
+            if (!candidateIds.equals(candidateRecipeIdsLowercase)) {
+                candidateRecipeIdsLowercase = candidateIds;
+                allowlistDirty = true;
+            }
+            if (allowlistDirty) {
+                updateThreadRecipeAllowlists();
+                allowlistDirty = false;
+            }
+        } catch (RuntimeException e) {
+            handleTickFailure("recipe search result", e);
+        }
+    }
+
+    /**
      * Synchronizes extra lane count and recomputes assignment allowlists when necessary.
      *
      * <p>This method is safe to call from event hooks during recipe search. Runtime exceptions are logged once and
@@ -76,11 +110,11 @@ public class RecipeThreadTrait implements ITrait {
      */
     public void ensureRecipeAssignment() {
         try {
-            int beforeExtraCount = extraThreads.size();
-            updateThreads();
-            if (beforeExtraCount != extraThreads.size()) {
+            refreshSchedulingConfig();
+            if (updateThreads()) {
                 allowlistDirty = true;
             }
+            refreshThreadRecipeFilters(Math.max(1, definition.maxThreads));
             if (allowlistDirty) {
                 updateThreadRecipeAllowlists();
                 allowlistDirty = false;
@@ -137,21 +171,26 @@ public class RecipeThreadTrait implements ITrait {
      * list size is {@code maxThreads - 1}. Older persisted data that accidentally contains thread id {@code 0} in the
      * extra list is discarded.</p>
      */
-    private void updateThreads() {
+    private boolean updateThreads() {
         int targetCount = Math.max(1, definition.maxThreads);
         int targetExtra = Math.max(0, targetCount - 1);
+        boolean changed = false;
 
         if (!extraThreads.isEmpty() && extraThreads.get(0).getThreadId() == 0) {
             extraThreads.clear();
+            changed = true;
         }
 
         while (extraThreads.size() < targetExtra) {
             extraThreads.add(new ThreadedRecipeLogic(machine, extraThreads.size() + 1));
+            changed = true;
         }
 
         while (extraThreads.size() > targetExtra) {
             extraThreads.remove(extraThreads.size() - 1);
+            changed = true;
         }
+        return changed;
     }
 
     /**
@@ -166,21 +205,29 @@ public class RecipeThreadTrait implements ITrait {
     public void serverTick() {
         try {
             RecipeThreadContext.clearIfMachine(machine);
-            if (machine.getOffsetTimer() % 5 == 0) {
-                allowlistDirty = true;
-            }
+            refreshSchedulingConfig();
             boolean originalWorking = machine.getRecipeLogic().isWorking();
-            if (lastOriginalWorking && !originalWorking) {
+            if (lastOriginalWorking != originalWorking) {
                 allowlistDirty = true;
             }
             lastOriginalWorking = originalWorking;
-            int beforeExtraCount = extraThreads.size();
-            updateThreads();
-            if (beforeExtraCount != extraThreads.size()) {
+            boolean threadsChanged = updateThreads();
+            if (threadsChanged) {
                 allowlistDirty = true;
             }
+            int totalThreads = Math.max(1, definition.maxThreads);
+            List<RecipeThreadFilter> filters = refreshThreadRecipeFilters(totalThreads);
+            boolean configurationNeedsApplying = threadsChanged
+                    || appliedRecipeFilterRevision != cachedRecipeFilterRevision
+                    || appliedThreadConfigRevision != definition.getThreadConfigRevision()
+                    || appliedRecipeFilterThreadCount != totalThreads;
             for (ThreadedRecipeLogic logic : extraThreads) {
-                applyDefinitionConfig(logic);
+                applyDefinitionConfig(logic, filters.get(logic.getThreadId()), configurationNeedsApplying);
+            }
+            if (configurationNeedsApplying) {
+                appliedRecipeFilterRevision = cachedRecipeFilterRevision;
+                appliedThreadConfigRevision = definition.getThreadConfigRevision();
+                appliedRecipeFilterThreadCount = totalThreads;
             }
 
             if (allowlistDirty) {
@@ -468,16 +515,17 @@ public class RecipeThreadTrait implements ITrait {
         if (recipe == null || recipe.getId() == null) return true;
         if (threadId < 0 || threadId >= Math.max(1, definition.maxThreads)) return true;
         String id = recipe.getId().toString().toLowerCase(Locale.ROOT);
-        if (!assignedRecipeIdLowercaseByThread.isEmpty() && threadId < assignedRecipeIdLowercaseByThread.size()) {
+        boolean recoveringAssignment = threadId > 0
+                && threadId <= extraThreads.size()
+                && extraThreads.get(threadId - 1).isRecoveringAssignment();
+        if (!recoveringAssignment
+                && !assignedRecipeIdLowercaseByThread.isEmpty()
+                && threadId < assignedRecipeIdLowercaseByThread.size()) {
             String assigned = assignedRecipeIdLowercaseByThread.get(threadId);
             if (assigned != null && !assigned.isEmpty() && !assigned.equals(id)) return false;
         }
-        List<String> blacklist = definition.getThreadBlacklistIdsLowercase(threadId);
-        if (!blacklist.isEmpty() && blacklist.contains(id)) {
-            return false;
-        }
-        List<String> whitelist = definition.getThreadWhitelistIdsLowercase(threadId);
-        if (!whitelist.isEmpty() && !whitelist.contains(id)) {
+        RecipeThreadFilter filter = refreshThreadRecipeFilters(Math.max(1, definition.maxThreads)).get(threadId);
+        if (!filter.allows(id)) {
             return false;
         }
         if (!definition.allowSameRecipe && isRecipeIdRunningInOtherThreads(id, threadId)) {
@@ -486,19 +534,15 @@ public class RecipeThreadTrait implements ITrait {
         return true;
     }
 
-    private void applyDefinitionConfig(ThreadedRecipeLogic logic) {
+    private void applyDefinitionConfig(ThreadedRecipeLogic logic,
+                                       RecipeThreadFilter filter,
+                                       boolean configurationNeedsApplying) {
+        if (!configurationNeedsApplying) return;
         int threadId = logic.getThreadId();
         logic.setIdleText(definition.getThreadIdleText(threadId));
         logic.setRunningText(definition.getThreadRunningText(threadId));
         logic.setWaitingText(definition.getThreadWaitingText(threadId));
-        logic.getWhitelist().clear();
-        for (String id : definition.getThreadWhitelistIdsLowercase(threadId)) {
-            logic.getWhitelist().add(id);
-        }
-        logic.getBlacklist().clear();
-        for (String id : definition.getThreadBlacklistIdsLowercase(threadId)) {
-            logic.getBlacklist().add(id);
-        }
+        logic.replaceConfiguredRecipeFilters(filter);
     }
 
     private void updateThreadRecipeAllowlists() {
@@ -506,102 +550,89 @@ public class RecipeThreadTrait implements ITrait {
         if (totalThreads <= 1) {
             assignedRecipeIdLowercaseByThread = List.of();
             lastCandidateRecipeCount = 0;
-            for (ThreadedRecipeLogic logic : extraThreads) {
-                logic.disableExternalRecipeAllowlist();
-            }
+            applyAssignmentsToExtraThreads(List.of());
             return;
         }
 
-        List<MBDRecipe> matches = machine.getRecipeTypes().stream()
-                .flatMap(recipeType -> recipeType.searchRecipe(machine.getRecipeLogic().getRecipeManager(), machine).stream())
-                .toList();
-        List<String> recipeIdsLowercase = new ArrayList<>();
-        for (MBDRecipe recipe : matches) {
-            if (recipe == null || recipe.getId() == null) continue;
-            recipeIdsLowercase.add(recipe.getId().toString().toLowerCase(Locale.ROOT));
-        }
-
-        recipeIdsLowercase = recipeIdsLowercase.stream().distinct().toList();
-        lastCandidateRecipeCount = recipeIdsLowercase.size();
-        if (recipeIdsLowercase.isEmpty()) {
+        List<String> runningRecipeIdsByThread = collectRunningRecipeIdsByThread(totalThreads);
+        RecipeThreadAssignmentPlanner.Assignment assignment = RecipeThreadAssignmentPlanner.plan(
+                totalThreads,
+                candidateRecipeIdsLowercase,
+                assignedRecipeIdLowercaseByThread,
+                runningRecipeIdsByThread,
+                refreshThreadRecipeFilters(totalThreads),
+                definition.allowSameRecipe);
+        lastCandidateRecipeCount = assignment.candidateRecipeCount();
+        if (assignment.recipeIdsByThread().isEmpty()) {
             assignedRecipeIdLowercaseByThread = List.of();
-            for (ThreadedRecipeLogic logic : extraThreads) {
-                logic.disableExternalRecipeAllowlist();
-            }
+            applyAssignmentsToExtraThreads(List.of());
             return;
         }
 
-        List<String> assigned = new ArrayList<>(Collections.nCopies(totalThreads, ""));
-        Map<String, Integer> counts = new HashMap<>();
-
-        String originalWorkingId = machine.getRecipeLogic().isWorking() ? getCurrentRecipeIdLowercase(machine.getRecipeLogic()) : "";
-        if (!originalWorkingId.isEmpty()) {
-            assigned.set(0, originalWorkingId);
-            counts.put(originalWorkingId, counts.getOrDefault(originalWorkingId, 0) + 1);
-        }
-        for (ThreadedRecipeLogic logic : extraThreads) {
-            if (!logic.isWorking()) continue;
-            String id = getCurrentRecipeIdLowercase(logic);
-            if (id.isEmpty()) continue;
-            int threadId = logic.getThreadId();
-            if (threadId >= 1 && threadId < totalThreads) {
-                assigned.set(threadId, id);
-                counts.put(id, counts.getOrDefault(id, 0) + 1);
-            }
-        }
-
-        for (int threadId = 0; threadId < totalThreads; threadId++) {
-            if (!assigned.get(threadId).isEmpty()) continue;
-            String sticky = "";
-            if (sticky != null && !sticky.isEmpty() && recipeIdsLowercase.contains(sticky) && isRecipeIdAllowedByThreadConfig(threadId, sticky)) {
-                int stickyCount = counts.getOrDefault(sticky, 0);
-                if (!definition.allowSameRecipe && stickyCount > 0) {
-                    continue;
-                }
-                int bestCount = Integer.MAX_VALUE;
-                for (String id : recipeIdsLowercase) {
-                    if (!isRecipeIdAllowedByThreadConfig(threadId, id)) continue;
-                    if (!definition.allowSameRecipe && counts.getOrDefault(id, 0) > 0) continue;
-                    bestCount = Math.min(bestCount, counts.getOrDefault(id, 0));
-                }
-                if (stickyCount <= bestCount + 1) {
-                    assigned.set(threadId, sticky);
-                    counts.put(sticky, stickyCount + 1);
-                    continue;
-                }
-            }
-
-            String bestId = "";
-            int bestCount = Integer.MAX_VALUE;
-            for (String id : recipeIdsLowercase) {
-                if (!isRecipeIdAllowedByThreadConfig(threadId, id)) continue;
-                int c = counts.getOrDefault(id, 0);
-                if (!definition.allowSameRecipe && c > 0) continue;
-                if (c < bestCount) {
-                    bestCount = c;
-                    bestId = id;
-                }
-            }
-            if (!bestId.isEmpty()) {
-                assigned.set(threadId, bestId);
-                counts.put(bestId, counts.getOrDefault(bestId, 0) + 1);
-            }
-        }
-
-        for (int i = 0; i < extraThreads.size(); i++) {
-            String id = (i + 1) < assigned.size() ? assigned.get(i + 1) : "";
-            extraThreads.get(i).setExternalRecipeAllowlist(id == null || id.isEmpty() ? Set.of() : Set.of(id));
-        }
-        assignedRecipeIdLowercaseByThread = assigned;
+        applyAssignmentsToExtraThreads(assignment.recipeIdsByThread());
+        assignedRecipeIdLowercaseByThread = assignment.recipeIdsByThread();
     }
 
-    private boolean isRecipeIdAllowedByThreadConfig(int threadId, String idLowercase) {
-        if (idLowercase == null || idLowercase.isEmpty()) return true;
-        List<String> blacklist = definition.getThreadBlacklistIdsLowercase(threadId);
-        if (!blacklist.isEmpty() && blacklist.contains(idLowercase)) return false;
-        List<String> whitelist = definition.getThreadWhitelistIdsLowercase(threadId);
-        if (!whitelist.isEmpty() && !whitelist.contains(idLowercase)) return false;
-        return true;
+    private void applyAssignmentsToExtraThreads(List<String> recipeIdsByThread) {
+        boolean discoveryAssigned = false;
+        boolean needsExtraDiscovery = !candidateRecipeIdsLowercase.isEmpty()
+                || !machine.getRecipeLogic().isIdle();
+        for (int i = 0; i < extraThreads.size(); i++) {
+            String recipeId = (i + 1) < recipeIdsByThread.size() ? recipeIdsByThread.get(i + 1) : "";
+            boolean discoverWhenUnassigned = false;
+            if ((recipeId == null || recipeId.isEmpty()) && needsExtraDiscovery && !discoveryAssigned) {
+                discoverWhenUnassigned = true;
+                discoveryAssigned = true;
+            }
+            extraThreads.get(i).setAssignedRecipeId(recipeId, discoverWhenUnassigned);
+        }
+    }
+
+    private static List<String> normalizeCandidateRecipeIds(List<MBDRecipe> candidates) {
+        if (candidates == null || candidates.isEmpty()) return List.of();
+        List<String> recipeIds = new ArrayList<>(candidates.size());
+        Set<String> seen = new HashSet<>(Math.max(16, candidates.size()));
+        for (MBDRecipe recipe : candidates) {
+            if (recipe == null || recipe.getId() == null) continue;
+            String recipeId = recipe.getId().toString().toLowerCase(Locale.ROOT);
+            if (seen.add(recipeId)) {
+                recipeIds.add(recipeId);
+            }
+        }
+        return recipeIds.isEmpty() ? List.of() : List.copyOf(recipeIds);
+    }
+
+    private List<String> collectRunningRecipeIdsByThread(int totalThreads) {
+        List<String> runningRecipeIds = new ArrayList<>(Collections.nCopies(totalThreads, ""));
+        RecipeLogic original = machine.getRecipeLogic();
+        if (original.isWorking()) {
+            runningRecipeIds.set(0, getCurrentRecipeIdLowercase(original));
+        }
+        for (ThreadedRecipeLogic logic : extraThreads) {
+            int threadId = logic.getThreadId();
+            if (logic.isWorking() && threadId >= 1 && threadId < totalThreads) {
+                runningRecipeIds.set(threadId, getCurrentRecipeIdLowercase(logic));
+            }
+        }
+        return runningRecipeIds;
+    }
+
+    private List<RecipeThreadFilter> refreshThreadRecipeFilters(int totalThreads) {
+        long definitionRevision = definition.getRecipeFilterRevision();
+        if (cachedRecipeFilterRevision != definitionRevision || threadRecipeFilters.size() != totalThreads) {
+            threadRecipeFilters = definition.createThreadRecipeFilters(totalThreads);
+            cachedRecipeFilterRevision = definitionRevision;
+            allowlistDirty = true;
+        }
+        return threadRecipeFilters;
+    }
+
+    private void refreshSchedulingConfig() {
+        boolean allowSameRecipe = definition.allowSameRecipe;
+        if (lastAllowSameRecipe != allowSameRecipe) {
+            lastAllowSameRecipe = allowSameRecipe;
+            allowlistDirty = true;
+        }
     }
 
     private Set<String> collectRunningRecipeIdsLowercase() {
@@ -645,5 +676,14 @@ public class RecipeThreadTrait implements ITrait {
         if (threadId == 0) return machine.getRecipeLogic();
         if (threadId < 1 || threadId > extraThreads.size()) return null;
         return extraThreads.get(threadId - 1);
+    }
+
+    private boolean ownsRecipeLogic(RecipeLogic logic) {
+        if (logic == machine.getRecipeLogic()) return true;
+        if (!(logic instanceof ThreadedRecipeLogic threaded)) return false;
+        int threadId = threaded.getThreadId();
+        return threadId >= 1
+                && threadId <= extraThreads.size()
+                && extraThreads.get(threadId - 1) == threaded;
     }
 }
