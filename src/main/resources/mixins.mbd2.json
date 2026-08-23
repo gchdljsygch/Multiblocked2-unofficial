@@ -24,6 +24,7 @@
     "lowdraglib.IRendererResourceContainerMixin",
     "lowdraglib.RendererBlockRendererMixin",
     "lowdraglib.ResourceContainerMixin",
+    "lowdraglib.SearchEngineMixin",
     "lowdraglib.SceneWidgetRenderedCoreMixin",
     "lowdraglib.WorldSceneRendererRenderMixin",
     "fusion.ConnectingBakedModelMixin"

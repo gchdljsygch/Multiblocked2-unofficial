@@ -35,6 +35,15 @@ public class Content {
 
     @Getter
     public Object content;
+    /**
+     * Monotonic UI invalidation token for previews that render this content.
+     *
+     * <p>Ingredient configurators can mutate the current payload in place, so
+     * object identity and serialized data are not sufficient to tell every
+     * preview that its texture must be rebuilt. This state is editor-only and
+     * deliberately excluded from recipe serialization.</p>
+     */
+    private long previewVersion;
     @Configurable(name = "editor.machine.recipe_type.content.per_tick", tips = "editor.machine.recipe_type.content.per_tick.tooltip")
     public boolean perTick;
     @Configurable(name = "editor.machine.recipe_type.content.chance", tips = "editor.machine.recipe_type.content.chance.tooltip")
@@ -147,6 +156,25 @@ public class Content {
      */
     public boolean hasOutputRange() {
         return minOutput >= 0 && maxOutput >= minOutput;
+    }
+
+    /**
+     * Replaces the capability payload and invalidates all client-side previews
+     * that reference this content wrapper.
+     *
+     * @param content updated capability payload; it may be the same mutable
+     *                instance when a configurator changed it in place
+     */
+    public void updateContent(Object content) {
+        this.content = content;
+        previewVersion++;
+    }
+
+    /**
+     * Returns the current editor-preview invalidation token.
+     */
+    public long getPreviewVersion() {
+        return previewVersion;
     }
 
     /**

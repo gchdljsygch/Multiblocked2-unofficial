@@ -851,12 +851,12 @@ public class BlockPattern {
         int[] reservedPerSlot = player.isCreative() ? null : new int[player.getInventory().items.size()];
         IItemHandler boundItemHandler = null;
         IFluidHandler boundFluidHandler = null;
-        ItemStack builderStack = ItemStack.EMPTY;
-        boolean slowBuild = false;
+        ItemStack builderStack = BuilderMaterialBindings.findBuilderStack(player);
+        // Build pacing is a tool option, not a material-consumption option. Creative players
+        // still need their held builder's slow mode to schedule the placement plan.
+        boolean slowBuild = BuilderMaterialBindings.isSlowBuild(builderStack);
         if (!player.isCreative()) {
-            builderStack = BuilderMaterialBindings.findBuilderStack(player);
             if (!builderStack.isEmpty()) {
-                slowBuild = BuilderMaterialBindings.isSlowBuild(builderStack);
                 var dim = world.dimension().location();
 
                 var itemBound = BuilderMaterialBindings.readBoundItemPos(builderStack);

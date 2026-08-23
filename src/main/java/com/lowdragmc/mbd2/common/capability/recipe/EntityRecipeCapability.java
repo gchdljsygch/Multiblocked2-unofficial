@@ -180,17 +180,20 @@ public class EntityRecipeCapability extends RecipeCapability<EntityIngredient> {
             newValues[values.length] = value;
             entityIngredient.values = newValues;
             entityIngredient.types = null;
+            onUpdate.accept(entityIngredient);
         });
         valuesGroup.setOnRemove(value -> {
             var entityIngredient = supplier.get();
             var values = entityIngredient.values;
             entityIngredient.values = Arrays.stream(values).filter(v -> v != value).toArray(EntityIngredient.Value[]::new);
             entityIngredient.types = null;
+            onUpdate.accept(entityIngredient);
         });
         valuesGroup.setOnUpdate(values -> {
             var entityIngredient = supplier.get();
             entityIngredient.values = values.toArray(EntityIngredient.Value[]::new);
             entityIngredient.types = null;
+            onUpdate.accept(entityIngredient);
         });
         father.addConfigurators(valuesGroup);
         // entity nbt

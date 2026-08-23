@@ -15,7 +15,6 @@ import com.lowdragmc.mbd2.api.recipe.content.Content;
 import com.lowdragmc.mbd2.api.recipe.content.SerializerIngredient;
 import com.lowdragmc.mbd2.api.recipe.ingredient.SizedIngredient;
 import com.lowdragmc.mbd2.core.mixins.IngredientAccessor;
-import com.lowdragmc.mbd2.core.mixins.ItemValueAccessor;
 import com.lowdragmc.mbd2.core.mixins.StrictNBTIngredientAccessor;
 import com.lowdragmc.mbd2.core.mixins.TagValueAccessor;
 import com.mojang.datafixers.util.Either;
@@ -178,15 +177,8 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
             if (ingredient instanceof SizedIngredient sizedIngredient) {
                 return sizedIngredient.getInner();
             }
-            return Ingredient.of(Items.IRON_INGOT);
-        }, ingredient -> {
-            var current = supplier.get();
-            if (current instanceof SizedIngredient sizedIngredient) {
-                sizedIngredient.updateInnerIngredient(ingredient);
-            } else {
-                onUpdate.accept(SizedIngredient.create(ingredient, 1));
-            }
-        }, Ingredient.of(Items.IRON_INGOT), true, List.of(
+            return ingredient;
+        }, ingredient -> publishUpdatedIngredient(ingredient, supplier, onUpdate), Ingredient.of(Items.IRON_INGOT), true, List.of(
                 // ingredient type candidates
                 Ingredient.of(Items.IRON_INGOT),
                 StrictNBTIngredient.of(PotionUtils.setPotion(Items.POTION.getDefaultInstance(), Potions.FIRE_RESISTANCE))), ingredient -> {
@@ -223,23 +215,25 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                         var slot = new SlotWidget(itemHandler, 0, 0, 0, false, false);
                         slot.setClientSideWidget();
 
-                        if (value instanceof ItemValueAccessor itemValue) {
+                        if (value instanceof Ingredient.ItemValue) {
                             // item value
                             valueGroup.addConfigurators(new ItemConfigurator(ITEM_TYPE,
-                                    () -> itemValue.getItem().getItem(),
+                                    () -> value.getItems().stream().findFirst().map(ItemStack::getItem).orElse(Items.AIR),
                                     item -> {
-                                        itemValue.setItem(item.getDefaultInstance());
-                                        itemHandler.updateStacks(List.of(value.getItems().stream().toList()));
-                                        setter.accept(value);
+                                        var replacement = new Ingredient.ItemValue(item.getDefaultInstance());
+                                        itemHandler.updateStacks(List.of(replacement.getItems().stream().toList()));
+                                        setter.accept(replacement);
+                                        publishVanillaIngredientValues(replaceVanillaValue(vanillaIngredient.getValues(), value, replacement), supplier, onUpdate);
                                     },
                                     Items.IRON_INGOT, true));
                         } else if (value instanceof TagValueAccessor tagValue) {
                             // tag value
                             valueGroup.addConfigurators(new SearchComponentConfigurator<>(TAG_TYPE,
                                     () -> tagValue.getTag().location(), tagKey -> {
-                                tagValue.setTag(ItemTags.create(tagKey));
-                                itemHandler.updateStacks(List.of(value.getItems().stream().toList()));
-                                setter.accept(value);
+                                var replacement = new Ingredient.TagValue(ItemTags.create(tagKey));
+                                itemHandler.updateStacks(List.of(replacement.getItems().stream().toList()));
+                                setter.accept(replacement);
+                                publishVanillaIngredientValues(replaceVanillaValue(vanillaIngredient.getValues(), value, replacement), supplier, onUpdate);
                             }, ItemTags.COALS.location(), true, (word, find) -> {
                                 var tags = ForgeRegistries.ITEMS.tags();
                                 if (tags == null) return;
@@ -260,27 +254,15 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                     var values = vanillaIngredient.getValues();
                     var newValues = Arrays.copyOf(values, values.length + 1);
                     newValues[values.length] = value;
-                    vanillaIngredient.setValues(newValues);
-                    vanillaIngredient.setItemStacks(null);
-                    if (supplier.get() instanceof SizedIngredient sizedIngredient) {
-                        sizedIngredient.updateInnerIngredient(ingredient);
-                    }
+                    publishVanillaIngredientValues(newValues, supplier, onUpdate);
                 });
                 valuesGroup.setOnRemove(value -> {
                     var values = vanillaIngredient.getValues();
                     var newValues = Arrays.stream(values).filter(v -> v != value).toArray(Ingredient.Value[]::new);
-                    vanillaIngredient.setValues(newValues);
-                    vanillaIngredient.setItemStacks(null);
-                    if (supplier.get() instanceof SizedIngredient sizedIngredient) {
-                        sizedIngredient.updateInnerIngredient(ingredient);
-                    }
+                    publishVanillaIngredientValues(newValues, supplier, onUpdate);
                 });
                 valuesGroup.setOnUpdate(values -> {
-                    vanillaIngredient.setValues(values.toArray(Ingredient.Value[]::new));
-                    vanillaIngredient.setItemStacks(null);
-                    if (supplier.get() instanceof SizedIngredient sizedIngredient) {
-                        sizedIngredient.updateInnerIngredient(ingredient);
-                    }
+                    publishVanillaIngredientValues(values.toArray(Ingredient.Value[]::new), supplier, onUpdate);
                 });
                 group.addConfigurators(valuesGroup);
             } else if (ingredient instanceof StrictNBTIngredientAccessor accessor) {
@@ -289,12 +271,8 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                 var slot = new SlotWidget(itemHandler, 0, 0, 0, false, false);
                 slot.setClientSideWidget();
                 Consumer<ItemStack> updateStack = stack -> {
-                    accessor.setStack(stack);
                     itemHandler.setStackInSlot(0, stack);
-                    ((IngredientAccessor) accessor).setItemStacks(null);
-                    if (supplier.get() instanceof SizedIngredient sizedIngredient) {
-                        sizedIngredient.updateInnerIngredient(ingredient);
-                    }
+                    publishUpdatedIngredient(StrictNBTIngredient.of(stack), supplier, onUpdate);
                 };
                 group.addConfigurators(new ItemConfigurator("id",
                         () -> accessor.getStack().getItem(),
@@ -326,6 +304,35 @@ public class ItemRecipeCapability extends RecipeCapability<Ingredient> {
                 group.addConfigurators(new WrapperConfigurator("ldlib.gui.editor.group.preview", slot));
             }
         }));
+    }
+
+    private static Ingredient.Value[] replaceVanillaValue(Ingredient.Value[] values, Ingredient.Value previous,
+                                                           Ingredient.Value replacement) {
+        return Arrays.stream(values)
+                .map(value -> value == previous ? replacement : value)
+                .toArray(Ingredient.Value[]::new);
+    }
+
+    static void publishVanillaIngredientValues(Ingredient.Value[] values, Supplier<Ingredient> supplier,
+                                               Consumer<Ingredient> onUpdate) {
+        publishUpdatedIngredient(Ingredient.fromValues(Arrays.stream(values)), supplier, onUpdate);
+    }
+
+    /**
+     * Publishes a new outer wrapper after an inner ingredient was edited.
+     *
+     * <p>Both the inner ingredient and outer wrapper are newly created by the
+     * caller, so editor slots cannot retain derived stacks from an earlier
+     * candidate selection.</p>
+     */
+    static void publishUpdatedIngredient(Ingredient innerIngredient, Supplier<Ingredient> supplier,
+                                         Consumer<Ingredient> onUpdate) {
+        var current = supplier.get();
+        if (current instanceof SizedIngredient sizedIngredient) {
+            onUpdate.accept(SizedIngredient.create(innerIngredient, sizedIngredient.getAmount()));
+        } else {
+            onUpdate.accept(innerIngredient);
+        }
     }
 
     /**

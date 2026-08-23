@@ -79,6 +79,22 @@ class ContentOutputRangeTest {
     }
 
     @Test
+    void payloadUpdatesInvalidatePreviewsEvenWhenTheMutablePayloadIsReused() {
+        Object payload = new Object();
+        Content content = new Content(payload, false, 1, 0);
+
+        assertEquals(0, content.getPreviewVersion());
+        content.updateContent(payload);
+        assertEquals(1, content.getPreviewVersion());
+        assertEquals(payload, content.getContent());
+
+        Object replacement = new Object();
+        content.updateContent(replacement);
+        assertEquals(2, content.getPreviewVersion());
+        assertEquals(replacement, content.getContent());
+    }
+
+    @Test
     void builderOnlyCarriesRangeOnOutputs() {
         MBDRecipeBuilder builder = MBDRecipeBuilder.ofRaw().outputRange(2, 5);
         builder.inputs(CAPABILITY, 1L).outputs(CAPABILITY, 1L);

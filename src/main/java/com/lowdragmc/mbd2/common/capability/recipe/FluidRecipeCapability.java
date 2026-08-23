@@ -251,17 +251,20 @@ public class FluidRecipeCapability extends RecipeCapability<FluidIngredient> {
             newValues[values.length] = value;
             fluidIngredient.values = newValues;
             fluidIngredient.stacks = null;
+            onUpdate.accept(fluidIngredient);
         });
         valuesGroup.setOnRemove(value -> {
             var fluidIngredient = supplier.get();
             var values = fluidIngredient.values;
             fluidIngredient.values = Arrays.stream(values).filter(v -> v != value).toArray(FluidIngredient.Value[]::new);
             fluidIngredient.stacks = null;
+            onUpdate.accept(fluidIngredient);
         });
         valuesGroup.setOnUpdate(values -> {
             var fluidIngredient = supplier.get();
             fluidIngredient.values = values.toArray(FluidIngredient.Value[]::new);
             fluidIngredient.stacks = null;
+            onUpdate.accept(fluidIngredient);
         });
         father.addConfigurators(valuesGroup);
         // fluid nbt

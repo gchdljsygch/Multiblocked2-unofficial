@@ -33,8 +33,9 @@ import java.util.function.Consumer;
  * <p>The container displays mutable {@link Content} entries grouped by
  * {@link RecipeCapability}. Selecting a row opens both generic content fields and the
  * capability-specific content configurator. Context-menu add, copy, and remove operations
- * update the supplied content map directly and call {@code onContentUpdate} so the owning
- * recipe list can refresh its compact preview.</p>
+ * update the supplied content map directly and rebuild the owning recipe-row preview. Value
+ * edits keep the surrounding widget tree intact and notify {@code onContentChanged} so its
+ * existing compact preview can refresh in place.</p>
  *
  * <p>This widget is client editor UI. It is not thread-safe and assumes all mutations occur
  * on the render/UI thread.</p>
@@ -43,7 +44,10 @@ public class ContentContainer extends WidgetGroup {
     private final Map<RecipeCapability<?>, List<Content>> contents;
     private final IO io;
     private final DraggableScrollableWidgetGroup container;
-    private final Runnable onContentUpdate;
+    private final Runnable onContentsStructureChanged;
+    @Setter
+    private Runnable onContentChanged = () -> { };
+    private final Map<Content, ContentWidget<?>> contentWidgets = new IdentityHashMap<>();
     @Getter
     @Nullable
     private Tuple<RecipeCapability, Content> selected;
@@ -59,7 +63,7 @@ public class ContentContainer extends WidgetGroup {
      * @param width           widget width in pixels
      * @param height          widget height in pixels
      * @param contents        mutable capability-to-content map to edit
-     * @param onContentUpdate callback invoked after add, copy, or remove operations
+     * @param onContentUpdate callback invoked after structural content changes
      */
     public ContentContainer(int x, int y, int width, int height, Map<RecipeCapability<?>, List<Content>> contents, Runnable onContentUpdate) {
         this(x, y, width, height, contents, onContentUpdate, IO.BOTH);
@@ -80,7 +84,7 @@ public class ContentContainer extends WidgetGroup {
         super(x, y, width, height);
         this.contents = contents;
         this.io = io;
-        this.onContentUpdate = onContentUpdate;
+        this.onContentsStructureChanged = onContentUpdate;
         this.container = new DraggableScrollableWidgetGroup(0, 15, width, height - 15);
         this.container.setYScrollBarWidth(4).setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(2).transform(-0.5f, 0));
         this.container.setBackground(ColorPattern.T_WHITE.borderTexture(1));
@@ -148,6 +152,7 @@ public class ContentContainer extends WidgetGroup {
      */
     private void reloadContents() {
         container.clearAllWidgets();
+        contentWidgets.clear();
         for (var entry : contents.entrySet()) {
             var cap = (RecipeCapability) entry.getKey();
             var contentList = entry.getValue();
@@ -167,7 +172,8 @@ public class ContentContainer extends WidgetGroup {
                                 var contentGroup = new ConfiguratorGroup("editor.machine.basic_settings");
                                 ConfiguratorParser.createConfigurators(contentGroup, new HashMap<>(), content.getClass(), content);
                                 father.addConfigurators(contentGroup);
-                                cap.createContentConfigurator(father, () -> cap.of(content.content), c -> content.content = c, io);
+                                cap.createContentConfigurator(father, () -> cap.of(content.content),
+                                        updatedContent -> updateContent(content, updatedContent), io);
                             }
                         });
 
@@ -195,6 +201,7 @@ public class ContentContainer extends WidgetGroup {
         var width = container.getSizeWidth() - 5;
         var contentLine = new SelectableWidgetGroup(0, 0, width, 20);
         var contentWidget = new ContentWidget<>(0, 0, cap, content);
+        contentWidgets.put(content, contentWidget);
         var dur = 5;
         var x = 0;
         var showOutputRange = showOutputRangeColumns();
@@ -243,6 +250,19 @@ public class ContentContainer extends WidgetGroup {
         if (x + textFieldWidth > width) return contentLine;
         createStringField(contentLine, x, textFieldWidth, content.uiName, s -> content.uiName = s);
         return contentLine;
+    }
+
+    /**
+     * Applies a capability configurator update and immediately refreshes every
+     * editor preview that represents the owning recipe content.
+     */
+    private void updateContent(Content content, Object updatedContent) {
+        content.updateContent(updatedContent);
+        var contentWidget = contentWidgets.get(content);
+        if (contentWidget != null) {
+            contentWidget.refreshContent();
+        }
+        onContentChanged.run();
     }
 
     /**
@@ -316,7 +336,7 @@ public class ContentContainer extends WidgetGroup {
                                 contents.computeIfAbsent(cap, c -> new ArrayList<>()).add(
                                         new Content(content, false, 1, 0));
                                 reloadContents();
-                                onContentUpdate.run();
+                                onContentsStructureChanged.run();
                             });
                         }
                     });
@@ -326,7 +346,7 @@ public class ContentContainer extends WidgetGroup {
                     var copied = selected.getB().deepCopy(selected.getA(), null);
                     contents.computeIfAbsent(selected.getA(), cap -> new ArrayList<>()).add(copied);
                     reloadContents();
-                    onContentUpdate.run();
+                    onContentsStructureChanged.run();
                 });
                 menu.leaf(Icons.REMOVE_FILE, "editor.machine.recipe_type.remove_content", () -> {
                     var contentList = contents.getOrDefault(selected.getA(), Collections.emptyList());
@@ -337,7 +357,7 @@ public class ContentContainer extends WidgetGroup {
                     selected = null;
                     Editor.INSTANCE.getConfigPanel().clearAllConfigurators(MachineEditor.SECOND);
                     reloadContents();
-                    onContentUpdate.run();
+                    onContentsStructureChanged.run();
                 });
             }
             Editor.INSTANCE.openMenu(mouseX, mouseY, menu);

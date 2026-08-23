@@ -1,5 +1,6 @@
 package com.lowdragmc.mbd2.api.recipe.content;
 
+import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import lombok.Getter;
@@ -29,6 +30,7 @@ public class ContentWidget<T> extends WidgetGroup {
     private final RecipeCapability<T> cap;
     private final Content content;
     private Tag lastContentTag;
+    private long lastPreviewVersion;
 
     /**
      * Creates a 20x20 content preview widget.
@@ -45,8 +47,27 @@ public class ContentWidget<T> extends WidgetGroup {
         super(x, y, 20, 20);
         this.cap = cap;
         this.content = content;
-        this.lastContentTag = cap.serializer.toNBT(cap.of(content.getContent()));
-        var contentWidget = cap.createPreviewWidget(cap.of(content.getContent()));
+        this.lastContentTag = createContentTag();
+        this.lastPreviewVersion = content.getPreviewVersion();
+        var contentWidget = createPreviewWidget();
+        contentWidget.setSelfPosition(1, 1);
+        addWidget(contentWidget);
+    }
+
+    /**
+     * Rebuilds the preview widget after the editor changes the content value.
+     *
+     * <p>This is intentionally unconditional. Some ingredient configurators
+     * mutate a nested value in place, and their serialized representation can
+     * be cached or omit display-only state. Recreating the small preview keeps
+     * its texture synchronized with the editor's authoritative content.</p>
+     */
+    @OnlyIn(Dist.CLIENT)
+    public void refreshContent() {
+        lastContentTag = createContentTag();
+        lastPreviewVersion = content.getPreviewVersion();
+        clearAllWidgets();
+        var contentWidget = createPreviewWidget();
         contentWidget.setSelfPosition(1, 1);
         addWidget(contentWidget);
     }
@@ -61,14 +82,24 @@ public class ContentWidget<T> extends WidgetGroup {
     @OnlyIn(Dist.CLIENT)
     public void updateScreen() {
         super.updateScreen();
-        var currentTag = cap.serializer.toNBT(cap.of(content.getContent()));
-        if (!currentTag.equals(lastContentTag)) {
-            clearAllWidgets();
-            lastContentTag = currentTag;
-            var contentWidget = cap.createPreviewWidget(cap.of(content.getContent()));
-            contentWidget.setSelfPosition(1, 1);
-            addWidget(contentWidget);
+        var currentTag = createContentTag();
+        if (content.getPreviewVersion() != lastPreviewVersion || !currentTag.equals(lastContentTag)) {
+            refreshContent();
         }
+    }
+
+    /**
+     * Serializes a detached content snapshot for polling-based refreshes.
+     */
+    private Tag createContentTag() {
+        return cap.serializer.toNBT(cap.of(content.getContent())).copy();
+    }
+
+    /**
+     * Creates the capability-specific child preview for the current content.
+     */
+    private Widget createPreviewWidget() {
+        return cap.createPreviewWidget(cap.of(content.getContent()));
     }
 
     /**

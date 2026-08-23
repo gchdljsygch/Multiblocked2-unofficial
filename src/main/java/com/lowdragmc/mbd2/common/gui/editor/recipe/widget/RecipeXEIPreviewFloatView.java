@@ -99,6 +99,15 @@ public class RecipeXEIPreviewFloatView extends FloatViewWidget {
     }
 
     /**
+     * Rebuilds the current preview immediately after an editor content update.
+     */
+    public void refreshRecipe() {
+        if (recipe != null) {
+            loadRecipe(isFuel, recipe);
+        }
+    }
+
+    /**
      * Resizes the float view to fit the rendered template.
      *
      * @param width  content width in pixels

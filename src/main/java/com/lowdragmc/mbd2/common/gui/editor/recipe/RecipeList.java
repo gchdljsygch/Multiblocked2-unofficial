@@ -113,7 +113,12 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                         selectableWidgetGroup.removeWidget(inputs.get());
                         inputs.set(createContents(recipe.inputs, 0, 20));
                         selectableWidgetGroup.addWidget(inputs.get());
+                        recipeTypePanel.getFloatView().refreshRecipe();
                     }, IO.IN));
+            inputsContainer.setOnContentChanged(() -> {
+                refreshContents(inputs.get());
+                recipeTypePanel.getFloatView().refreshRecipe();
+            });
             var recipeSettingWidth = Math.max(1, w / 4);
             var recipeSettingsWidth = recipeSettingWidth * 4;
             var recipeSettingsX = (w - recipeSettingsWidth) / 2;
@@ -146,7 +151,12 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
                             selectableWidgetGroup.removeWidget(outputs.get());
                             outputs.set(createContents(recipe.outputs, getSizeWidth() - 24, -20));
                             selectableWidgetGroup.addWidget(outputs.get());
+                            recipeTypePanel.getFloatView().refreshRecipe();
                         }, IO.OUT));
+                outputsContainer.setOnContentChanged(() -> {
+                    refreshContents(outputs.get());
+                    recipeTypePanel.getFloatView().refreshRecipe();
+                });
                 inputsContainer.setOnSelected(outputsContainer::clearSelected);
                 outputsContainer.setOnSelected(inputsContainer::clearSelected);
             }
@@ -219,6 +229,14 @@ public class RecipeList extends DraggableScrollableWidgetGroup {
             if (left == 0) break;
         }
         return group;
+    }
+
+    /**
+     * Refreshes a recipe-row preview in place so an active configurator keeps
+     * its widget tree while its corresponding ingredient texture changes.
+     */
+    private static void refreshContents(WidgetGroup contents) {
+        contents.getWidgetsByType(ContentWidget.class).forEach(ContentWidget::refreshContent);
     }
 
     /**
