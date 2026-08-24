@@ -89,6 +89,11 @@ public record PressureAir(boolean isAir, float value) {
         }
 
         @Override
+        public boolean supportsOutputMultiplier(PressureAir content, long multiplier) {
+            return multiplier >= 0 && Float.isFinite(content.value * (float) multiplier);
+        }
+
+        @Override
         public PressureAir copyWithModifier(PressureAir content, ContentModifier modifier) {
             return new PressureAir(content.isAir, modifier.apply(content.value).floatValue());
         }

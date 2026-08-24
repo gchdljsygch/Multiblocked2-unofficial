@@ -227,11 +227,13 @@ public class ContentContainer extends WidgetGroup {
         if (x + textFieldWidth > width) return contentLine;
         if (showOutputRange) {
             boolean rangeEnabled = cap.supportsOutputRange();
-            long rangeMaximum = Math.max(0, cap.getMaxOutputAmount());
-            long displayedMin = rangeEnabled && (content.minOutput == Content.OUTPUT_RANGE_DISABLED
-                    || cap.supportsOutputAmount(content.minOutput)) ? content.minOutput : Content.OUTPUT_RANGE_DISABLED;
-            long displayedMax = rangeEnabled && (content.maxOutput == Content.OUTPUT_RANGE_DISABLED
-                    || cap.supportsOutputAmount(content.maxOutput)) ? content.maxOutput : Content.OUTPUT_RANGE_DISABLED;
+            long rangeMaximum = Long.MAX_VALUE;
+            boolean rangeValid = rangeEnabled && cap.supportsOutputRange(content.minOutput, content.maxOutput)
+                    && cap.supportsOutputMultiplier(content.content, content.maxOutput);
+            long displayedMin = rangeEnabled && (content.minOutput == Content.OUTPUT_RANGE_DISABLED || rangeValid)
+                    ? content.minOutput : Content.OUTPUT_RANGE_DISABLED;
+            long displayedMax = rangeEnabled && (content.maxOutput == Content.OUTPUT_RANGE_DISABLED || rangeValid)
+                    ? content.maxOutput : Content.OUTPUT_RANGE_DISABLED;
             createLongField(contentLine, x, textFieldWidth,
                     rangeEnabled ? displayedMin : Content.OUTPUT_RANGE_DISABLED,
                     rangeEnabled ? value -> content.minOutput = value : value -> { },
@@ -283,7 +285,7 @@ public class ContentContainer extends WidgetGroup {
      * Adds a bounded long text field to a content row.
      *
      * <p>{@code -1} is accepted by the output range fields as the disabled
-     * sentinel, while non-negative values represent an absolute amount.</p>
+     * sentinel, while non-negative values represent an output multiplier.</p>
      */
     private static void createLongField(WidgetGroup contentLine, int x, int textFieldWidth, long initial,
                                         Consumer<Long> setter, long min, long max, boolean active) {

@@ -6,7 +6,9 @@ import com.lowdragmc.lowdraglib.jei.IngredientIO;
 import com.lowdragmc.mbd2.api.capability.recipe.RecipeCapability;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.MBDRecipeBuilder;
+import com.lowdragmc.mbd2.api.recipe.ingredient.SizedIngredient;
 import com.lowdragmc.mbd2.common.capability.recipe.ForgeEnergyRecipeCapability;
+import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicWill;
 import com.lowdragmc.mbd2.integration.bloodmagic.BloodMagicWillRecipeCapability;
 import com.google.gson.JsonObject;
@@ -14,6 +16,7 @@ import io.netty.buffer.Unpooled;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.crafting.Ingredient;
 import org.junit.jupiter.api.Test;
 import wayoftime.bloodmagic.api.compat.EnumDemonWillType;
 
@@ -109,7 +112,7 @@ class ContentOutputRangeTest {
     }
 
     @Test
-    void exactLongReplacementAndRandomRollStayWithinInclusiveBounds() throws Exception {
+    void outputMultiplierAndRandomRollStayWithinInclusiveBounds() throws Exception {
         long large = Long.MAX_VALUE - 1;
         assertEquals(large, ContentModifier.value(large).apply(1L).longValue());
 
@@ -125,17 +128,41 @@ class ContentOutputRangeTest {
 
         Method copy = MBDRecipe.class.getDeclaredMethod("copyOutputContent", RecipeCapability.class, Content.class, boolean.class);
         copy.setAccessible(true);
-        Content output = new Content(99L, false, 1, 0, 2, 5);
-        assertEquals(5L, copy.invoke(null, CAPABILITY, output, true));
+        Content output = new Content(5L, false, 1, 0, 2, 4);
+        assertEquals(20L, copy.invoke(null, CAPABILITY, output, true));
         for (int i = 0; i < 500; i++) {
             long amount = (long) copy.invoke(null, CAPABILITY, output, false);
-            assertTrue(amount >= 2 && amount <= 5);
+            assertTrue(amount >= 10 && amount <= 20);
+            assertEquals(0, amount % 5);
         }
-        assertEquals(99L, output.getContent());
+        assertEquals(5L, output.getContent());
     }
 
     @Test
-    void outputRangeOnlyReplacesThePrimaryCapabilityAmount() throws Exception {
+    void itemOutputMultiplierScalesTheConfiguredItemCount() throws Exception {
+        Ingredient fiveItems = SizedIngredient.create(Ingredient.EMPTY, 5);
+        Content output = new Content(fiveItems, false, 1, 0, 2, 4);
+        Method copy = MBDRecipe.class.getDeclaredMethod("copyOutputContent", RecipeCapability.class, Content.class, boolean.class);
+        copy.setAccessible(true);
+
+        Ingredient maximum = (Ingredient) copy.invoke(null, ItemRecipeCapability.CAP, output, true);
+        assertEquals(20, ((SizedIngredient) maximum).getAmount());
+        assertTrue(ItemRecipeCapability.CAP.supportsOutputMultiplier(fiveItems, 4));
+        assertFalse(ItemRecipeCapability.CAP.supportsOutputMultiplier(fiveItems, (long) Integer.MAX_VALUE));
+    }
+
+    @Test
+    void automaticParallelScalesTheBaseOutputButNotItsMultiplierRange() {
+        Content output = new Content(5L, false, 1, 0, 2, 4);
+
+        Content parallel = output.copy(CAPABILITY, ContentModifier.multiplier(3));
+
+        assertEquals(15L, parallel.getContent());
+        assertRange(parallel, 2, 4);
+    }
+
+    @Test
+    void outputMultiplierOnlyScalesThePrimaryCapabilityAmount() throws Exception {
         BloodMagicWill original = new BloodMagicWill(EnumDemonWillType.DEFAULT, 10, 100);
         Content content = new Content(original, false, 1, 0, 3, 3);
 
@@ -143,7 +170,7 @@ class ContentOutputRangeTest {
         copy.setAccessible(true);
         BloodMagicWill rolled = (BloodMagicWill) copy.invoke(null, BloodMagicWillRecipeCapability.CAP, content, false);
 
-        assertEquals(3, rolled.amount());
+        assertEquals(30, rolled.amount());
         assertEquals(100, rolled.maxOutput());
     }
 
@@ -157,8 +184,9 @@ class ContentOutputRangeTest {
         assertFalse(SerializerDouble.INSTANCE.supportsOutputAmount((1L << 53) + 1));
 
         var capability = ForgeEnergyRecipeCapability.CAP;
-        assertTrue(capability.supportsOutputRange(0, Integer.MAX_VALUE));
-        assertFalse(capability.supportsOutputRange(0, (long) Integer.MAX_VALUE + 1));
+        assertTrue(capability.supportsOutputRange(0, (long) Integer.MAX_VALUE + 1));
+        assertTrue(capability.supportsOutputMultiplier(1, Integer.MAX_VALUE));
+        assertFalse(capability.supportsOutputMultiplier(1, (long) Integer.MAX_VALUE + 1));
 
         Content invalid = new Content(1, false, 1, 0, 0, (long) Integer.MAX_VALUE + 1);
         Content copied = invalid.copy(capability, null);
@@ -172,7 +200,7 @@ class ContentOutputRangeTest {
     }
 
     @Test
-    void narrowNumericCapabilitiesRejectUnrepresentableLongBounds() {
+    void narrowNumericCapabilitiesRejectUnrepresentableMultipliers() {
         long floatLimit = 1L << 24;
         long doubleLimit = 1L << 53;
 

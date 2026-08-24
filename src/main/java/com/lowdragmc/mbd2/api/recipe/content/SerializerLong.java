@@ -110,6 +110,11 @@ public class SerializerLong implements IContentSerializer<Long> {
         return 0L;
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(Long content, long multiplier) {
+        return IContentSerializer.supportsOutputMultiplier(content, multiplier, Long.MAX_VALUE);
+    }
+
     /**
      * Applies a content modifier and truncates the result to long.
      *

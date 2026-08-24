@@ -112,6 +112,11 @@ public class SerializerEntityIngredient implements IContentSerializer<EntityIngr
         return content.copy();
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(EntityIngredient content, long multiplier) {
+        return IContentSerializer.supportsOutputMultiplier(content.getCount(), multiplier, Integer.MAX_VALUE);
+    }
+
     /**
      * Copies an entity ingredient and applies a numeric modifier to its count.
      *

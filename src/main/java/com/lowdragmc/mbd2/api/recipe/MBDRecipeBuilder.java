@@ -69,10 +69,10 @@ public class MBDRecipeBuilder {
     public float chance = 1;
     @Setter
     public float tierChanceBoost = 0;
-    /** Inclusive lower bound for output amounts; {@code -1} disables it. */
+    /** Inclusive lower output multiplier; {@code 1} preserves the configured amount and {@code -1} disables it. */
     @Setter
     public long minOutput = -1;
-    /** Inclusive upper bound for output amounts; {@code -1} disables it. */
+    /** Inclusive upper output multiplier; {@code 1} preserves the configured amount and {@code -1} disables it. */
     @Setter
     public long maxOutput = -1;
     @Setter
@@ -228,11 +228,12 @@ public class MBDRecipeBuilder {
      */
     public <T> MBDRecipeBuilder output(RecipeCapability<T> capability, T... obj) {
         boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
-        long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
-        long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
         output.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost,
+                        rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? minOutput : Content.OUTPUT_RANGE_DISABLED,
+                        rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? maxOutput : Content.OUTPUT_RANGE_DISABLED,
+                        slotName, uiName)).toList());
         return this;
     }
 
@@ -285,22 +286,23 @@ public class MBDRecipeBuilder {
      */
     public <T> MBDRecipeBuilder outputs(RecipeCapability<T> capability, Object... obj) {
         boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
-        long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
-        long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
         output.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                 .map(capability::of)
-                .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
+                .map(o -> new Content(o, perTick, chance, tierChanceBoost,
+                        rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? minOutput : Content.OUTPUT_RANGE_DISABLED,
+                        rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? maxOutput : Content.OUTPUT_RANGE_DISABLED,
+                        slotName, uiName)).toList());
         return this;
     }
 
     /**
-     * Configures an inclusive absolute output amount range for subsequently
-     * added outputs. Both bounds must be non-negative and the maximum must be
-     * at least the minimum; otherwise subsequently added outputs keep their
-     * fixed configured amount.
+     * Configures an inclusive output multiplier range for subsequently added
+     * outputs. A multiplier of {@code 1} preserves the configured amount. Both
+     * bounds must be non-negative and the maximum must be at least the minimum;
+     * otherwise subsequently added outputs keep their fixed amount.
      *
-     * @param minOutput inclusive lower amount
-     * @param maxOutput inclusive upper amount
+     * @param minOutput inclusive lower multiplier
+     * @param maxOutput inclusive upper multiplier
      * @return this builder for chaining
      */
     public MBDRecipeBuilder outputRange(long minOutput, long maxOutput) {
@@ -310,11 +312,11 @@ public class MBDRecipeBuilder {
     }
 
     /**
-     * Applies an output range only while the supplied builder callback adds
-     * outputs, restoring the previous range afterwards.
+     * Applies an output multiplier range only while the supplied builder callback
+     * adds outputs, restoring the previous range afterwards.
      *
-     * @param minOutput inclusive lower amount
-     * @param maxOutput inclusive upper amount
+     * @param minOutput inclusive lower multiplier
+     * @param maxOutput inclusive upper multiplier
      * @param builder callback that adds outputs
      * @return this builder for chaining
      */

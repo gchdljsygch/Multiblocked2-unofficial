@@ -112,7 +112,8 @@ public class ContentWidget<T> extends WidgetGroup {
     @OnlyIn(Dist.CLIENT)
     public void drawInBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.drawInBackground(graphics, mouseX, mouseY, partialTicks);
-        content.createOverlay(cap.supportsOutputRange(content.minOutput, content.maxOutput))
+        content.createOverlay(cap.supportsOutputRange(content.minOutput, content.maxOutput)
+                        && cap.supportsOutputMultiplier(content.content, content.maxOutput))
                 .draw(graphics, mouseX, mouseY, getPositionX() + 1, getPositionY() + 1, 18, 18);
     }
 
@@ -131,7 +132,8 @@ public class ContentWidget<T> extends WidgetGroup {
             if (gui.getModularUIGui().tooltipTexts != null) {
                 tooltips.addAll(gui.getModularUIGui().tooltipTexts);
             }
-            content.appendTooltip(tooltips, cap.supportsOutputRange(content.minOutput, content.maxOutput));
+            content.appendTooltip(tooltips, cap.supportsOutputRange(content.minOutput, content.maxOutput)
+                    && cap.supportsOutputMultiplier(content.content, content.maxOutput));
             if (!tooltips.isEmpty()) {
                 gui.getModularUIGui().tooltipTexts = tooltips;
             }

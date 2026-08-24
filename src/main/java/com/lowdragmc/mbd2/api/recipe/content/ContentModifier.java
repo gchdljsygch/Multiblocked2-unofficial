@@ -60,6 +60,11 @@ public class ContentModifier implements IConfigurable {
         return new ContentModifier(multiplier, 0);
     }
 
+    /** Creates an exact integral multiplier without routing it through a double. */
+    public static ContentModifier multiplier(long multiplier) {
+        return new FixedMultiplierModifier(multiplier);
+    }
+
     /**
      * Creates a modifier that only adds to values.
      *
@@ -73,7 +78,7 @@ public class ContentModifier implements IConfigurable {
     /**
      * Creates a modifier that replaces a numeric amount with a fixed value.
      * Capability serializers apply the formula as {@code value * 0 + amount},
-     * which lets output-range handling use absolute amounts without knowing the
+     * which lets absolute amount replacement use exact values without knowing the
      * concrete capability type.
      *
      * @param amount replacement amount
@@ -112,6 +117,30 @@ public class ContentModifier implements IConfigurable {
                 return BigInteger.valueOf(value);
             }
             return value;
+        }
+    }
+
+    /** Modifier subtype used for exact integral multiplication. */
+    private static final class FixedMultiplierModifier extends ContentModifier {
+        private final long multiplier;
+
+        private FixedMultiplierModifier(long multiplier) {
+            super(multiplier, 0);
+            this.multiplier = multiplier;
+        }
+
+        @Override
+        public Number apply(Number number) {
+            if (number instanceof BigDecimal decimal) {
+                return decimal.multiply(BigDecimal.valueOf(multiplier));
+            }
+            if (number instanceof BigInteger bigInteger) {
+                return bigInteger.multiply(BigInteger.valueOf(multiplier));
+            }
+            if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
+                return BigInteger.valueOf(number.longValue()).multiply(BigInteger.valueOf(multiplier));
+            }
+            return number.doubleValue() * multiplier;
         }
     }
 

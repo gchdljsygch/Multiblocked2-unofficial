@@ -42,9 +42,15 @@ public class BloodMagicWillRecipeCapability extends RecipeCapability<BloodMagicW
      * is an independent ambient cap and must survive output-range rolls.
      */
     @Override
-    public BloodMagicWill copyContentWithOutputAmount(Object content, long amount) {
+    public BloodMagicWill copyContentWithOutputMultiplier(Object content, long multiplier) {
         BloodMagicWill will = (BloodMagicWill) content;
-        return new BloodMagicWill(will.type(), amount, will.maxOutput());
+        return new BloodMagicWill(will.type(), will.amount() * multiplier, will.maxOutput());
+    }
+
+    @Override
+    public boolean supportsOutputMultiplier(Object content, long multiplier) {
+        BloodMagicWill will = (BloodMagicWill) content;
+        return multiplier >= 0 && Double.isFinite(will.amount() * multiplier);
     }
 
     @Override

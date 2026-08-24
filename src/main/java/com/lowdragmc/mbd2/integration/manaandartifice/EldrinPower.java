@@ -110,6 +110,11 @@ public record EldrinPower(Affinity affinity, float amount) {
         }
 
         @Override
+        public boolean supportsOutputMultiplier(EldrinPower content, long multiplier) {
+            return multiplier >= 0 && Float.isFinite(content.amount * (float) multiplier);
+        }
+
+        @Override
         public EldrinPower copyWithModifier(EldrinPower content, ContentModifier modifier) {
             return new EldrinPower(content.affinity(), modifier.apply(content.amount()).floatValue());
         }

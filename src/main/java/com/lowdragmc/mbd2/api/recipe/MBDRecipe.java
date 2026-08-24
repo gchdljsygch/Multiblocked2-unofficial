@@ -77,8 +77,8 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      * @param outputs     capability output map keyed by capability
      * @param conditions  conditions that gate recipe execution
      * @param data        mutable custom NBT payload for recipe-specific metadata
-     * @param duration    base processing duration in ticks; negative values are
-     *                    preserved here but serializers may write an absolute value
+      * @param duration    base processing duration in ticks; negative values are
+      *                    preserved here but serializers may write an absolute value
      * @param isFuel      {@code true} when this recipe is used as fuel for another
      *                    recipe flow
      * @param isXEIHidden {@code true} to hide this recipe from recipe viewers
@@ -542,10 +542,11 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             Map<String, List> contentSlot = new HashMap<>();
             for (Content cont : entry.getValue()) {
                 if (cont.perTick != perTick) continue;
-                // Output ranges are matched against their upper bound so the
-                // machine has enough capacity for the value that can actually
-                // be produced. Inputs keep their configured value unchanged.
+                // Output multiplier ranges are matched against their upper bound
+                // so the machine has enough capacity for the value that can
+                // actually be produced. Inputs keep their configured value unchanged.
                 Object matchContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                        && capability.supportsOutputMultiplier(cont.content, cont.maxOutput)
                         ? copyOutputContent(capability, cont, true)
                         : cont.content;
                 if (cont.slotName.isEmpty()) {
@@ -701,6 +702,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
             for (Content cont : entry.getValue()) {
                 if (cont.perTick != perTick) continue;
                 Object searchContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                        && capability.supportsOutputMultiplier(cont.content, cont.maxOutput)
                         ? copyOutputContent(capability, cont, true)
                         : cont.content;
                 if (cont.slotName.isEmpty()) {
@@ -710,6 +712,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
                 }
                 if (cont.chance >= 1 || MBD2.RND.nextFloat() < (cont.chance + holder.getChanceTier() * cont.tierChanceBoost)) { // chance input
                     Object selectedContent = io == IO.OUT && capability.supportsOutputRange(cont.minOutput, cont.maxOutput)
+                            && capability.supportsOutputMultiplier(cont.content, cont.maxOutput)
                             ? copyOutputContent(capability, cont, false)
                             : cont.content;
                     if (cont.slotName.isEmpty()) {
@@ -739,25 +742,26 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
     }
 
     /**
-     * Copies one output content, optionally replacing its amount with a range
-     * endpoint or a freshly rolled value. Range metadata is intentionally kept
+     * Copies one output content, optionally multiplying its amount by a range
+     * endpoint or a freshly rolled factor. Range metadata is intentionally kept
      * on the wrapper rather than the capability payload so the recipe object
      * remains immutable while a machine is handling it.
      *
      * @param capability capability that owns the content value
      * @param content    wrapper to copy
-     * @param maximum    {@code true} to use the upper bound for simulation,
-     *                   {@code false} to roll an inclusive value
+     * @param maximum    {@code true} to use the upper multiplier for simulation,
+     *                   {@code false} to roll an inclusive multiplier
      * @return copied capability payload
      */
     private static Object copyOutputContent(RecipeCapability capability, Content content, boolean maximum) {
-        if (!capability.supportsOutputRange(content.minOutput, content.maxOutput)) {
+        if (!capability.supportsOutputRange(content.minOutput, content.maxOutput)
+                || !capability.supportsOutputMultiplier(content.content, content.maxOutput)) {
             return capability.copyContent(content.content);
         }
         long min = content.minOutput;
         long max = content.maxOutput;
-        long amount = maximum ? max : nextInclusiveLong(min, max);
-        return capability.copyContentWithOutputAmount(content.content, amount);
+        long multiplier = maximum ? max : nextInclusiveLong(min, max);
+        return capability.copyContentWithOutputMultiplier(content.content, multiplier);
     }
 
     /**
@@ -766,7 +770,7 @@ public class MBDRecipe implements net.minecraft.world.item.crafting.Recipe<Conta
      */
     private static long nextInclusiveLong(long min, long max) {
         if (min > max) {
-            throw new IllegalArgumentException("Minimum output amount cannot exceed its maximum");
+            throw new IllegalArgumentException("Minimum output multiplier cannot exceed its maximum");
         }
         if (min == max) return min;
         long size = max - min + 1;

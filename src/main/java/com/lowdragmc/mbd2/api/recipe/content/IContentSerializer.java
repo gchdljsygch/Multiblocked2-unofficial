@@ -24,7 +24,7 @@ public interface IContentSerializer<T> {
 
     /**
      * Returns the largest non-negative integral amount that this serializer can
-     * represent exactly when an output range selects it.
+     * represent exactly when an output multiplier selects it.
      *
      * <p>Output ranges are stored as {@code long} bounds, but the primary amount
      * carried by a capability may be narrower (for example an {@code int}) or
@@ -49,6 +49,29 @@ public interface IContentSerializer<T> {
      */
     default boolean supportsOutputAmount(long amount) {
         return amount >= 0 && amount <= getMaxOutputAmount();
+    }
+
+    /**
+     * Tests whether this content can be multiplied by an output multiplier
+     * without overflowing or losing a representable value. The default accepts
+     * non-negative factors; serializers with narrower amount limits should
+     * override this method.
+     *
+     * @param content source output content
+     * @param multiplier requested non-negative multiplier
+     * @return {@code true} when the multiplied content is representable
+     */
+    default boolean supportsOutputMultiplier(T content, long multiplier) {
+        return multiplier >= 0;
+    }
+
+    /**
+     * Checks a non-negative integral multiplication against an inclusive upper
+     * limit without overflowing an intermediate {@code long}.
+     */
+    static boolean supportsOutputMultiplier(long amount, long multiplier, long maximum) {
+        return amount >= 0 && multiplier >= 0 && maximum >= 0
+                && (amount == 0 || multiplier <= maximum / amount);
     }
 
     /**

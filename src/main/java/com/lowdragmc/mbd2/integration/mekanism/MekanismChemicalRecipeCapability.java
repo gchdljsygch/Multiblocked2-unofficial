@@ -265,6 +265,11 @@ public class MekanismChemicalRecipeCapability<CHEMICAL extends Chemical<CHEMICAL
             return (STACK) empty.getStack(0);
         }
 
+        @Override
+        public boolean supportsOutputMultiplier(STACK content, long multiplier) {
+            return IContentSerializer.supportsOutputMultiplier(content.getAmount(), multiplier, Long.MAX_VALUE);
+        }
+
         private static ResourceLocation parseResourceLocation(String id) {
             var location = ResourceLocation.tryParse(id);
             if (location == null) {

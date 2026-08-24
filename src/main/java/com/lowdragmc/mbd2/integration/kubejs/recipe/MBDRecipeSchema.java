@@ -98,10 +98,10 @@ public interface MBDRecipeSchema {
         public float chance = 1;
         @Setter
         public float tierChanceBoost = 0;
-        /** Inclusive lower output amount; {@code -1} disables this bound. */
+        /** Inclusive lower output multiplier; {@code 1} preserves the configured amount and {@code -1} disables it. */
         @Setter
         public long minOutput = -1;
-        /** Inclusive upper output amount; {@code -1} disables this bound. */
+        /** Inclusive upper output multiplier; {@code 1} preserves the configured amount and {@code -1} disables it. */
         @Setter
         public long maxOutput = -1;
         @Nullable
@@ -208,14 +208,14 @@ public interface MBDRecipeSchema {
             return this;
         }
 
-        /** Sets the inclusive absolute amount range for subsequently added outputs. */
+        /** Sets the inclusive output multiplier range for subsequently added outputs. */
         public MBDRecipeJS outputRange(long minOutput, long maxOutput) {
             this.minOutput = minOutput;
             this.maxOutput = maxOutput;
             return this;
         }
 
-        /** Applies an output range only while the callback adds outputs. */
+        /** Applies an output multiplier range only while the callback adds outputs. */
         public MBDRecipeJS outputRange(long minOutput, long maxOutput, RecipeBuilder builder) {
             var lastMinOutput = this.minOutput;
             var lastMaxOutput = this.maxOutput;
@@ -266,12 +266,13 @@ public interface MBDRecipeSchema {
 
         public MBDRecipeJS outputs(RecipeCapability<?> capability, Object... obj) {
             boolean rangeSupported = capability.supportsOutputRange(minOutput, maxOutput);
-            long outputMin = rangeSupported ? minOutput : Content.OUTPUT_RANGE_DISABLED;
-            long outputMax = rangeSupported ? maxOutput : Content.OUTPUT_RANGE_DISABLED;
             outputs.computeIfAbsent(capability, c -> new ArrayList<>()).addAll(Arrays.stream(obj)
                     .filter(Objects::nonNull)
                     .map(capability::of)
-                    .map(o -> new Content(o, perTick, chance, tierChanceBoost, outputMin, outputMax, slotName, uiName)).toList());
+                    .map(o -> new Content(o, perTick, chance, tierChanceBoost,
+                            rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? minOutput : Content.OUTPUT_RANGE_DISABLED,
+                            rangeSupported && capability.supportsOutputMultiplier(o, maxOutput) ? maxOutput : Content.OUTPUT_RANGE_DISABLED,
+                            slotName, uiName)).toList());
             save();
             return this;
         }

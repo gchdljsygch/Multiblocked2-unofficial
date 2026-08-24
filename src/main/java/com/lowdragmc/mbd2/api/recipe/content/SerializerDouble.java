@@ -117,6 +117,12 @@ public class SerializerDouble implements IContentSerializer<Double> {
         return 0d;
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(Double content, long multiplier) {
+        return multiplier >= 0 && multiplier <= getMaxOutputAmount()
+                && Double.isFinite(content * (double) multiplier);
+    }
+
     /**
      * Applies a content modifier and returns the result as double.
      *

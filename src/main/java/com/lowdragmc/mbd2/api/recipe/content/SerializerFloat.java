@@ -117,6 +117,12 @@ public class SerializerFloat implements IContentSerializer<Float> {
         return 0f;
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(Float content, long multiplier) {
+        return multiplier >= 0 && multiplier <= getMaxOutputAmount()
+                && Float.isFinite(content * (float) multiplier);
+    }
+
     /**
      * Applies a content modifier and returns the result as float.
      *

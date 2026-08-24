@@ -103,6 +103,12 @@ public class SerializerIngredient implements IContentSerializer<Ingredient> {
         return Ingredient.EMPTY;
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(Ingredient content, long multiplier) {
+        long amount = content instanceof SizedIngredient sizedIngredient ? sizedIngredient.getAmount() : 1;
+        return IContentSerializer.supportsOutputMultiplier(amount, multiplier, Integer.MAX_VALUE);
+    }
+
     /**
      * Copies an ingredient for recipe matching.
      *

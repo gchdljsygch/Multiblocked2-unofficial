@@ -96,6 +96,11 @@ public class SerializerFluidIngredient implements IContentSerializer<FluidIngred
         return content.copy();
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(FluidIngredient content, long multiplier) {
+        return IContentSerializer.supportsOutputMultiplier(content.getAmount(), multiplier, Long.MAX_VALUE);
+    }
+
     /**
      * Copies a fluid ingredient and applies a numeric modifier to its amount.
      *

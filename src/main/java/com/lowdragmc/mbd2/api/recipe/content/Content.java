@@ -90,7 +90,7 @@ public class Content {
     }
 
     /**
-     * Creates a content wrapper with an optional absolute output range.
+     * Creates a content wrapper with an optional output multiplier range.
      *
      * <p>The range is active only when both bounds are non-negative and the
      * maximum is at least the minimum. Either bound set to
@@ -102,8 +102,8 @@ public class Content {
      *                        recipe tick instead of at setup/finish
      * @param chance          chance in {@code [0, 1]}
      * @param tierChanceBoost additional chance per holder tier
-     * @param minOutput       inclusive absolute lower output bound, or {@code -1} to disable
-     * @param maxOutput       inclusive absolute upper output bound, or {@code -1} to disable
+     * @param minOutput       inclusive lower output multiplier, or {@code -1} to disable
+     * @param maxOutput       inclusive upper output multiplier, or {@code -1} to disable
      * @param slotName        optional recipe slot route
      * @param uiName          optional template widget id override
      */
@@ -207,12 +207,15 @@ public class Content {
      */
     public Content copy(RecipeCapability<?> capability, @Nullable ContentModifier modifier, boolean scaleNonConsumable) {
         boolean applyModifier = modifier != null && (chance != 0 || scaleNonConsumable);
-        long[] copiedRange = copyOutputRange(capability, modifier, applyModifier);
         if (!applyModifier) {
-            return new Content(capability.copyContent(content), perTick, chance, tierChanceBoost,
+            Object copiedContent = capability.copyContent(content);
+            long[] copiedRange = copyOutputRange(capability, copiedContent);
+            return new Content(copiedContent, perTick, chance, tierChanceBoost,
                     copiedRange[0], copiedRange[1], slotName, uiName);
         } else {
-            return new Content(capability.copyContent(content, modifier), perTick, chance, tierChanceBoost,
+            Object copiedContent = capability.copyContent(content, modifier);
+            long[] copiedRange = copyOutputRange(capability, copiedContent);
+            return new Content(copiedContent, perTick, chance, tierChanceBoost,
                     copiedRange[0], copiedRange[1], slotName, uiName);
         }
     }
@@ -229,48 +232,35 @@ public class Content {
      * @return deep-copied content wrapper
      */
     public Content deepCopy(RecipeCapability<?> capability, @Nullable ContentModifier modifier) {
-        long[] copiedRange = copyOutputRange(capability, modifier, modifier != null && chance != 0);
         if (modifier == null || chance == 0) {
-            return new Content(capability.deepCopyContent(content), perTick, chance, tierChanceBoost,
+            Object copiedContent = capability.deepCopyContent(content);
+            long[] copiedRange = copyOutputRange(capability, copiedContent);
+            return new Content(copiedContent, perTick, chance, tierChanceBoost,
                     copiedRange[0], copiedRange[1], slotName, uiName);
         } else {
-            return new Content(capability.deepCopyContent(content, modifier), perTick, chance, tierChanceBoost,
+            Object copiedContent = capability.deepCopyContent(content, modifier);
+            long[] copiedRange = copyOutputRange(capability, copiedContent);
+            return new Content(copiedContent, perTick, chance, tierChanceBoost,
                     copiedRange[0], copiedRange[1], slotName, uiName);
         }
     }
 
     /**
-     * Validates and (when requested) scales range metadata for a copied wrapper.
-     * Invalid active ranges are normalized to the disabled sentinel so a narrow
-     * serializer can never receive an unrepresentable roll later.
+     * Validates multiplier metadata for a copied wrapper. Multipliers remain
+     * unchanged when a recipe is parallelized; the base output amount receives
+     * the parallel modifier.
      */
-    private long[] copyOutputRange(RecipeCapability<?> capability, @Nullable ContentModifier modifier,
-                                   boolean applyModifier) {
+    private long[] copyOutputRange(RecipeCapability<?> capability, Object copiedContent) {
         if (!hasOutputRange()) {
             return minOutput == OUTPUT_RANGE_DISABLED && maxOutput == OUTPUT_RANGE_DISABLED
                     ? new long[]{minOutput, maxOutput}
                     : new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
         }
-        if (!capability.supportsOutputRange(minOutput, maxOutput)) {
+        if (!capability.supportsOutputRange(minOutput, maxOutput)
+                || !capability.supportsOutputMultiplier(copiedContent, maxOutput)) {
             return new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
         }
-        long copiedMin = minOutput;
-        long copiedMax = maxOutput;
-        if (applyModifier) {
-            copiedMin = applyRangeModifier(copiedMin, modifier);
-            copiedMax = applyRangeModifier(copiedMax, modifier);
-            if (!capability.supportsOutputRange(copiedMin, copiedMax)) {
-                return new long[]{OUTPUT_RANGE_DISABLED, OUTPUT_RANGE_DISABLED};
-            }
-        }
-        return new long[]{copiedMin, copiedMax};
-    }
-
-    private static long applyRangeModifier(long value, ContentModifier modifier) {
-        if (value < 0 || modifier.isIdentity()) {
-            return value;
-        }
-        return Math.max(0, modifier.apply(value).longValue());
+        return new long[]{minOutput, maxOutput};
     }
 
     /**
@@ -305,7 +295,7 @@ public class Content {
                 }
                 if (showOutputRange && hasOutputRange()) {
                     drawSmallString(graphics, x, y, width, height, row++,
-                            "%d-%d".formatted(minOutput, maxOutput), 0x55FF55);
+                            "%dx-%dx".formatted(minOutput, maxOutput), 0x55FF55);
                 }
             }
         };

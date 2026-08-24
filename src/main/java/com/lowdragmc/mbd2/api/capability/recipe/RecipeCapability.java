@@ -155,8 +155,8 @@ public abstract class RecipeCapability<T> {
     }
 
     /**
-     * Whether this capability can replace an output's amount for a configured
-     * min/max output range. Event-like capabilities may expose content that has
+     * Whether this capability can scale an output's amount for a configured
+     * min/max output multiplier range. Event-like capabilities may expose content that has
      * no amount field even though their serializer accepts generic modifiers;
      * those capabilities should override this to return {@code false}.
      *
@@ -189,25 +189,36 @@ public abstract class RecipeCapability<T> {
     }
 
     /**
-     * Checks whether a concrete inclusive output range is representable by this
-     * capability. Invalid ranges are deliberately rejected rather than
-     * truncated by a narrower serializer.
+     * Checks whether an inclusive output multiplier range is representable by
+     * this capability. The bounds are factors applied to the configured output
+     * amount; {@code 1} preserves that amount.
      *
-     * @param minOutput inclusive lower bound
-     * @param maxOutput inclusive upper bound
-     * @return {@code true} when the range can be applied without overflow or
-     *         loss of integral precision
+     * @param minOutput inclusive lower multiplier bound
+     * @param maxOutput inclusive upper multiplier bound
+     * @return {@code true} when the range can be applied by this capability
      */
     public boolean supportsOutputRange(long minOutput, long maxOutput) {
         return supportsOutputRange()
-                && supportsOutputAmount(minOutput)
-                && maxOutput >= minOutput
-                && supportsOutputAmount(maxOutput);
+                && minOutput >= 0
+                && maxOutput >= minOutput;
     }
 
     /**
-     * Copies content with its primary produced amount replaced by a concrete
-     * output-range result.
+     * Tests whether one configured output content can safely use a concrete
+     * multiplier. This content-aware check prevents narrow capability amounts
+     * such as item counts and integers from silently overflowing.
+     *
+     * @param content configured output payload
+     * @param multiplier non-negative output multiplier
+     * @return {@code true} when the multiplied output is representable
+     */
+    public boolean supportsOutputMultiplier(Object content, long multiplier) {
+        return supportsOutputRange() && serializer.supportsOutputMultiplier(of(content), multiplier);
+    }
+
+    /**
+     * Copies content with its primary produced amount multiplied by a concrete
+     * output-range factor.
      *
      * <p>Most capabilities have one amount-like field and can reuse their
      * normal modifier path. Capabilities with additional independent numeric
@@ -215,9 +226,15 @@ public abstract class RecipeCapability<T> {
      * recipe output range.</p>
      *
      * @param content source content object
-     * @param amount concrete amount selected from the output range
-     * @return copied content carrying the selected primary amount
+     * @param multiplier concrete factor selected from the output range
+     * @return copied content carrying the multiplied primary amount
      */
+    public T copyContentWithOutputMultiplier(Object content, long multiplier) {
+        return copyContent(content, ContentModifier.multiplier(multiplier));
+    }
+
+    /** Compatibility helper for absolute amount replacement outside multiplier handling. */
+    @Deprecated
     public T copyContentWithOutputAmount(Object content, long amount) {
         return copyContent(content, ContentModifier.value(amount));
     }

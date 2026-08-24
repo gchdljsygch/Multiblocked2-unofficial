@@ -116,6 +116,11 @@ public class SerializerInteger implements IContentSerializer<Integer> {
         return 0;
     }
 
+    @Override
+    public boolean supportsOutputMultiplier(Integer content, long multiplier) {
+        return IContentSerializer.supportsOutputMultiplier(content.longValue(), multiplier, Integer.MAX_VALUE);
+    }
+
     /**
      * Applies a content modifier and truncates the result to int.
      *
