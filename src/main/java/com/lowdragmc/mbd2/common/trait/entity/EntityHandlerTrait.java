@@ -79,7 +79,7 @@ public class EntityHandlerTrait extends RecipeCapabilityTrait {
      */
     @Override
     public void serverTick() {
-        if (getHandlerIO() == IO.IN && getMachine().getOffsetTimer() % 20 == 0) {
+        if (getHandlerIO().support(IO.IN) && getMachine().getOffsetTimer() % 20 == 0) {
             if (entitiesLock.tryLock()) {
                 var area = getDefinition().getArea(getMachine().getFrontFacing().orElse(null));
                 area = area.move(getMachine().getPos());

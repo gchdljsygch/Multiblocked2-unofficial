@@ -18,6 +18,7 @@
     "client.MBDWorkspaceResourcePackMixin",
     "client.ModelManagerAccessor",
     "create.AnimatedSpoutMixin",
+    "emi.EmiScreenSpaceMixin",
     "jei.RecipeSlotBuilderTooltipMixin",
     "lowdraglib.DrawerHelperMixin",
     "lowdraglib.IModelRendererFusionMixin",

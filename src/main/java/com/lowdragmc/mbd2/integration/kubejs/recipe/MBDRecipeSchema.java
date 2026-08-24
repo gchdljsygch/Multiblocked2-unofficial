@@ -818,25 +818,55 @@ public interface MBDRecipeSchema {
             } else if (object instanceof EntityType<?> entityType) {
                 return new EntityIngredientJS(EntityIngredient.of(1, entityType));
             }
-            if (object instanceof CharSequence) {
-                var str = object.toString();
-                // parse "Nx ID"
-                int x = str.indexOf('x');
-                if (x > 0 && x < str.length() - 2 && str.charAt(x + 1) == ' ') {
-                    try {
-                        var entityId = ResourceLocation.tryParse(str.substring(x + 2));
-                        if (entityId == null) {
-                            throw new IllegalArgumentException(str.substring(x + 2));
-                        }
-                        var entityType = BuiltInRegistries.ENTITY_TYPE.get(entityId);
-                        var amount = Integer.parseInt(str.substring(0, x));
-                        return new EntityIngredientJS(EntityIngredient.of(amount, entityType));
-                    } catch (Exception ignore) {
-                        throw new IllegalStateException("Invalid chemical input: " + str);
-                    }
-                }
+            if (object instanceof CharSequence chars) {
+                return parseEntityIngredient(chars.toString());
             }
             return new EntityIngredientJS(null);
+        }
+
+        private static EntityIngredientJS parseEntityIngredient(String input) {
+            var parsed = parseEntityInput(input);
+            var entityType = BuiltInRegistries.ENTITY_TYPE.get(parsed.entityId());
+            if (entityType == null) {
+                throw invalidEntityInput(input.trim());
+            }
+            return new EntityIngredientJS(EntityIngredient.of(parsed.amount(), entityType));
+        }
+
+        static ParsedEntityInput parseEntityInput(String input) {
+            var value = input.trim();
+            if (value.isEmpty()) {
+                throw invalidEntityInput(value);
+            }
+
+            var parts = value.split("\\s+", 2);
+            var amount = 1;
+            var entityIdText = parts[0];
+            if (parts.length == 2) {
+                var amountText = parts[0];
+                if (!amountText.endsWith("x")) {
+                    throw invalidEntityInput(value);
+                }
+                try {
+                    amount = Integer.parseInt(amountText.substring(0, amountText.length() - 1));
+                } catch (NumberFormatException exception) {
+                    throw invalidEntityInput(value);
+                }
+                entityIdText = parts[1];
+            }
+
+            var entityId = ResourceLocation.tryParse(entityIdText);
+            if (entityId == null) {
+                throw invalidEntityInput(value);
+            }
+            return new ParsedEntityInput(amount, entityId);
+        }
+
+        private static IllegalStateException invalidEntityInput(String input) {
+            return new IllegalStateException("Invalid entity input: " + input);
+        }
+
+        record ParsedEntityInput(int amount, ResourceLocation entityId) {
         }
     }
 
