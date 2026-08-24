@@ -204,6 +204,8 @@
     "config.recipe_logic_settings.recipe_damping_value.tooltip": "レシピ処理が待機している場合、減衰値は現在の進行の減少ティック数です。",
 
     "config.definition.id.tooltip": "定義の一意の識別子。",
+    "config.definition.display_name": "表示名",
+    "config.definition.display_name.tooltip": "マシンのローカライズ名がない場合に使用します。",
     "config.definition.block_properties": "ブロックプロパティ",
     "config.definition.block_properties.tooltip": "ブロックのプロパティ。",
     "config.definition.item_properties": "アイテムプロパティ",
@@ -264,6 +266,8 @@
     "config.multiblock_settings.show_ui_only_formed": "形成時のみUI表示",
     "config.multiblock_settings.show_ui_when_click_structure": "構造をクリックした時にUIを表示",
     "config.multiblock_settings.show_ui_when_click_structure.tooltip": "trueの場合、構造ブロックを右クリックしてUIを開けます。",
+    "config.multiblock_settings.disable_render_formed": "形成後に構造ブロックを非表示",
+    "config.multiblock_settings.disable_render_formed.tooltip": "有効にすると、形成後にコントローラー以外の構造ブロックを非表示にします。",
 
    "config.definition.kinetic_machine_settings": "キネティックマシン設定",
     "config.definition.kinetic_machine_settings.tooltip": "キネティックマシンの設定（例: 回転、モデルなど）。",
@@ -716,6 +720,7 @@
     "graph_processor.node.mbd2.machine.photon.force_death.tips.2": "trueの場合、エミッターはfxが削除されたときにすぐにレンダリングとティックから粒子を削除します。",
     "pattern_preview.page": "ページを切り替え",
     "pattern_preview.layer": "レイヤーを切り替え",
-    "pattern_preview.formed": "構造形成を切り替え"
+    "pattern_preview.formed": "構造形成を切り替え",
+    "item.mbd2.mbd_gadgets.multiblock_builder.failure.no_space": "マルチブロック全体を配置できる空間がありません。"
 
 }

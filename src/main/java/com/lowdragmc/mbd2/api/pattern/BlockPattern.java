@@ -14,6 +14,7 @@ import com.lowdragmc.mbd2.api.pattern.util.PatternStateRotation;
 import com.lowdragmc.mbd2.api.pattern.util.RelativeDirection;
 import com.lowdragmc.mbd2.common.autobuild.AutoBuildPlacementExecutor;
 import com.lowdragmc.mbd2.common.autobuild.SlowAutoBuildScheduler;
+import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.utils.BuilderMaterialBindings;
 import com.lowdragmc.mbd2.utils.ControllerBlockInfo;
 import com.lowdragmc.mbd2.utils.MultiFluidHandler;
@@ -24,6 +25,7 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
@@ -716,6 +718,7 @@ public class BlockPattern {
                 }
 
                 long packedPos = pos.asLong();
+                matchContext.getOrCreate("structurePositions", LongOpenHashSet::new).add(packedPos);
                 boolean cachePosition = predicate.addCache();
                 boolean canPartShared = true;
                 IMultiPart matchedPart = null;
@@ -848,6 +851,7 @@ public class BlockPattern {
         blocks.put(centerPos, controller);
         List<PatternAutoBuildPlacement> nonFluidPlacements = new ArrayList<>();
         List<PatternAutoBuildPlacement> fluidPlacements = new ArrayList<>();
+        Map<Long, TraceabilityPredicate> spacePredicates = ConfigHolder.autoBuildCheckSpace ? new HashMap<>() : null;
         int[] reservedPerSlot = player.isCreative() ? null : new int[player.getInventory().items.size()];
         IItemHandler boundItemHandler = null;
         IFluidHandler boundFluidHandler = null;
@@ -901,6 +905,10 @@ public class BlockPattern {
                         TraceabilityPredicate predicate = this.blockMatches[c][b][a];
                         BlockPos pos = setActualRelativeOffset(x, y, z, facing).offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
                         worldState.update(pos, predicate);
+                        if (ConfigHolder.autoBuildCheckSpace) {
+                            worldState.getMatchContext().getOrCreate("structurePositions", LongOpenHashSet::new).add(pos.asLong());
+                            spacePredicates.put(pos.asLong(), predicate);
+                        }
 
                         BlockState existing = world.getBlockState(pos);
                         boolean emptyBlock = world.isEmptyBlock(pos);
@@ -1069,6 +1077,12 @@ public class BlockPattern {
             }
         }
 
+        if (ConfigHolder.autoBuildCheckSpace && !canFitEntirePattern(player, worldState, centerPos, facing,
+                spacePredicates, nonFluidPlacements, fluidPlacements)) {
+            player.displayClientMessage(Component.translatable("item.mbd2.mbd_gadgets.multiblock_builder.failure.no_space"), true);
+            return;
+        }
+
         if (slowBuild && player instanceof ServerPlayer serverPlayer) {
             List<PatternAutoBuildPlacement> all = new ArrayList<>(nonFluidPlacements.size() + fluidPlacements.size());
             all.addAll(nonFluidPlacements);
@@ -1110,6 +1124,46 @@ public class BlockPattern {
 
     private static boolean hasAnyFluid(BlockState state) {
         return state != null && !state.getFluidState().isEmpty();
+    }
+
+    private boolean canFitEntirePattern(Player player,
+                                        MultiblockState worldState,
+                                        BlockPos centerPos,
+                                        Direction facing,
+                                        Map<Long, TraceabilityPredicate> spacePredicates,
+                                        List<PatternAutoBuildPlacement> nonFluidPlacements,
+                                        List<PatternAutoBuildPlacement> fluidPlacements) {
+        LongOpenHashSet structurePositions = worldState.getMatchContext().getOrDefault("structurePositions", new LongOpenHashSet());
+        for (long packedPos : structurePositions) {
+            BlockPos pos = BlockPos.of(packedPos);
+            if (pos.equals(centerPos)) continue;
+            BlockState existing = player.level().getBlockState(pos);
+            if (!player.level().isEmptyBlock(pos) && !hasAnyFluid(existing)
+                    && !matchesExistingPredicate(player.level(), centerPos, pos, facing, mbd2$getBaseFacing(),
+                    spacePredicates.get(packedPos))) {
+                return false;
+            }
+        }
+        for (PatternAutoBuildPlacement placement : nonFluidPlacements) {
+            if (!AutoBuildPlacementExecutor.canPlaceInSpace(player, player.level(), placement)) return false;
+        }
+        for (PatternAutoBuildPlacement placement : fluidPlacements) {
+            if (!AutoBuildPlacementExecutor.canPlaceInSpace(player, player.level(), placement)) return false;
+        }
+        return true;
+    }
+
+    private static boolean matchesExistingPredicate(Level world,
+                                                     BlockPos centerPos,
+                                                     BlockPos pos,
+                                                     Direction facing,
+                                                     Direction baseFacing,
+                                                     TraceabilityPredicate predicate) {
+        if (predicate == null) return false;
+        MultiblockState probe = new MultiblockState(world, centerPos);
+        probe.clean();
+        probe.setPatternContext(facing, baseFacing);
+        return probe.update(pos, predicate) && predicate.test(probe);
     }
 
     private static boolean matchesAny(List<ItemStack> candidates, ItemStack stack) {

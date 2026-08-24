@@ -18,10 +18,11 @@ import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -50,6 +51,38 @@ import java.util.Objects;
  */
 public final class AutoBuildPlacementExecutor {
     private AutoBuildPlacementExecutor() {
+    }
+
+    /**
+     * Checks whether one planned placement has a usable target space without
+     * consuming materials or changing the world.
+     *
+     * @param player player whose placement context is being checked
+     * @param world level containing the target
+     * @param placement planned block or fluid placement
+     * @return {@code true} when the target is empty/fluid-compatible and the
+     *         expected block can survive there
+     */
+    public static boolean canPlaceInSpace(Player player, Level world, PatternAutoBuildPlacement placement) {
+        BlockPos pos = Objects.requireNonNull(placement.pos);
+        BlockState existing = world.getBlockState(pos);
+        if (!world.isEmptyBlock(pos) && !hasAnyFluid(existing)) {
+            return false;
+        }
+        if (!world.getWorldBorder().isWithinBounds(pos)) {
+            return false;
+        }
+
+        ItemStack found = placement.found;
+        if (found.getItem() instanceof BlockItem itemBlock) {
+            BlockState expected = expectedState(placement);
+            if (expected == null) {
+                expected = itemBlock.getBlock().defaultBlockState();
+            }
+            return expected.canSurvive(world, pos)
+                    && world.isUnobstructed(expected, pos, CollisionContext.empty());
+        }
+        return found.getItem() instanceof BucketItem && !found.isEmpty();
     }
 
     /**
@@ -211,6 +244,14 @@ public final class AutoBuildPlacementExecutor {
 
     private static boolean hasAnyFluid(BlockState state) {
         return state != null && !state.getFluidState().isEmpty();
+    }
+
+    @Nullable
+    private static BlockState expectedState(PatternAutoBuildPlacement placement) {
+        if (placement.expectedInfo == null || placement.expectedInfo.getBlockState() == null) return null;
+        BlockState state = placement.expectedInfo.getBlockState();
+        Rotation rotation = placement.rotateExpectedState ? placement.rotation : Rotation.NONE;
+        return rotation == Rotation.NONE ? state : PatternStateRotation.rotate(state, rotation);
     }
 
     private static void applyExpectedInfo(Level world, BlockPos pos, PatternAutoBuildPlacement placement) {

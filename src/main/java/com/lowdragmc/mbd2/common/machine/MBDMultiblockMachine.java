@@ -31,6 +31,7 @@ import com.lowdragmc.mbd2.config.ConfigHolder;
 import com.lowdragmc.mbd2.common.capability.recipe.RecipeCapabilitiesProxyCompat;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import lombok.Getter;
@@ -632,10 +633,16 @@ public class MBDMultiblockMachine extends MBDMachine implements IMultiController
         var previousParts = new LinkedHashSet<>(this.parts);
         this.parts.clear();
         this.renderingDisabledPositions.clear();
+        var formedContext = getMultiblockState().getFormedMatchContext();
+        LongOpenHashSet disabled = formedContext.getOrCreate("renderMask", LongOpenHashSet::new);
+        if (getDefinition().multiblockSettings().disableRenderFormed()) {
+            LongSet structurePositions = formedContext.getOrDefault("structurePositions", LongSets.EMPTY_SET);
+            disabled.addAll(structurePositions);
+        }
+        disabled.remove(getPos().asLong());
         collectMatchedParts();
         getDefinition().sortParts(this.parts);
         // disable rendering for formed parts
-        LongSet disabled = getMultiblockState().getFormedMatchContext().getOrDefault("renderMask", LongSets.EMPTY_SET);
         for (var pos : disabled) {
             var blockPos = BlockPos.of(pos);
             renderingDisabledPositions.add(blockPos);

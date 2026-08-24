@@ -53,8 +53,11 @@ public final class SlowMultiblockDisassemblyScheduler {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        int blocksPerTick = ConfigHolder.slowBuildBlocksPerTick;
-        if (blocksPerTick <= 0) blocksPerTick = 5;
+        int blocksPerOperation = ConfigHolder.slowBuildBlocksPerOperation;
+        if (blocksPerOperation <= 0) blocksPerOperation = ConfigHolder.slowBuildBlocksPerTick;
+        if (blocksPerOperation <= 0) blocksPerOperation = 5;
+        int workInterval = ConfigHolder.slowBuildWorkInterval;
+        if (workInterval <= 0) workInterval = 1;
 
         for (var iter = TASKS.entrySet().iterator(); iter.hasNext(); ) {
             var entry = iter.next();
@@ -69,8 +72,13 @@ public final class SlowMultiblockDisassemblyScheduler {
                 continue;
             }
 
+            if (task.ticksUntilWork > 0) {
+                task.ticksUntilWork--;
+                continue;
+            }
+
             int removed = 0;
-            while (removed < blocksPerTick && !task.queue.isEmpty()) {
+            while (removed < blocksPerOperation && !task.queue.isEmpty()) {
                 MultiblockDisassemblyToolItem.DisassemblyEntry disassemblyEntry = task.queue.pollFirst();
                 if (disassemblyEntry == null) continue;
                 MultiblockDisassemblyToolItem.executeDisassemblyEntry(player, serverLevel, disassemblyEntry,
@@ -79,6 +87,8 @@ public final class SlowMultiblockDisassemblyScheduler {
             }
             if (task.queue.isEmpty()) {
                 iter.remove();
+            } else {
+                task.ticksUntilWork = workInterval - 1;
             }
         }
     }
@@ -88,6 +98,7 @@ public final class SlowMultiblockDisassemblyScheduler {
         private final ArrayDeque<MultiblockDisassemblyToolItem.DisassemblyEntry> queue;
         private final IItemHandler boundItemHandler;
         private final IFluidHandler boundFluidHandler;
+        private int ticksUntilWork;
 
         private Task(ResourceKey<Level> dimension,
                      ArrayDeque<MultiblockDisassemblyToolItem.DisassemblyEntry> queue,

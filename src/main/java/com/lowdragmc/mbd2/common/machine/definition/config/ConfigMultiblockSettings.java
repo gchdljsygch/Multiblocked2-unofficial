@@ -34,4 +34,9 @@ public class ConfigMultiblockSettings implements IConfigurable, IPersistedSerial
     @Builder.Default
     private boolean showUIWhenClickStructure = false;
 
+    @Configurable(name = "config.multiblock_settings.disable_render_formed",
+            tips = "config.multiblock_settings.disable_render_formed.tooltip")
+    @Builder.Default
+    private boolean disableRenderFormed = false;
+
 }

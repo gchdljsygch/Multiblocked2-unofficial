@@ -389,7 +389,7 @@ public class SimplePredicate implements IAutoPersistedSerializable, IConfigurabl
             Map<Long, Set<String>> slots = blockWorldState.getMatchContext().getOrCreate("slots", Long2ObjectArrayMap::new);
             slots.computeIfAbsent(blockWorldState.getPos().asLong(), s -> new HashSet<>()).add(slotName);
         }
-        if (disableRenderFormed) {
+        if (disableRenderFormed && !blockWorldState.getPos().equals(blockWorldState.controllerPos)) {
             blockWorldState.getMatchContext().getOrCreate("renderMask", LongOpenHashSet::new).add(blockWorldState.getPos().asLong());
         }
         if (allowOpenUI) {

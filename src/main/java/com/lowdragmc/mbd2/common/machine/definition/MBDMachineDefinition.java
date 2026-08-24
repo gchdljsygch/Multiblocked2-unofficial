@@ -146,6 +146,9 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
 
     @Configurable(tips = {"config.definition.id.tooltip", "config.require_restart"}, forceUpdate = false)
     private ResourceLocation id;
+    @Persisted
+    @Configurable(name = "config.definition.display_name", tips = "config.definition.display_name.tooltip")
+    private String displayName = "";
     protected final StateMachine<?> stateMachine;
     @Configurable(name = "config.definition.block_properties", subConfigurable = true, tips = "config.definition.block_properties.tooltip", collapse = false)
     protected final ConfigBlockProperties blockProperties;
@@ -497,7 +500,33 @@ public class MBDMachineDefinition implements IConfigurable, IPersistedSerializab
      * @return localized component used when the machine has no custom name
      */
     protected Component getMachineName(MBDMachine machine) {
-        return block().getName();
+        return getDisplayNameFallback(block().getName(), block().getDescriptionId());
+    }
+
+    /**
+     * Uses the editor-provided name only when the normal translation is missing.
+     *
+     * @param localizedName normal machine name component
+     * @param translationKey translation key used to resolve the component
+     * @return localized name, or the configured literal fallback
+     */
+    protected Component getDisplayNameFallback(Component localizedName, String translationKey) {
+        return resolveDisplayNameFallback(localizedName, translationKey, displayName);
+    }
+
+    /**
+     * Resolves a configured display name without requiring a machine definition instance.
+     *
+     * @param localizedName normal machine name component
+     * @param translationKey translation key used to resolve the component
+     * @param configuredName editor-provided fallback name
+     * @return localized name, or the configured literal fallback
+     */
+    static Component resolveDisplayNameFallback(Component localizedName, String translationKey, String configuredName) {
+        if (configuredName != null && !configuredName.isBlank() && localizedName.getString().equals(translationKey)) {
+            return Component.literal(configuredName);
+        }
+        return localizedName;
     }
 
     /**

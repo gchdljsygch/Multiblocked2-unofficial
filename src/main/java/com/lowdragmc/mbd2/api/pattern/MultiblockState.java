@@ -591,7 +591,7 @@ public class MultiblockState {
                 case "predicates" -> copyPredicateMap(value);
                 case "ioMap" -> new Long2ObjectOpenHashMap<>((Map<Long, IO>) value);
                 case "slots" -> copySlots((Map<Long, Set<String>>) value);
-                case "renderMask", "openUIMask", "partPositions" -> new LongOpenHashSet((LongSet) value);
+                case "renderMask", "openUIMask", "partPositions", "structurePositions" -> new LongOpenHashSet((LongSet) value);
                 default -> value;
             });
         }

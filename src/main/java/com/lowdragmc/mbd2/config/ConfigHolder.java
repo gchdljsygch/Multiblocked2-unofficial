@@ -34,8 +34,16 @@ public class ConfigHolder {
             .defineInRange("multiblockPatternErrorPosDuration", 10, 1, 999);
 
     private static final ForgeConfigSpec.IntValue SLOW_BUILD_BLOCKS_PER_TICK = BUILDER
-            .comment("Blocks placed per tick when using slow multiblock auto-build.")
+            .comment("Blocks placed per work operation when using slow multiblock auto-build.")
             .defineInRange("slowBuildBlocksPerTick", 5, 1, Integer.MAX_VALUE);
+
+    private static final ForgeConfigSpec.IntValue SLOW_BUILD_WORK_INTERVAL = BUILDER
+            .comment("Server ticks between work operations when using slow multiblock auto-build.")
+            .defineInRange("slowBuildWorkInterval", 1, 1, Integer.MAX_VALUE);
+
+    private static final ForgeConfigSpec.BooleanValue AUTO_BUILD_CHECK_SPACE = BUILDER
+            .comment("Whether multiblock auto-build checks the complete structure space before placing.")
+            .define("autoBuildCheckSpace", false);
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -45,7 +53,14 @@ public class ConfigHolder {
 
     public static int multiblockPreviewDuration;
     public static int multiblockPatternErrorPosDuration;
+    /**
+     * Compatibility name for the original config field. The value is now the
+     * number of blocks handled by each slow-build work operation.
+     */
     public static int slowBuildBlocksPerTick;
+    public static int slowBuildBlocksPerOperation;
+    public static int slowBuildWorkInterval;
+    public static boolean autoBuildCheckSpace;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
@@ -53,6 +68,9 @@ public class ConfigHolder {
         useVBO = USE_VBO.get();
         multiblockPreviewDuration = MULTIBLOCK_PREVIEW_DURATION.get();
         multiblockPatternErrorPosDuration = MULTIBLOCK_PATTERN_ERROR_DURATION.get();
-        slowBuildBlocksPerTick = SLOW_BUILD_BLOCKS_PER_TICK.get();
+        slowBuildBlocksPerOperation = SLOW_BUILD_BLOCKS_PER_TICK.get();
+        slowBuildBlocksPerTick = slowBuildBlocksPerOperation;
+        slowBuildWorkInterval = SLOW_BUILD_WORK_INTERVAL.get();
+        autoBuildCheckSpace = AUTO_BUILD_CHECK_SPACE.get();
     }
 }

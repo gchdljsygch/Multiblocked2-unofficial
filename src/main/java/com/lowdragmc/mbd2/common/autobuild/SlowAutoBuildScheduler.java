@@ -78,8 +78,9 @@ public final class SlowAutoBuildScheduler {
      * {@link AutoBuildPlacementExecutor#executePlacement},
      * removes tasks whose player left or changed dimension, and removes tasks
      * after their queues are exhausted. The number of placements per tick is
-     * {@link ConfigHolder#slowBuildBlocksPerTick}, falling back to {@code 5}
-     * when the config value is non-positive.</p>
+     * {@link ConfigHolder#slowBuildBlocksPerOperation}, falling back to
+     * {@code 5} when the config value is non-positive. The work interval is
+     * {@link ConfigHolder#slowBuildWorkInterval} server ticks.</p>
      *
      * @param event Forge server tick event; only {@link TickEvent.Phase#END} is
      *              processed
@@ -92,8 +93,11 @@ public final class SlowAutoBuildScheduler {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        int blocksPerTick = ConfigHolder.slowBuildBlocksPerTick;
-        if (blocksPerTick <= 0) blocksPerTick = 5;
+        int blocksPerOperation = ConfigHolder.slowBuildBlocksPerOperation;
+        if (blocksPerOperation <= 0) blocksPerOperation = ConfigHolder.slowBuildBlocksPerTick;
+        if (blocksPerOperation <= 0) blocksPerOperation = 5;
+        int workInterval = ConfigHolder.slowBuildWorkInterval;
+        if (workInterval <= 0) workInterval = 1;
 
         for (var iter = TASKS.entrySet().iterator(); iter.hasNext(); ) {
             var entry = iter.next();
@@ -110,8 +114,13 @@ public final class SlowAutoBuildScheduler {
                 continue;
             }
 
+            if (task.ticksUntilWork > 0) {
+                task.ticksUntilWork--;
+                continue;
+            }
+
             int placed = 0;
-            while (placed < blocksPerTick && !task.queue.isEmpty()) {
+            while (placed < blocksPerOperation && !task.queue.isEmpty()) {
                 PatternAutoBuildPlacement placement = task.queue.pollFirst();
                 if (placement == null || placement.pos == null) continue;
                 AutoBuildPlacementExecutor.executePlacement(player, player.level(), placement, task.blocks, task.boundItemHandler, task.boundFluidHandler);
@@ -119,6 +128,8 @@ public final class SlowAutoBuildScheduler {
             }
             if (task.queue.isEmpty()) {
                 iter.remove();
+            } else {
+                task.ticksUntilWork = workInterval - 1;
             }
         }
     }
@@ -129,6 +140,7 @@ public final class SlowAutoBuildScheduler {
         private final Map<BlockPos, Object> blocks = new HashMap<>();
         private final IItemHandler boundItemHandler;
         private final IFluidHandler boundFluidHandler;
+        private int ticksUntilWork;
 
         private Task(ResourceKey<Level> dimension,
                      ArrayDeque<PatternAutoBuildPlacement> queue,

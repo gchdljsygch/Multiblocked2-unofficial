@@ -284,6 +284,8 @@
     "config.recipe_logic_settings.always_modify_recipe.tooltip.1": "Если истина, машина попытается применить модификатор к последнему рецепту, если не получится, попытается исследовать рецепт.",
 
     "config.definition.id.tooltip": "Уникальный идентификатор определения.",
+    "config.definition.display_name": "Отображаемое имя",
+    "config.definition.display_name.tooltip": "Используется, если для машины нет локализованного имени.",
     "config.definition.block_properties": "Свойства блока.",
     "config.definition.block_properties.tooltip": "Свойства блока.",
     "config.definition.item_properties": "Свойства элемента.",
@@ -346,6 +348,8 @@
     "config.multiblock_settings.show_ui_only_formed": "показывать пользовательский интерфейс только при формировании",
     "config.multiblock_settings.show_ui_when_click_structure": "показывать пользовательский интерфейс при щелчке по структуре",
     "config.multiblock_settings.show_ui_when_click_structure.tooltip": "Если истина, щелчок правой кнопкой мыши по блокам структуры может открыть пользовательский интерфейс.",
+    "config.multiblock_settings.disable_render_formed": "скрывать блоки структуры после формирования",
+    "config.multiblock_settings.disable_render_formed.tooltip": "Если включено, после формирования скрываются все блоки структуры, кроме контроллера.",
 
     "config.definition.kinetic_machine_settings": "Настройки кинетической машины",
     "config.definition.kinetic_machine_settings.tooltip": "Настройки создания кинетической машины, например, вращение, модели.",
@@ -927,5 +931,6 @@
     "multiblock.unformed": "§6не сформировано§r",
     "multiblock.catalyst": "§aтребует катализатор§r",
     "config.jade.plugin_mbd2.recipe_logic_provider": "Multiblock2 Recipe Logic Provider",
-    "config.jade.plugin_mbd2.multiblock_provider": "Multiblock2 Multiblock Provider"
+    "config.jade.plugin_mbd2.multiblock_provider": "Multiblock2 Multiblock Provider",
+    "item.mbd2.mbd_gadgets.multiblock_builder.failure.no_space": "Недостаточно места для размещения всего мультиблока."
 }
