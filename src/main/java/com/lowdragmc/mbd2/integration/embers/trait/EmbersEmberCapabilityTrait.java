@@ -27,7 +27,7 @@ import java.util.Optional;
  */
 @Getter
 public class EmbersEmberCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EmbersEmberCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EmbersEmberCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

@@ -1,7 +1,7 @@
 package com.lowdragmc.mbd2.common.trait;
 
-import com.lowdragmc.lowdraglib.gui.editor.annotation.ConfigSetter;
 import com.lowdragmc.lowdraglib.gui.editor.annotation.Configurable;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.ConfigSetter;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.recipe.RecipeGroup;
 import lombok.Getter;
@@ -29,30 +29,20 @@ public abstract class RecipeCapabilityTraitDefinition extends TraitDefinition {
     @Configurable(name = "config.definition.trait.slot_names", tips = "config.definition.trait.slot_names.tooltip")
     private String[] slotNames = new String[0];
 
-    @Configurable(name = "config.definition.trait.recipe_group", tips = "config.definition.trait.recipe_group.tooltip")
+    /**
+     * Default recipe group copied into newly created runtime trait instances.
+     * The live value is stored by {@link RecipeCapabilityTrait} per machine.
+     */
+    // Recipe groups are entered one character at a time. Keep the text field's
+    // intermediate value visible until a complete group is committed.
+    @Configurable(name = "config.definition.trait.recipe_group", tips = "config.definition.trait.recipe_group.tooltip", forceUpdate = false)
     private String recipeGroup = RecipeGroup.DEFAULT;
 
-    /**
-     * Sets and normalizes the recipe group used by handlers created from this
-     * definition.
-     *
-     * <p>Side effects: blank or {@code null} values are stored as
-     * {@link RecipeGroup#DEFAULT}.</p>
-     *
-     * @param recipeGroup configured recipe group id from the editor or project
-     *                    file
-     */
     @ConfigSetter(field = "recipeGroup")
     public void setRecipeGroup(String recipeGroup) {
         this.recipeGroup = RecipeGroup.normalizeOrDefault(recipeGroup);
     }
 
-    /**
-     * Returns the normalized recipe group used by handlers created from this
-     * definition.
-     *
-     * @return configured group id, or {@link RecipeGroup#DEFAULT} when blank
-     */
     public String getRecipeGroup() {
         return RecipeGroup.normalizeOrDefault(recipeGroup);
     }

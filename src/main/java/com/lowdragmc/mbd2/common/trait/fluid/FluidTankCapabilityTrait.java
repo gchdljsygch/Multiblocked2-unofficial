@@ -43,7 +43,7 @@ import java.util.List;
  * the editor/client thread.</p>
  */
 public class FluidTankCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(FluidTankCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(FluidTankCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     /**
      * Returns the sync-data field holder for fluid tank traits.

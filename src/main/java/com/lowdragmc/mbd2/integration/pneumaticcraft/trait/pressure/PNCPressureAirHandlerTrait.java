@@ -34,7 +34,7 @@ import java.util.List;
  */
 @Getter
 public class PNCPressureAirHandlerTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<PressureAir>, IProxyAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCPressureAirHandlerTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCPressureAirHandlerTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

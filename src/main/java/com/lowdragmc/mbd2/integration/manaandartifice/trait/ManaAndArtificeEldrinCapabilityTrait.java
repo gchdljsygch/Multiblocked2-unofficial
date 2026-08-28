@@ -10,6 +10,7 @@ import com.lowdragmc.mbd2.api.recipe.MBDRecipe;
 import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
+import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.integration.manaandartifice.EldrinPower;
 import com.lowdragmc.mbd2.integration.manaandartifice.ManaAndArtificeEldrinRecipeCapability;
@@ -35,7 +36,7 @@ import java.util.UUID;
  */
 @Getter
 public class ManaAndArtificeEldrinCapabilityTrait extends SimpleCapabilityTrait implements IEldrinCapacitorTile {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ManaAndArtificeEldrinCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ManaAndArtificeEldrinCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

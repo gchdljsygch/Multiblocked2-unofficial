@@ -44,7 +44,7 @@ import java.util.*;
  * preview initialization runs on the editor/client thread.</p>
  */
 public class ItemSlotCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ItemSlotCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ItemSlotCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
     private final Random random = new Random();
 
     /**

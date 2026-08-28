@@ -28,7 +28,7 @@ import java.util.Optional;
  */
 @Getter
 public class GTMEnergyCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(GTMEnergyCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(GTMEnergyCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

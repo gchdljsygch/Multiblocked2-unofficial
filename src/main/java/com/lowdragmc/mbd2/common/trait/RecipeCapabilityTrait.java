@@ -2,7 +2,10 @@ package com.lowdragmc.mbd2.common.trait;
 
 import com.lowdragmc.lowdraglib.syncdata.IEnhancedManaged;
 import com.lowdragmc.lowdraglib.syncdata.ISubscription;
+import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
+import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.FieldManagedStorage;
+import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.lowdragmc.mbd2.api.capability.recipe.IO;
 import com.lowdragmc.mbd2.api.recipe.RecipeGroup;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
@@ -25,6 +28,13 @@ import java.util.stream.Collectors;
  * thread-safe and should run on the machine's logical thread.</p>
  */
 public abstract class RecipeCapabilityTrait implements ITrait, IEnhancedManaged {
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(RecipeCapabilityTrait.class);
+
+    /** Recipe group assigned to this machine's trait instance. */
+    @Persisted
+    @DescSynced
+    private String recipeGroup;
+
     @Getter
     private final FieldManagedStorage syncStorage = new FieldManagedStorage(this);
     @Getter
@@ -42,6 +52,12 @@ public abstract class RecipeCapabilityTrait implements ITrait, IEnhancedManaged 
     public RecipeCapabilityTrait(MBDMachine machine, RecipeCapabilityTraitDefinition definition) {
         this.machine = machine;
         this.definition = definition;
+        this.recipeGroup = RecipeGroup.normalizeOrDefault(definition.getRecipeGroup());
+    }
+
+    @Override
+    public ManagedFieldHolder getFieldHolder() {
+        return MANAGED_FIELD_HOLDER;
     }
 
     /**
@@ -127,7 +143,15 @@ public abstract class RecipeCapabilityTrait implements ITrait, IEnhancedManaged 
      * @return configured group, or {@link RecipeGroup#DEFAULT} when blank
      */
     public String getRecipeGroup() {
-        return RecipeGroup.normalizeOrDefault(getDefinition().getRecipeGroup());
+        return RecipeGroup.normalizeOrDefault(recipeGroup);
+    }
+
+    /** Changes this machine instance's recipe group without mutating its definition. */
+    public void setRecipeGroup(String recipeGroup) {
+        var normalized = RecipeGroup.normalizeOrDefault(recipeGroup);
+        if (normalized.equals(this.recipeGroup)) return;
+        this.recipeGroup = normalized;
+        machine.onChanged();
     }
 
 }

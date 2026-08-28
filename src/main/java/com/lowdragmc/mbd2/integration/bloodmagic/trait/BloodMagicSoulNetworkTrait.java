@@ -33,7 +33,7 @@ import java.util.List;
  * operations require a valid binding and a non-zero orb capacity.</p>
  */
 public class BloodMagicSoulNetworkTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<Integer> {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicSoulNetworkTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicSoulNetworkTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @DropSaved
     @Persisted

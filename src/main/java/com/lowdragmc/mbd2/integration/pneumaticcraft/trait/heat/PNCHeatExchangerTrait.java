@@ -29,7 +29,7 @@ import java.util.List;
  */
 @Getter
 public class PNCHeatExchangerTrait extends RecipeCapabilityTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCHeatExchangerTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(PNCHeatExchangerTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

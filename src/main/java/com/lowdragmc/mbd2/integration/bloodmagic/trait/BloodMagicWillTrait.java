@@ -26,7 +26,7 @@ import java.util.List;
  * world demon will handler.</p>
  */
 public class BloodMagicWillTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<BloodMagicWill> {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicWillTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(BloodMagicWillTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

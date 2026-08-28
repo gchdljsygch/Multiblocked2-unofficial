@@ -14,6 +14,7 @@ import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.api.capability.energy.ILongFeEnergyContainer;
 import com.lowdragmc.mbd2.api.capability.energy.LongFeEnergyCapability;
 import com.lowdragmc.mbd2.common.trait.forgeenergy.ForgeEnergyAdapters;
@@ -46,7 +47,7 @@ import java.util.ArrayList;
  * thread.</p>
  */
 public class LongFeEnergyCapabilityTrait extends SimpleCapabilityTrait implements IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(LongFeEnergyCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(LongFeEnergyCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     /**
      * Returns the sync-data field holder for long FE traits.

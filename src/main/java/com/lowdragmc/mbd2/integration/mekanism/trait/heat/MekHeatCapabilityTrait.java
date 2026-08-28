@@ -12,6 +12,7 @@ import com.lowdragmc.mbd2.api.recipe.RecipeConsumptionTracker;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
+import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.integration.mekanism.MEKTemperatureCondition;
 import com.lowdragmc.mbd2.integration.mekanism.MekanismHeatRecipeCapability;
@@ -34,7 +35,7 @@ import java.util.List;
  */
 @Getter
 public class MekHeatCapabilityTrait extends SimpleCapabilityTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MekHeatCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MekHeatCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

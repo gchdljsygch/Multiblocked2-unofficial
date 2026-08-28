@@ -15,6 +15,7 @@ import com.lowdragmc.mbd2.common.trait.AutoIO;
 import com.lowdragmc.mbd2.common.trait.IAutoIOTrait;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
+import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import lombok.Setter;
 import mekanism.api.Action;
 import mekanism.api.chemical.Chemical;
@@ -47,7 +48,7 @@ import java.util.function.Predicate;
  * Machine trait that stores Mekanism chemicals, exposes chemical capabilities, and handles recipe transfer.
  */
 public abstract class ChemicalTankCapabilityTrait<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>, HANDLER extends IChemicalHandler<CHEMICAL, STACK>> extends SimpleCapabilityTrait implements IRecipeHandlerTrait<STACK>, ICapabilityProviderTrait<HANDLER>, IAutoIOTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ChemicalTankCapabilityTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(ChemicalTankCapabilityTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

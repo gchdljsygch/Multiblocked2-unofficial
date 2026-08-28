@@ -19,7 +19,7 @@ import java.util.List;
  * Machine trait that drains or stores Nature's Aura near the machine for recipe processing.
  */
 public class AuraHandlerTrait extends RecipeCapabilityTrait implements IRecipeHandlerTrait<Integer> {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(AuraHandlerTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(AuraHandlerTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

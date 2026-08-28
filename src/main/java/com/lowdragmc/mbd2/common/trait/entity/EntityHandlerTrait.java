@@ -39,7 +39,7 @@ import java.util.stream.Stream;
  * recipe matching takes a snapshot or removes consumed entries.</p>
  */
 public class EntityHandlerTrait extends RecipeCapabilityTrait {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EntityHandlerTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(EntityHandlerTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
 
     @Override
     public ManagedFieldHolder getFieldHolder() {

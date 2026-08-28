@@ -44,6 +44,7 @@ import com.lowdragmc.mbd2.common.capability.recipe.ItemRecipeCapability;
 import com.lowdragmc.mbd2.common.machine.MBDMachine;
 import com.lowdragmc.mbd2.common.trait.ICapabilityProviderTrait;
 import com.lowdragmc.mbd2.common.trait.RecipeHandlerTrait;
+import com.lowdragmc.mbd2.common.trait.RecipeCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.SimpleCapabilityTrait;
 import com.lowdragmc.mbd2.common.trait.item.ItemHandlerWrapper;
 import lombok.Getter;
@@ -79,7 +80,7 @@ import java.util.Set;
  */
 @Getter
 public class MEPatternInputTrait extends SimpleCapabilityTrait implements IGridConnectedBlockEntity, InternalInventoryHost, PatternContainer, ICraftingProvider {
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEPatternInputTrait.class);
+    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEPatternInputTrait.class, RecipeCapabilityTrait.MANAGED_FIELD_HOLDER);
     private static final String NBT_PATTERNS = "patterns";
     private static final String NBT_AE_INPUTS = "aeInputs";
     private static final String NBT_ITEM_STORAGE = "itemStorage";
